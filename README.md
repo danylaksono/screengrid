@@ -4,6 +4,8 @@
 
 A GPU/Canvas hybrid Screen-Space Grid Aggregation library for MapLibre GL JS. This library provides efficient real-time aggregation of point data into screen-space grids with customizable styling, interactive features, and advanced glyph drawing capabilities.
 
+This library is inspired by Aidan Slingsby's Gridded Glyphmaps and deck.gl's `ScreenGridLayer` but is built from the ground up with a modular architecture, focusing on performance, flexibility, and ease of use.
+
 ![](./screengrid.png)
 
 ## 🚀 Features
@@ -398,7 +400,7 @@ MIT License - see LICENSE file for details.
 4. Consider TypeScript definitions
 
 ### Long-term
-1. Plugin system for custom glyphs
+1. Plugin system for custom glyphs 
 2. WebGL renderer alternative
 3. Server-side aggregation
 4. Framework bindings (React, Vue)

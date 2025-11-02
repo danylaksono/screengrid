@@ -21,6 +21,8 @@ export { EventHandlers } from './events/EventHandlers.js';
 
 // Glyph utilities
 export { GlyphUtilities } from './glyphs/GlyphUtilities.js';
+// Glyph plugin registry
+export { GlyphRegistry } from './glyphs/GlyphRegistry.js';
 
 // Configuration
 export { ConfigManager } from './config/ConfigManager.js';

@@ -17,22 +17,43 @@ export class Projector {
       return [];
     }
 
+    if (typeof getPosition !== 'function') {
+      throw new TypeError('Projector.projectPoints: getPosition must be a function');
+    }
+    if (typeof getWeight !== 'function') {
+      throw new TypeError('Projector.projectPoints: getWeight must be a function');
+    }
+
     // console.log('Projecting points:', {
     //   dataLength: data.length,
     // });
 
-    const projected = data.map((d, i) => {
-      const [lng, lat] = getPosition(d);
-      const p = map.project([lng, lat]);
-      const x = p.x;
-      const y = p.y;
+    const projected = data
+      .map((d, i) => {
+        try {
+          const pos = getPosition(d);
+          if (!pos || !Array.isArray(pos) || pos.length < 2) {
+            console.warn(`Projector: skipping point ${i} because getPosition did not return [lng, lat]`, pos);
+            return null;
+          }
 
-      // if (i < 3) {
-      //   console.log(`Point ${i}:`, { lng, lat, projected: p, transformed: { x, y } });
-      // }
+          const [lng, lat] = pos;
+          if (typeof lng !== 'number' || typeof lat !== 'number') {
+            console.warn(`Projector: skipping point ${i} because lng/lat are not numbers`, pos);
+            return null;
+          }
 
-      return { x, y, w: getWeight(d) };
-    });
+          const p = map.project([lng, lat]);
+          const x = p.x;
+          const y = p.y;
+          const w = getWeight(d);
+          return { x, y, w };
+        } catch (e) {
+          console.warn(`Projector: error projecting point ${i}, skipping`, e);
+          return null;
+        }
+      })
+      .filter(Boolean);
 
     console.log('Points projected:', {
       total: projected.length,

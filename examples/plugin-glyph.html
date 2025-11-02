@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Plugin Glyph Example</title>
+  <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    html, body, #map {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+    
+    .controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      z-index: 1000;
+      max-width: 280px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 13px;
+    }
+    
+    .controls h3 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+    }
+    
+    .control-group {
+      margin-bottom: 15px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .control-group:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+    
+    .control-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      color: #555;
+    }
+    
+    .control-group select {
+      width: 100%;
+      padding: 6px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    
+    .control-group input[type="range"] {
+      width: 100%;
+      margin: 5px 0;
+    }
+    
+    .control-group span {
+      display: inline-block;
+      margin-left: 8px;
+      font-weight: 500;
+      color: #333;
+      min-width: 40px;
+    }
+    
+    .control-group input[type="checkbox"] {
+      margin-right: 6px;
+    }
+    
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    
+    .legend-container {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      z-index: 1000;
+      max-width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 12px;
+    }
+    
+    .legend-container h3 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+    }
+    
+    #legendCanvas {
+      display: block;
+      margin: 0 auto 10px;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      background: #fafafa;
+    }
+    
+    #legendLabels {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #eee;
+    }
+    
+    .legend-label-item {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 8px;
+      font-size: 11px;
+    }
+    
+    .legend-label-item .label-marker {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      margin-right: 8px;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    
+    .legend-label-item .label-text {
+      flex: 1;
+    }
+    
+    .legend-label-item .label-title {
+      font-weight: 500;
+      color: #333;
+    }
+    
+    .legend-label-item .label-desc {
+      font-size: 10px;
+      color: #666;
+      margin-top: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  
+  <div class="controls">
+    <div class="control-group">
+      <h3>Basemap</h3>
+      <label for="basemapSelect">Style:</label>
+      <select id="basemapSelect">
+        <option value="osm">OpenStreetMap</option>
+        <option value="positron" selected>Carto Positron (Light)</option>
+        <option value="dark">Carto Dark Matter</option>
+        <option value="satellite">Satellite</option>
+      </select>
+    </div>
+    
+    <div class="control-group">
+      <h3>Layers</h3>
+      <label class="checkbox-label">
+        <input type="checkbox" id="showGlyphs" checked />
+        <span>Show grouped bar glyphs</span>
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" id="showPoints" />
+        <span>Show original data points</span>
+      </label>
+    </div>
+    
+    <div class="control-group">
+      <h3>Aggregation</h3>
+      <label for="cellSize">Cell Size (pixels):</label>
+      <input type="range" id="cellSize" min="20" max="120" step="10" value="60" />
+      <span id="cellSizeValue">60</span>
+    </div>
+  </div>
+  
+  <div class="legend-container" id="legendContainer">
+    <h3>Parking Capacity</h3>
+    <div id="legendContent">
+      <div style="position: relative; display: inline-block;">
+        <canvas id="legendCanvas" width="200" height="200"></canvas>
+        <canvas id="legendLines" width="200" height="200" style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
+      </div>
+      <div id="legendLabels"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { ScreenGridLayerGL, GlyphRegistry } from '../src/index.js';
+
+    // Grouped Bar Chart Glyph
+    // Visualizes parking data: Racks vs Spaces using grouped bars
+    // Uses global normalization for cross-cell comparison
+    const GroupedBarGlyph = {
+      // Global stats for normalization across all cells
+      globalStats: {
+        maxRacks: 0,
+        maxSpaces: 0,
+        maxTotal: 0,
+        initialized: false
+      },
+      // Hovered cell values for comparison outline
+      hoveredValues: null,
+      // Reference to layer for triggering re-renders
+      layerRef: null,
+
+      init({ layer, config } = {}) {
+        console.log('GroupedBarGlyph.init called for layer', layer && layer.id, 'config', config);
+        // Store layer reference
+        this.layerRef = layer;
+        // Reset global stats when reinitializing
+        this.globalStats = {
+          maxRacks: 0,
+          maxSpaces: 0,
+          maxTotal: 0,
+          initialized: false
+        };
+        // Reset hovered values
+        this.hoveredValues = null;
+        return {
+          destroy() {
+            console.log('GroupedBarGlyph instance destroyed for layer', layer && layer.id);
+          }
+        };
+      },
+
+      draw(ctx, x, y, normalizedValue, cellInfo, config = {}) {
+        const { cellData, cellSize, glyphRadius } = cellInfo;
+        if (!cellData || cellData.length === 0) return;
+
+        const glyphSize = config.glyphSize || glyphRadius || (cellSize || 20) * 0.4;
+        const width = glyphSize * 1.6;  // Width of the chart
+        const height = glyphSize * 1.2;  // Height of the chart
+        const left = x - width / 2;
+        const top = y - height / 2;
+        const bottom = top + height;
+        const right = left + width;
+
+        ctx.save();
+
+        // Aggregate data from all points in this cell
+        let totalRacks = 0;
+        let totalSpaces = 0;
+
+        cellData.forEach(item => {
+          const d = item.data;
+          
+          // Parking values
+          if (d.RACKS != null) totalRacks += d.RACKS;
+          if (d.SPACES != null) totalSpaces += d.SPACES;
+        });
+
+        // Update global stats (will be recalculated properly in onAggregate)
+        // But for now, use local max if global not initialized
+        if (!this.globalStats.initialized || totalRacks > this.globalStats.maxRacks) {
+          this.globalStats.maxRacks = Math.max(this.globalStats.maxRacks, totalRacks);
+        }
+        if (!this.globalStats.initialized || totalSpaces > this.globalStats.maxSpaces) {
+          this.globalStats.maxSpaces = Math.max(this.globalStats.maxSpaces, totalSpaces);
+        }
+        if (!this.globalStats.initialized) {
+          this.globalStats.maxTotal = Math.max(totalRacks, totalSpaces);
+        }
+
+        // Prepare data for charting - two categories: Racks and Spaces
+        const categories = [
+          { name: 'Racks', value: totalRacks },
+          { name: 'Spaces', value: totalSpaces }
+        ];
+
+        // Use global max for normalization to enable cross-cell comparison
+        // Fallback to local max if global stats not ready
+        const maxRacksGlobal = this.globalStats.maxRacks || Math.max(...categories.map(c => c.name === 'Racks' ? c.value : 0), 1);
+        const maxSpacesGlobal = this.globalStats.maxSpaces || Math.max(...categories.map(c => c.name === 'Spaces' ? c.value : 0), 1);
+        const maxValue = Math.max(maxRacksGlobal, maxSpacesGlobal, 1);
+
+        // Color palette for parking metrics
+        const colors = {
+          racks: { r: 52, g: 152, b: 219 },      // Blue
+          spaces: { r: 46, g: 204, b: 113 },     // Green
+          default: { r: 70, g: 180, b: 150 }     // Teal
+        };
+
+        // Chart layout
+        const numCategories = categories.length;
+        const barGroupWidth = width / numCategories;
+        const barWidth = barGroupWidth * 0.85;  // Each bar is 85% of group width (smaller gap)
+        const chartPadding = height * 0.1;
+
+        // Draw bars with global normalization
+        categories.forEach((cat, idx) => {
+          const groupLeft = left + idx * barGroupWidth;
+          const barLeft = groupLeft + (barGroupWidth - barWidth) / 2; // Center the bar
+          
+          // Get color for this category
+          let color;
+          if (cat.name === 'Racks') {
+            color = colors.racks;
+          } else if (cat.name === 'Spaces') {
+            color = colors.spaces;
+          } else {
+            color = colors.default;
+          }
+
+          // Draw bar if value > 0, using global normalization
+          if (cat.value > 0 && color) {
+            // Normalize against global max for this metric
+            const metricMax = cat.name === 'Racks' ? maxRacksGlobal : maxSpacesGlobal;
+            const normalizedHeight = (cat.value / maxValue) * (height - chartPadding * 2);
+            const barHeight = Math.max(2, normalizedHeight); // Minimum 2px height
+            const barTop = bottom - chartPadding - barHeight;
+            
+            // Opacity based on how close to max (for visual emphasis)
+            const opacity = 0.6 + (cat.value / metricMax) * 0.3;
+            
+            ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${opacity})`;
+            ctx.fillRect(barLeft, barTop, barWidth, barHeight);
+            
+            // Add border with intensity based on value
+            const borderOpacity = 0.5 + (cat.value / metricMax) * 0.5;
+            ctx.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${borderOpacity})`;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(barLeft, barTop, barWidth, barHeight);
+          }
+        });
+
+        // Draw baseline
+        ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(left, bottom - chartPadding);
+        ctx.lineTo(right, bottom - chartPadding);
+        ctx.stroke();
+
+        // Draw comparison outline if hovering over a different cell
+        if (this.hoveredValues && 
+            (this.hoveredValues.racks !== totalRacks || this.hoveredValues.spaces !== totalSpaces)) {
+          const hoveredRacks = this.hoveredValues.racks;
+          const hoveredSpaces = this.hoveredValues.spaces;
+          
+          // Draw reference outline for hovered cell values
+          categories.forEach((cat, idx) => {
+            const groupLeft = left + idx * barGroupWidth;
+            const barLeft = groupLeft + (barGroupWidth - barWidth) / 2;
+            
+            const hoveredValue = cat.name === 'Racks' ? hoveredRacks : hoveredSpaces;
+            if (hoveredValue > 0) {
+              const metricMax = cat.name === 'Racks' ? 
+                (this.globalStats.maxRacks || 1) : 
+                (this.globalStats.maxSpaces || 1);
+              const normalizedHeight = (hoveredValue / maxValue) * (height - chartPadding * 2);
+              const barHeight = Math.max(2, normalizedHeight);
+              const barTop = bottom - chartPadding - barHeight;
+              
+              // Draw dashed outline for comparison
+              ctx.strokeStyle = 'rgba(255, 100, 100, 0.8)';
+              ctx.lineWidth = 2;
+              ctx.setLineDash([4, 3]);
+              ctx.strokeRect(barLeft - 1, barTop - 1, barWidth + 2, barHeight + 2);
+              ctx.setLineDash([]);
+            }
+          });
+        }
+
+        ctx.restore();
+      },
+
+      getLegend(gridData, config = {}) {
+        return {
+          type: 'custom',
+          title: 'Parking Capacity',
+          description: 'Grouped bar chart comparing bike racks and parking spaces:',
+          items: [
+            { label: 'Racks', description: 'Number of bike racks (blue)', color: 'rgba(52, 152, 219, 0.85)' },
+            { label: 'Spaces', description: 'Number of parking spaces (green)', color: 'rgba(46, 204, 113, 0.85)' }
+          ]
+        };
+      }
+    };
+
+    // Register plugin
+    GlyphRegistry.register('grouped-bar', GroupedBarGlyph, { overwrite: true });
+
+    // Basemap styles
+    const basemapStyles = {
+      osm: {
+        version: 8,
+        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+        sources: {
+          'osm': {
+            type: 'raster',
+            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            attribution: '© OpenStreetMap contributors'
+          }
+        },
+        layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
+      },
+      positron: {
+        version: 8,
+        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+        sources: {
+          'carto': {
+            type: 'raster',
+            tiles: ['https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            attribution: '© CARTO, © OpenStreetMap contributors'
+          }
+        },
+        layers: [{ id: 'carto', type: 'raster', source: 'carto' }]
+      },
+      dark: {
+        version: 8,
+        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+        sources: {
+          'carto-dark': {
+            type: 'raster',
+            tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            attribution: '© CARTO, © OpenStreetMap contributors'
+          }
+        },
+        layers: [{ id: 'carto-dark', type: 'raster', source: 'carto-dark' }]
+      },
+      satellite: {
+        version: 8,
+        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+        sources: {
+          'satellite': {
+            type: 'raster',
+            tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+            tileSize: 256,
+            attribution: '© Esri'
+          }
+        },
+        layers: [{ id: 'satellite', type: 'raster', source: 'satellite' }]
+      }
+    };
+
+    // Create map - default center to San Francisco, CA
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: basemapStyles.positron, // Default to Carto Positron
+      center: [-122.4, 37.74], // San Francisco, CA
+      zoom: 11
+    });
+
+    // Point layer IDs
+    const POINTS_SOURCE_ID = 'data-points-source';
+    const POINTS_LAYER_ID = 'data-points-layer';
+    
+    let gridLayer = null;
+    let currentData = null;
+
+    map.on('load', async () => {
+      // Load SF bike parking data
+      let data;
+      let usingFallback = false;
+      try {
+        const resp = await fetch('https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/sf-bike-parking.json');
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+        }
+        data = await resp.json();
+        console.log(`Loaded ${data.length} data points from SF bike parking data`);
+      } catch (e) {
+        // If fetching fails, fall back to a small sample dataset so the example still shows glyphs
+        console.warn('Failed to load data, using fallback sample data', e);
+        usingFallback = true;
+        data = [
+          { COORDINATES: [-122.41, 37.77], RACKS: 5, SPACES: 10 },
+          { COORDINATES: [-122.42, 37.76], RACKS: 3, SPACES: 8 },
+          { COORDINATES: [-122.40, 37.75], RACKS: 7, SPACES: 15 },
+          { COORDINATES: [-122.39, 37.74], RACKS: 2, SPACES: 4 },
+          { COORDINATES: [-122.43, 37.73], RACKS: 4, SPACES: 12 },
+          { COORDINATES: [-122.38, 37.78], RACKS: 6, SPACES: 14 }
+        ];
+      }
+
+      // Filter data to only include entries with valid coordinates and parking data
+      const validData = data.filter(d => {
+        // Check for valid position
+        const hasPosition = d.COORDINATES || d.coordinates || d.geometry?.coordinates || 
+                          (d.lat != null && d.lon != null);
+        if (!hasPosition) return false;
+        
+        // Check for meaningful parking data
+        if (!usingFallback) {
+          // For SF parking data, require at least one parking metric
+          return (d.RACKS != null && d.RACKS > 0) || (d.SPACES != null && d.SPACES > 0);
+        }
+        // For fallback data, just check position
+        return true;
+      });
+
+      console.log(`Using ${validData.length} valid data points (filtered from ${data.length})`);
+
+      // Store for point layer
+      currentData = validData;
+
+      // Create point layer GeoJSON
+      const pointGeoJSON = {
+        type: 'FeatureCollection',
+        features: validData.map(d => {
+          let coords;
+          if (d.COORDINATES) coords = d.COORDINATES;
+          else if (d.coordinates) coords = d.coordinates;
+          else if (d.geometry?.coordinates) coords = d.geometry.coordinates;
+          else if (d.lat != null && d.lon != null) coords = [d.lon, d.lat];
+          else return null;
+          
+          return {
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: coords },
+            properties: d
+          };
+        }).filter(f => f !== null)
+      };
+
+      // Add point source with clustering (initially hidden)
+      if (!map.getSource(POINTS_SOURCE_ID)) {
+        map.addSource(POINTS_SOURCE_ID, {
+          type: 'geojson',
+          data: pointGeoJSON,
+          cluster: true,
+          clusterMaxZoom: 14,
+          clusterRadius: 50
+        });
+      } else {
+        map.getSource(POINTS_SOURCE_ID).setData(pointGeoJSON);
+      }
+
+      // Add clustered point layers (initially hidden)
+      // Clustered circles
+      if (!map.getLayer('clusters')) {
+        map.addLayer({
+          id: 'clusters',
+          type: 'circle',
+          source: POINTS_SOURCE_ID,
+          filter: ['has', 'point_count'],
+          paint: {
+            'circle-color': [
+              'step',
+              ['get', 'point_count'],
+              '#e74c3c',
+              10, '#f39c12',
+              50, '#3498db',
+              100, '#9b59b6'
+            ],
+            'circle-radius': [
+              'step',
+              ['get', 'point_count'],
+              8,
+              10, 12,
+              50, 16,
+              100, 20
+            ],
+            'circle-opacity': 0.6,
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 1
+          },
+          layout: {
+            visibility: 'none'
+          }
+        });
+      }
+
+      // Cluster count labels
+      if (!map.getLayer('cluster-count')) {
+        map.addLayer({
+          id: 'cluster-count',
+          type: 'symbol',
+          source: POINTS_SOURCE_ID,
+          filter: ['has', 'point_count'],
+          layout: {
+            'text-field': '{point_count_abbreviated}',
+            'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+            'text-size': 11,
+            visibility: 'none'
+          },
+          paint: {
+            'text-color': '#ffffff'
+          }
+        });
+      }
+
+      // Unclustered points
+      if (!map.getLayer(POINTS_LAYER_ID)) {
+        map.addLayer({
+          id: POINTS_LAYER_ID,
+          type: 'circle',
+          source: POINTS_SOURCE_ID,
+          filter: ['!', ['has', 'point_count']],
+          paint: {
+            'circle-radius': 3,
+            'circle-color': '#e74c3c',
+            'circle-opacity': 0.6,
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 0.5
+          },
+          layout: {
+            visibility: 'none' // Hidden by default
+          }
+        });
+      }
+
+      const layer = new ScreenGridLayerGL({
+        id: 'parking-capacity-layer',
+        data: validData,
+        getPosition: (d) => {
+          // Handle multiple data formats
+          if (d.COORDINATES) return d.COORDINATES;
+          if (d.coordinates) return d.coordinates;
+          if (d.geometry?.coordinates) return d.geometry.coordinates;
+          // Handle lat/lon format
+          if (d.lat != null && d.lon != null) return [d.lon, d.lat];
+          return null;
+        },
+        getWeight: (d) => {
+          // Use SPACES as weight (primary metric for parking capacity)
+          if (d.SPACES != null && d.SPACES > 0) return d.SPACES;
+          // Fallback to RACKS if SPACES not available
+          if (d.RACKS != null && d.RACKS > 0) return d.RACKS;
+          return 1;
+        },
+        cellSizePixels: 60,
+        colorScale: (v) => [255 * v, 200 * (1 - v), 50, 220],
+        enableGlyphs: true,
+        // Use the registered plugin by name. onDrawCell still supported and would override this.
+        glyph: 'grouped-bar',
+        glyphConfig: { glyphSize: null }, // Use default sizing
+        glyphSize: 0.85, // Fixed glyph size relative to cell
+        onAggregate: (gridData) => {
+          // Calculate global max values across all cells for proper normalization
+          let maxRacks = 0;
+          let maxSpaces = 0;
+          
+          // Iterate through all cells in the grid
+          if (gridData && gridData.cellData && Array.isArray(gridData.cellData)) {
+            for (const cellData of gridData.cellData) {
+              if (cellData && Array.isArray(cellData)) {
+                let cellRacks = 0;
+                let cellSpaces = 0;
+                
+                cellData.forEach(item => {
+                  const d = item.data;
+                  if (d && d.RACKS != null) cellRacks += d.RACKS;
+                  if (d && d.SPACES != null) cellSpaces += d.SPACES;
+                });
+                
+                maxRacks = Math.max(maxRacks, cellRacks);
+                maxSpaces = Math.max(maxSpaces, cellSpaces);
+              }
+            }
+          }
+          
+          // Update global stats in the glyph
+          GroupedBarGlyph.globalStats = {
+            maxRacks: maxRacks || 1,
+            maxSpaces: maxSpaces || 1,
+            maxTotal: Math.max(maxRacks, maxSpaces, 1),
+            initialized: true
+          };
+          
+          console.log('Global stats updated:', GroupedBarGlyph.globalStats);
+          console.log('Aggregated grid:', {
+            cols: gridData.cols,
+            rows: gridData.rows,
+            cellsWithData: gridData.grid.filter(v => v > 0).length
+          });
+        },
+        onHover: ({ cell }) => {
+          // Update hovered values for comparison outline
+          if (cell && cell.cellData && cell.cellData.length > 0) {
+            let hoveredRacks = 0;
+            let hoveredSpaces = 0;
+            
+            cell.cellData.forEach(item => {
+              const d = item.data;
+              if (d && d.RACKS != null) hoveredRacks += d.RACKS;
+              if (d && d.SPACES != null) hoveredSpaces += d.SPACES;
+            });
+            
+            GroupedBarGlyph.hoveredValues = {
+              racks: hoveredRacks,
+              spaces: hoveredSpaces
+            };
+            
+            // Update legend with hovered values
+            drawLegendGlyph(GroupedBarGlyph.hoveredValues);
+            
+            // Trigger re-render to show comparison outlines
+            if (layer) {
+              layer.render();
+            }
+          } else {
+            // Clear hovered values if no cell
+            GroupedBarGlyph.hoveredValues = null;
+            drawLegendGlyph(null);
+            if (layer) {
+              layer.render();
+            }
+          }
+        }
+      });
+
+      map.addLayer(layer);
+      gridLayer = layer;
+      
+      // Move point layers to be above (after) the grid layer so they're visible
+      // In MapLibre GL, layers draw in order - later layers appear on top
+      const movePointLayersAboveGrid = () => {
+        if (!map.getLayer(layer.id)) return;
+        
+        try {
+          // Get all layers
+          const allLayers = map.getStyle().layers || [];
+          const gridLayerIndex = allLayers.findIndex(l => l.id === layer.id);
+          
+          if (gridLayerIndex === -1) return;
+          
+          // Move each point layer to be right after the grid layer
+          // moveLayer(id, beforeId) moves id to be BEFORE beforeId
+          // So to put points after grid, we move them before whatever comes after grid
+          const layersAfterGrid = allLayers.slice(gridLayerIndex + 1);
+          const beforeId = layersAfterGrid.length > 0 ? layersAfterGrid[0].id : undefined;
+          
+          // Move clusters to be after grid layer
+          if (map.getLayer('clusters') && beforeId && beforeId !== 'clusters') {
+            map.moveLayer('clusters', beforeId);
+          } else if (map.getLayer('clusters') && !beforeId) {
+            // No layer after grid, so clusters is already in right place
+            // But ensure it's after grid by moving it
+            map.moveLayer('clusters');
+          }
+          
+          // Move cluster-count
+          if (map.getLayer('cluster-count')) {
+            if (beforeId && beforeId !== 'cluster-count') {
+              map.moveLayer('cluster-count', beforeId);
+            }
+          }
+          
+          // Move unclustered points
+          if (map.getLayer(POINTS_LAYER_ID)) {
+            if (beforeId && beforeId !== POINTS_LAYER_ID) {
+              map.moveLayer(POINTS_LAYER_ID, beforeId);
+            }
+          }
+        } catch (e) {
+          console.log('Error moving point layers:', e);
+        }
+      };
+      
+      // Move layers after a short delay to ensure they're added and map is ready
+      setTimeout(() => {
+        movePointLayersAboveGrid();
+      }, 200);
+      
+      // Clear hovered values when mouse leaves the map
+      map.on('mouseout', () => {
+        GroupedBarGlyph.hoveredValues = null;
+        drawLegendGlyph(null);
+        if (layer) {
+          layer.render();
+        }
+      });
+
+      // Setup controls
+      const basemapSelect = document.getElementById('basemapSelect');
+      const showGlyphsCheckbox = document.getElementById('showGlyphs');
+      const showPointsCheckbox = document.getElementById('showPoints');
+      const cellSizeSlider = document.getElementById('cellSize');
+      const cellSizeValue = document.getElementById('cellSizeValue');
+
+      // Helper function to update point layer visibility
+      function updatePointsLayer() {
+        const showPoints = showPointsCheckbox.checked;
+        const visibility = showPoints ? 'visible' : 'none';
+        
+        if (map.getLayer('clusters')) {
+          map.setLayoutProperty('clusters', 'visibility', visibility);
+        }
+        if (map.getLayer('cluster-count')) {
+          map.setLayoutProperty('cluster-count', 'visibility', visibility);
+        }
+        if (map.getLayer(POINTS_LAYER_ID)) {
+          map.setLayoutProperty(POINTS_LAYER_ID, 'visibility', visibility);
+        }
+      }
+
+      // Cell size slider (controls aggregation size)
+      cellSizeSlider.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        cellSizeValue.textContent = value;
+        if (gridLayer) {
+          gridLayer.setConfig({ cellSizePixels: value });
+        }
+      });
+
+      // Helper function to re-add layers after style change
+      function reAddLayers() {
+        // Re-add grid layer
+        if (gridLayer && !map.getLayer(gridLayer.id)) {
+          map.addLayer(gridLayer);
+        }
+        
+        // Re-add point source and layer if they don't exist
+        if (!map.getSource(POINTS_SOURCE_ID) && currentData) {
+          const pointGeoJSON = {
+            type: 'FeatureCollection',
+            features: currentData.map(d => {
+              let coords;
+              if (d.COORDINATES) coords = d.COORDINATES;
+              else if (d.coordinates) coords = d.coordinates;
+              else if (d.geometry?.coordinates) coords = d.geometry.coordinates;
+              else if (d.lat != null && d.lon != null) coords = [d.lon, d.lat];
+              else return null;
+              
+              return {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: coords },
+                properties: d
+              };
+            }).filter(f => f !== null)
+          };
+          
+          map.addSource(POINTS_SOURCE_ID, {
+            type: 'geojson',
+            data: pointGeoJSON,
+            cluster: true,
+            clusterMaxZoom: 14,
+            clusterRadius: 50
+          });
+        }
+        
+        // Re-add clustered point layers if they don't exist
+        if (map.getSource(POINTS_SOURCE_ID)) {
+          if (!map.getLayer('clusters')) {
+            map.addLayer({
+              id: 'clusters',
+              type: 'circle',
+              source: POINTS_SOURCE_ID,
+              filter: ['has', 'point_count'],
+              paint: {
+                'circle-color': [
+                  'step',
+                  ['get', 'point_count'],
+                  '#e74c3c',
+                  10, '#f39c12',
+                  50, '#3498db',
+                  100, '#9b59b6'
+                ],
+                'circle-radius': [
+                  'step',
+                  ['get', 'point_count'],
+                  8,
+                  10, 12,
+                  50, 16,
+                  100, 20
+                ],
+                'circle-opacity': 0.6,
+                'circle-stroke-color': '#ffffff',
+                'circle-stroke-width': 1
+              },
+              layout: {
+                visibility: showPointsCheckbox.checked ? 'visible' : 'none'
+              }
+            });
+          }
+
+          if (!map.getLayer('cluster-count')) {
+            map.addLayer({
+              id: 'cluster-count',
+              type: 'symbol',
+              source: POINTS_SOURCE_ID,
+              filter: ['has', 'point_count'],
+              layout: {
+                'text-field': '{point_count_abbreviated}',
+                'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+                'text-size': 11,
+                visibility: showPointsCheckbox.checked ? 'visible' : 'none'
+              },
+              paint: {
+                'text-color': '#ffffff'
+              }
+            });
+          }
+
+          if (!map.getLayer(POINTS_LAYER_ID)) {
+            map.addLayer({
+              id: POINTS_LAYER_ID,
+              type: 'circle',
+              source: POINTS_SOURCE_ID,
+              filter: ['!', ['has', 'point_count']],
+              paint: {
+                'circle-radius': 3,
+                'circle-color': '#e74c3c',
+                'circle-opacity': 0.6,
+                'circle-stroke-color': '#ffffff',
+                'circle-stroke-width': 0.5
+              },
+              layout: {
+                visibility: showPointsCheckbox.checked ? 'visible' : 'none'
+              }
+            });
+          } else {
+            updatePointsLayer();
+          }
+        }
+      }
+
+      // Basemap selector
+      basemapSelect.addEventListener('change', (e) => {
+        const styleKey = e.target.value;
+        const newStyle = basemapStyles[styleKey];
+        if (newStyle) {
+          map.setStyle(newStyle);
+          map.once('style.load', () => {
+            reAddLayers();
+          });
+        }
+      });
+
+      // Glyph layer toggle
+      showGlyphsCheckbox.addEventListener('change', () => {
+        if (gridLayer) {
+          gridLayer.setConfig({ enabled: showGlyphsCheckbox.checked });
+        }
+      });
+
+      // Point layer toggle
+      showPointsCheckbox.addEventListener('change', () => {
+        updatePointsLayer();
+        // Re-apply layer ordering after toggling
+        setTimeout(() => {
+          movePointLayersAboveGrid();
+        }, 50);
+      });
+
+      // Draw visual legend with glyph illustration
+      function drawLegendGlyph(hoveredValues = null) {
+        const canvas = document.getElementById('legendCanvas');
+        const ctx = canvas.getContext('2d');
+        const size = 200;
+        const padding = 15;
+        const width = size - padding * 2;
+        const height = size - padding * 2;
+        const left = padding;
+        const top = padding;
+        const bottom = top + height;
+        const right = left + width;
+
+        // Clear canvas
+        ctx.clearRect(0, 0, size, size);
+
+        // Use hovered values if available, otherwise use sample data
+        const displayData = hoveredValues || {
+          racks: 15,
+          spaces: 25
+        };
+
+        const categories = [
+          { name: 'Racks', value: displayData.racks },
+          { name: 'Spaces', value: displayData.spaces }
+        ];
+
+        // Use global stats for normalization if available, otherwise local max
+        const maxRacksGlobal = GroupedBarGlyph.globalStats.maxRacks || 1;
+        const maxSpacesGlobal = GroupedBarGlyph.globalStats.maxSpaces || 1;
+        const maxValue = Math.max(maxRacksGlobal, maxSpacesGlobal, 
+                                  Math.max(...categories.map(c => c.value), 1));
+
+        // Color palette
+        const colors = {
+          racks: { r: 52, g: 152, b: 219 },      // Blue
+          spaces: { r: 46, g: 204, b: 113 },     // Green
+          default: { r: 70, g: 180, b: 150 }     // Teal
+        };
+
+        // Chart layout
+        const numCategories = categories.length;
+        const barGroupWidth = width / numCategories;
+        const barWidth = barGroupWidth * 0.85; // 85% of group width (matches glyph)
+        const chartPadding = height * 0.1;
+
+        ctx.save();
+
+        // Draw bars
+        categories.forEach((cat, idx) => {
+          const groupLeft = left + idx * barGroupWidth;
+          const barLeft = groupLeft + (barGroupWidth - barWidth) / 2; // Center the bar
+          
+          let color;
+          if (cat.name === 'Racks') {
+            color = colors.racks;
+          } else if (cat.name === 'Spaces') {
+            color = colors.spaces;
+          } else {
+            color = colors.default;
+          }
+
+          // Draw bar if value > 0
+          if (cat.value > 0 && color) {
+            // Normalize using global max for consistency with glyphs
+            const metricMax = cat.name === 'Racks' ? maxRacksGlobal : maxSpacesGlobal;
+            const normalizedHeight = (cat.value / maxValue) * (height - chartPadding * 2);
+            const barHeight = Math.max(2, normalizedHeight);
+            const barTop = bottom - chartPadding - barHeight;
+            
+            // Use same opacity logic as glyphs
+            const opacity = 0.6 + (cat.value / metricMax) * 0.3;
+            
+            ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${opacity})`;
+            ctx.fillRect(barLeft, barTop, barWidth, barHeight);
+            
+            const borderOpacity = 0.5 + (cat.value / metricMax) * 0.5;
+            ctx.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${borderOpacity})`;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(barLeft, barTop, barWidth, barHeight);
+          }
+        });
+
+        // Draw baseline
+        ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(left, bottom - chartPadding);
+        ctx.lineTo(right, bottom - chartPadding);
+        ctx.stroke();
+
+        ctx.restore();
+
+        // Clear lines canvas (not needed for bar chart, but keep for compatibility)
+        const linesCanvas = document.getElementById('legendLines');
+        const linesCtx = linesCanvas.getContext('2d');
+        linesCtx.clearRect(0, 0, size, size);
+
+        // Add text labels below canvas with actual values if hovering
+        const labels = [
+          { 
+            label: 'Racks', 
+            desc: hoveredValues ? `${displayData.racks} bike racks` : 'Number of bike racks (blue)',
+            value: displayData.racks,
+            color: 'rgba(52, 152, 219, 0.85)' 
+          },
+          { 
+            label: 'Spaces', 
+            desc: hoveredValues ? `${displayData.spaces} parking spaces` : 'Number of parking spaces (green)',
+            value: displayData.spaces,
+            color: 'rgba(46, 204, 113, 0.85)' 
+          }
+        ];
+
+        const labelsContainer = document.getElementById('legendLabels');
+        const title = hoveredValues ? 'Hovered Cell Values' : 'Parking Capacity';
+        
+        labelsContainer.innerHTML = `
+          <div style="margin-bottom: 8px; font-weight: 600; color: #333; font-size: 11px;">
+            ${title}
+          </div>
+          ${labels.map((item, idx) => `
+            <div class="legend-label-item">
+              <div class="label-marker" style="background-color: ${item.color};"></div>
+              <div class="label-text">
+                <div class="label-title"><strong>${idx + 1}.</strong> ${item.label}${hoveredValues ? `: <strong>${item.value}</strong>` : ''}</div>
+                <div class="label-desc">${item.desc}</div>
+              </div>
+            </div>
+          `).join('')}
+        `;
+      }
+
+      // Draw legend after a short delay to ensure canvas is ready
+      setTimeout(() => {
+        drawLegendGlyph();
+      }, 100);
+    });
+  </script>
+</body>
+</html>
+
