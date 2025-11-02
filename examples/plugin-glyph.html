@@ -187,7 +187,7 @@
   </div>
   
   <div class="legend-container" id="legendContainer">
-    <h3>Carbon vs Cost Comparison</h3>
+    <h3>Parking Capacity</h3>
     <div id="legendContent">
       <div style="position: relative; display: inline-block;">
         <canvas id="legendCanvas" width="200" height="200"></canvas>
@@ -201,10 +201,34 @@
     import { ScreenGridLayerGL, GlyphRegistry } from '../src/index.js';
 
     // Grouped Bar Chart Glyph
-    // Visualizes Carbon vs Cost comparison across technologies using grouped bars
+    // Visualizes parking data: Racks vs Spaces using grouped bars
+    // Uses global normalization for cross-cell comparison
     const GroupedBarGlyph = {
+      // Global stats for normalization across all cells
+      globalStats: {
+        maxRacks: 0,
+        maxSpaces: 0,
+        maxTotal: 0,
+        initialized: false
+      },
+      // Hovered cell values for comparison outline
+      hoveredValues: null,
+      // Reference to layer for triggering re-renders
+      layerRef: null,
+
       init({ layer, config } = {}) {
         console.log('GroupedBarGlyph.init called for layer', layer && layer.id, 'config', config);
+        // Store layer reference
+        this.layerRef = layer;
+        // Reset global stats when reinitializing
+        this.globalStats = {
+          maxRacks: 0,
+          maxSpaces: 0,
+          maxTotal: 0,
+          initialized: false
+        };
+        // Reset hovered values
+        this.hoveredValues = null;
         return {
           destroy() {
             console.log('GroupedBarGlyph instance destroyed for layer', layer && layer.id);
@@ -227,132 +251,88 @@
         ctx.save();
 
         // Aggregate data from all points in this cell
-        let ashpCarbon = 0;
-        let evCarbon = 0;
-        let pvCarbon = 0;
-        let labourCost = 0;
-        let materialCost = 0;
+        let totalRacks = 0;
+        let totalSpaces = 0;
 
         cellData.forEach(item => {
           const d = item.data;
           
-          // Carbon values (only for technologies)
-          if (d.ashp_carbonsaved != null) ashpCarbon += d.ashp_carbonsaved;
-          if (d.ev_carbonsaved != null) evCarbon += d.ev_carbonsaved;
-          if (d.pv_carbonsaved != null) pvCarbon += d.pv_carbonsaved;
-          
-          // Cost values (only for Labour and Material)
-          if (d.labour_cost != null) labourCost += d.labour_cost;
-          if (d.material_cost != null) materialCost += d.material_cost;
-          
-          // If total_cost exists but no breakdown, allocate to labour/material
-          if (d.total_cost != null && d.labour_cost == null && d.material_cost == null) {
-            // Distribute total_cost evenly to labour/material if no breakdown available
-            labourCost += d.total_cost * 0.5;
-            materialCost += d.total_cost * 0.5;
-          }
+          // Parking values
+          if (d.RACKS != null) totalRacks += d.RACKS;
+          if (d.SPACES != null) totalSpaces += d.SPACES;
         });
 
-        // Prepare data for charting
+        // Update global stats (will be recalculated properly in onAggregate)
+        // But for now, use local max if global not initialized
+        if (!this.globalStats.initialized || totalRacks > this.globalStats.maxRacks) {
+          this.globalStats.maxRacks = Math.max(this.globalStats.maxRacks, totalRacks);
+        }
+        if (!this.globalStats.initialized || totalSpaces > this.globalStats.maxSpaces) {
+          this.globalStats.maxSpaces = Math.max(this.globalStats.maxSpaces, totalSpaces);
+        }
+        if (!this.globalStats.initialized) {
+          this.globalStats.maxTotal = Math.max(totalRacks, totalSpaces);
+        }
+
+        // Prepare data for charting - two categories: Racks and Spaces
         const categories = [
-          { name: 'ASHP', carbon: ashpCarbon, cost: 0 },
-          { name: 'EV', carbon: evCarbon, cost: 0 },
-          { name: 'PV', carbon: pvCarbon, cost: 0 },
-          { name: 'Labour', carbon: 0, cost: labourCost },
-          { name: 'Material', carbon: 0, cost: materialCost }
+          { name: 'Racks', value: totalRacks },
+          { name: 'Spaces', value: totalSpaces }
         ];
 
-        // Find max values for normalization
-        const maxCarbon = Math.max(...categories.map(c => c.carbon), 1);
-        const maxCost = Math.max(...categories.map(c => c.cost), 1);
-        const maxOverall = Math.max(maxCarbon, maxCost, 1);
+        // Use global max for normalization to enable cross-cell comparison
+        // Fallback to local max if global stats not ready
+        const maxRacksGlobal = this.globalStats.maxRacks || Math.max(...categories.map(c => c.name === 'Racks' ? c.value : 0), 1);
+        const maxSpacesGlobal = this.globalStats.maxSpaces || Math.max(...categories.map(c => c.name === 'Spaces' ? c.value : 0), 1);
+        const maxValue = Math.max(maxRacksGlobal, maxSpacesGlobal, 1);
 
-        // Color palette: green/blue family for Carbon, orange/gray for Cost
-        const carbonColors = {
-          ashp: { r: 46, g: 204, b: 113 },   // Green
-          ev: { r: 52, g: 152, b: 219 },     // Blue
-          pv: { r: 34, g: 139, b: 184 },     // Darker blue
-          default: { r: 70, g: 180, b: 150 } // Teal
-        };
-        
-        const costColors = {
-          labour: { r: 255, g: 159, b: 64 },    // Orange
-          material: { r: 200, g: 100, b: 50 },  // Darker orange
-          default: { r: 150, g: 150, b: 150 }    // Gray
+        // Color palette for parking metrics
+        const colors = {
+          racks: { r: 52, g: 152, b: 219 },      // Blue
+          spaces: { r: 46, g: 204, b: 113 },     // Green
+          default: { r: 70, g: 180, b: 150 }     // Teal
         };
 
         // Chart layout
         const numCategories = categories.length;
         const barGroupWidth = width / numCategories;
-        const barWidth = barGroupWidth * 0.5;  // Each bar is 50% of group width (only one bar per category)
+        const barWidth = barGroupWidth * 0.85;  // Each bar is 85% of group width (smaller gap)
         const chartPadding = height * 0.1;
 
-        // Draw bars
+        // Draw bars with global normalization
         categories.forEach((cat, idx) => {
           const groupLeft = left + idx * barGroupWidth;
-          const isTechnology = cat.name === 'ASHP' || cat.name === 'EV' || cat.name === 'PV';
-          const hasCarbon = cat.carbon > 0;
-          const hasCost = cat.cost > 0;
+          const barLeft = groupLeft + (barGroupWidth - barWidth) / 2; // Center the bar
           
-          // Get colors for this category
-          let carbonColor, costColor;
-          if (cat.name === 'ASHP') {
-            carbonColor = carbonColors.ashp;
-            costColor = costColors.default;
-          } else if (cat.name === 'EV') {
-            carbonColor = carbonColors.ev;
-            costColor = costColors.default;
-          } else if (cat.name === 'PV') {
-            carbonColor = carbonColors.pv;
-            costColor = costColors.default;
-          } else if (cat.name === 'Labour') {
-            carbonColor = null;  // No carbon for labour
-            costColor = costColors.labour;
-          } else if (cat.name === 'Material') {
-            carbonColor = null;  // No carbon for material
-            costColor = costColors.material;
+          // Get color for this category
+          let color;
+          if (cat.name === 'Racks') {
+            color = colors.racks;
+          } else if (cat.name === 'Spaces') {
+            color = colors.spaces;
           } else {
-            carbonColor = carbonColors.default;
-            costColor = costColors.default;
+            color = colors.default;
           }
 
-          // Position bars consistently
-          let barLeft;
-          
-          if (isTechnology) {
-            // For technologies: center the carbon bar (no cost bar)
-            barLeft = groupLeft + (barGroupWidth - barWidth) / 2;
-          } else {
-            // For Labour/Material: center the cost bar
-            barLeft = groupLeft + (barGroupWidth - barWidth) / 2;
-          }
-
-          // Draw Carbon bar (only for technologies with carbon data)
-          if (isTechnology && hasCarbon && carbonColor) {
-            const carbonHeight = ((cat.carbon / maxOverall) * (height - chartPadding * 2));
-            const carbonTop = bottom - chartPadding - carbonHeight;
+          // Draw bar if value > 0, using global normalization
+          if (cat.value > 0 && color) {
+            // Normalize against global max for this metric
+            const metricMax = cat.name === 'Racks' ? maxRacksGlobal : maxSpacesGlobal;
+            const normalizedHeight = (cat.value / maxValue) * (height - chartPadding * 2);
+            const barHeight = Math.max(2, normalizedHeight); // Minimum 2px height
+            const barTop = bottom - chartPadding - barHeight;
             
-            ctx.fillStyle = `rgba(${carbonColor.r}, ${carbonColor.g}, ${carbonColor.b}, 0.85)`;
-            ctx.fillRect(barLeft, carbonTop, barWidth, carbonHeight);
+            // Opacity based on how close to max (for visual emphasis)
+            const opacity = 0.6 + (cat.value / metricMax) * 0.3;
             
-            // Add subtle border
-            ctx.strokeStyle = `rgba(${carbonColor.r}, ${carbonColor.g}, ${carbonColor.b}, 1)`;
-            ctx.lineWidth = 0.5;
-            ctx.strokeRect(barLeft, carbonTop, barWidth, carbonHeight);
-          }
-
-          // Draw Cost bar (only for Labour/Material)
-          if (!isTechnology && hasCost && costColor) {
-            const costHeight = ((cat.cost / maxOverall) * (height - chartPadding * 2));
-            const costTop = bottom - chartPadding - costHeight;
+            ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${opacity})`;
+            ctx.fillRect(barLeft, barTop, barWidth, barHeight);
             
-            ctx.fillStyle = `rgba(${costColor.r}, ${costColor.g}, ${costColor.b}, 0.85)`;
-            ctx.fillRect(barLeft, costTop, barWidth, costHeight);
-            
-            // Add subtle border
-            ctx.strokeStyle = `rgba(${costColor.r}, ${costColor.g}, ${costColor.b}, 1)`;
-            ctx.lineWidth = 0.5;
-            ctx.strokeRect(barLeft, costTop, barWidth, costHeight);
+            // Add border with intensity based on value
+            const borderOpacity = 0.5 + (cat.value / metricMax) * 0.5;
+            ctx.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${borderOpacity})`;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(barLeft, barTop, barWidth, barHeight);
           }
         });
 
@@ -364,20 +344,47 @@
         ctx.lineTo(right, bottom - chartPadding);
         ctx.stroke();
 
+        // Draw comparison outline if hovering over a different cell
+        if (this.hoveredValues && 
+            (this.hoveredValues.racks !== totalRacks || this.hoveredValues.spaces !== totalSpaces)) {
+          const hoveredRacks = this.hoveredValues.racks;
+          const hoveredSpaces = this.hoveredValues.spaces;
+          
+          // Draw reference outline for hovered cell values
+          categories.forEach((cat, idx) => {
+            const groupLeft = left + idx * barGroupWidth;
+            const barLeft = groupLeft + (barGroupWidth - barWidth) / 2;
+            
+            const hoveredValue = cat.name === 'Racks' ? hoveredRacks : hoveredSpaces;
+            if (hoveredValue > 0) {
+              const metricMax = cat.name === 'Racks' ? 
+                (this.globalStats.maxRacks || 1) : 
+                (this.globalStats.maxSpaces || 1);
+              const normalizedHeight = (hoveredValue / maxValue) * (height - chartPadding * 2);
+              const barHeight = Math.max(2, normalizedHeight);
+              const barTop = bottom - chartPadding - barHeight;
+              
+              // Draw dashed outline for comparison
+              ctx.strokeStyle = 'rgba(255, 100, 100, 0.8)';
+              ctx.lineWidth = 2;
+              ctx.setLineDash([4, 3]);
+              ctx.strokeRect(barLeft - 1, barTop - 1, barWidth + 2, barHeight + 2);
+              ctx.setLineDash([]);
+            }
+          });
+        }
+
         ctx.restore();
       },
 
       getLegend(gridData, config = {}) {
         return {
           type: 'custom',
-          title: 'Carbon vs Cost Comparison',
-          description: 'Grouped bar chart comparing carbon savings and costs:',
+          title: 'Parking Capacity',
+          description: 'Grouped bar chart comparing bike racks and parking spaces:',
           items: [
-            { label: 'Carbon (ASHP)', description: 'Air Source Heat Pumps (green)', color: 'rgba(46, 204, 113, 0.85)' },
-            { label: 'Carbon (EV)', description: 'Electric Vehicles (blue)', color: 'rgba(52, 152, 219, 0.85)' },
-            { label: 'Carbon (PV)', description: 'Photovoltaic (dark blue)', color: 'rgba(34, 139, 184, 0.85)' },
-            { label: 'Cost (Labour)', description: 'Labour costs (orange)', color: 'rgba(255, 159, 64, 0.85)' },
-            { label: 'Cost (Material)', description: 'Material costs (dark orange)', color: 'rgba(200, 100, 50, 0.85)' }
+            { label: 'Racks', description: 'Number of bike racks (blue)', color: 'rgba(52, 152, 219, 0.85)' },
+            { label: 'Spaces', description: 'Number of parking spaces (green)', color: 'rgba(46, 204, 113, 0.85)' }
           ]
         };
       }
@@ -442,11 +449,11 @@
       }
     };
 
-    // Create map - default center to Cambridge, UK (will be adjusted if fallback data is used)
+    // Create map - default center to San Francisco, CA
     const map = new maplibregl.Map({
       container: 'map',
       style: basemapStyles.positron, // Default to Carto Positron
-      center: [0.1198, 52.2053], // Cambridge, UK
+      center: [-122.4, 37.74], // San Francisco, CA
       zoom: 11
     });
 
@@ -458,45 +465,41 @@
     let currentData = null;
 
     map.on('load', async () => {
-      // Load a small dataset (use cambridge.json included in repo examples/data)
+      // Load SF bike parking data
       let data;
       let usingFallback = false;
       try {
-        // Correct relative path: data file is in the same `examples/data` folder
-        const resp = await fetch('./data/cambridge.json');
+        const resp = await fetch('https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/sf-bike-parking.json');
         if (!resp.ok) {
           throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
         }
         data = await resp.json();
-        console.log(`Loaded ${data.length} data points from cambridge.json`);
+        console.log(`Loaded ${data.length} data points from SF bike parking data`);
       } catch (e) {
         // If fetching fails, fall back to a small sample dataset so the example still shows glyphs
         console.warn('Failed to load data, using fallback sample data', e);
         usingFallback = true;
         data = [
-          { COORDINATES: [-122.41, 37.77], weight: 1 },
-          { COORDINATES: [-122.42, 37.76], weight: 1 },
-          { COORDINATES: [-122.40, 37.75], weight: 1 },
-          { COORDINATES: [-122.39, 37.74], weight: 1 },
-          { COORDINATES: [-122.43, 37.73], weight: 1 },
-          { COORDINATES: [-122.38, 37.78], weight: 1 }
+          { COORDINATES: [-122.41, 37.77], RACKS: 5, SPACES: 10 },
+          { COORDINATES: [-122.42, 37.76], RACKS: 3, SPACES: 8 },
+          { COORDINATES: [-122.40, 37.75], RACKS: 7, SPACES: 15 },
+          { COORDINATES: [-122.39, 37.74], RACKS: 2, SPACES: 4 },
+          { COORDINATES: [-122.43, 37.73], RACKS: 4, SPACES: 12 },
+          { COORDINATES: [-122.38, 37.78], RACKS: 6, SPACES: 14 }
         ];
-        // Adjust map center for fallback data (San Francisco)
-        map.setCenter([-122.4, 37.74]);
       }
 
-      // Filter data to only include entries with valid coordinates and meaningful weights
-      // This is important for cambridge.json which has many entries with null values
+      // Filter data to only include entries with valid coordinates and parking data
       const validData = data.filter(d => {
         // Check for valid position
         const hasPosition = d.COORDINATES || d.coordinates || d.geometry?.coordinates || 
                           (d.lat != null && d.lon != null);
         if (!hasPosition) return false;
         
-        // Check for meaningful weight (for cambridge data)
+        // Check for meaningful parking data
         if (!usingFallback) {
-          // For cambridge data, require at least one meaningful value
-          return d.total_cost != null || d.ashp_carbonsaved != null || d.weight != null;
+          // For SF parking data, require at least one parking metric
+          return (d.RACKS != null && d.RACKS > 0) || (d.SPACES != null && d.SPACES > 0);
         }
         // For fallback data, just check position
         return true;
@@ -614,23 +617,22 @@
       }
 
       const layer = new ScreenGridLayerGL({
-        id: 'efficiency-gauge-layer',
+        id: 'parking-capacity-layer',
         data: validData,
         getPosition: (d) => {
           // Handle multiple data formats
           if (d.COORDINATES) return d.COORDINATES;
           if (d.coordinates) return d.coordinates;
           if (d.geometry?.coordinates) return d.geometry.coordinates;
-          // Handle lat/lon format (cambridge.json uses this)
+          // Handle lat/lon format
           if (d.lat != null && d.lon != null) return [d.lon, d.lat];
           return null;
         },
         getWeight: (d) => {
-          // Use weight field if available, otherwise use a meaningful value from cambridge data
-          if (d.weight != null) return d.weight;
-          // For cambridge data, prefer total_cost or ashp_carbonsaved
-          if (d.total_cost != null && d.total_cost > 0) return d.total_cost;
-          if (d.ashp_carbonsaved != null && d.ashp_carbonsaved > 0) return d.ashp_carbonsaved;
+          // Use SPACES as weight (primary metric for parking capacity)
+          if (d.SPACES != null && d.SPACES > 0) return d.SPACES;
+          // Fallback to RACKS if SPACES not available
+          if (d.RACKS != null && d.RACKS > 0) return d.RACKS;
           return 1;
         },
         cellSizePixels: 60,
@@ -640,11 +642,141 @@
         glyph: 'grouped-bar',
         glyphConfig: { glyphSize: null }, // Use default sizing
         glyphSize: 0.85, // Fixed glyph size relative to cell
-        onAggregate: (grid) => console.log('Aggregated grid', grid)
+        onAggregate: (gridData) => {
+          // Calculate global max values across all cells for proper normalization
+          let maxRacks = 0;
+          let maxSpaces = 0;
+          
+          // Iterate through all cells in the grid
+          if (gridData && gridData.cellData && Array.isArray(gridData.cellData)) {
+            for (const cellData of gridData.cellData) {
+              if (cellData && Array.isArray(cellData)) {
+                let cellRacks = 0;
+                let cellSpaces = 0;
+                
+                cellData.forEach(item => {
+                  const d = item.data;
+                  if (d && d.RACKS != null) cellRacks += d.RACKS;
+                  if (d && d.SPACES != null) cellSpaces += d.SPACES;
+                });
+                
+                maxRacks = Math.max(maxRacks, cellRacks);
+                maxSpaces = Math.max(maxSpaces, cellSpaces);
+              }
+            }
+          }
+          
+          // Update global stats in the glyph
+          GroupedBarGlyph.globalStats = {
+            maxRacks: maxRacks || 1,
+            maxSpaces: maxSpaces || 1,
+            maxTotal: Math.max(maxRacks, maxSpaces, 1),
+            initialized: true
+          };
+          
+          console.log('Global stats updated:', GroupedBarGlyph.globalStats);
+          console.log('Aggregated grid:', {
+            cols: gridData.cols,
+            rows: gridData.rows,
+            cellsWithData: gridData.grid.filter(v => v > 0).length
+          });
+        },
+        onHover: ({ cell }) => {
+          // Update hovered values for comparison outline
+          if (cell && cell.cellData && cell.cellData.length > 0) {
+            let hoveredRacks = 0;
+            let hoveredSpaces = 0;
+            
+            cell.cellData.forEach(item => {
+              const d = item.data;
+              if (d && d.RACKS != null) hoveredRacks += d.RACKS;
+              if (d && d.SPACES != null) hoveredSpaces += d.SPACES;
+            });
+            
+            GroupedBarGlyph.hoveredValues = {
+              racks: hoveredRacks,
+              spaces: hoveredSpaces
+            };
+            
+            // Update legend with hovered values
+            drawLegendGlyph(GroupedBarGlyph.hoveredValues);
+            
+            // Trigger re-render to show comparison outlines
+            if (layer) {
+              layer.render();
+            }
+          } else {
+            // Clear hovered values if no cell
+            GroupedBarGlyph.hoveredValues = null;
+            drawLegendGlyph(null);
+            if (layer) {
+              layer.render();
+            }
+          }
+        }
       });
 
       map.addLayer(layer);
       gridLayer = layer;
+      
+      // Move point layers to be above (after) the grid layer so they're visible
+      // In MapLibre GL, layers draw in order - later layers appear on top
+      const movePointLayersAboveGrid = () => {
+        if (!map.getLayer(layer.id)) return;
+        
+        try {
+          // Get all layers
+          const allLayers = map.getStyle().layers || [];
+          const gridLayerIndex = allLayers.findIndex(l => l.id === layer.id);
+          
+          if (gridLayerIndex === -1) return;
+          
+          // Move each point layer to be right after the grid layer
+          // moveLayer(id, beforeId) moves id to be BEFORE beforeId
+          // So to put points after grid, we move them before whatever comes after grid
+          const layersAfterGrid = allLayers.slice(gridLayerIndex + 1);
+          const beforeId = layersAfterGrid.length > 0 ? layersAfterGrid[0].id : undefined;
+          
+          // Move clusters to be after grid layer
+          if (map.getLayer('clusters') && beforeId && beforeId !== 'clusters') {
+            map.moveLayer('clusters', beforeId);
+          } else if (map.getLayer('clusters') && !beforeId) {
+            // No layer after grid, so clusters is already in right place
+            // But ensure it's after grid by moving it
+            map.moveLayer('clusters');
+          }
+          
+          // Move cluster-count
+          if (map.getLayer('cluster-count')) {
+            if (beforeId && beforeId !== 'cluster-count') {
+              map.moveLayer('cluster-count', beforeId);
+            }
+          }
+          
+          // Move unclustered points
+          if (map.getLayer(POINTS_LAYER_ID)) {
+            if (beforeId && beforeId !== POINTS_LAYER_ID) {
+              map.moveLayer(POINTS_LAYER_ID, beforeId);
+            }
+          }
+        } catch (e) {
+          console.log('Error moving point layers:', e);
+        }
+      };
+      
+      // Move layers after a short delay to ensure they're added and map is ready
+      setTimeout(() => {
+        movePointLayersAboveGrid();
+      }, 200);
+      
+      // Clear hovered values when mouse leaves the map
+      map.on('mouseout', () => {
+        GroupedBarGlyph.hoveredValues = null;
+        drawLegendGlyph(null);
+        if (layer) {
+          layer.render();
+        }
+      });
 
       // Setup controls
       const basemapSelect = document.getElementById('basemapSelect');
@@ -812,10 +944,14 @@
       // Point layer toggle
       showPointsCheckbox.addEventListener('change', () => {
         updatePointsLayer();
+        // Re-apply layer ordering after toggling
+        setTimeout(() => {
+          movePointLayersAboveGrid();
+        }, 50);
       });
 
       // Draw visual legend with glyph illustration
-      function drawLegendGlyph() {
+      function drawLegendGlyph(hoveredValues = null) {
         const canvas = document.getElementById('legendCanvas');
         const ctx = canvas.getContext('2d');
         const size = 200;
@@ -830,46 +966,34 @@
         // Clear canvas
         ctx.clearRect(0, 0, size, size);
 
-        // Sample data for legend illustration
-        const sampleData = {
-          ashpCarbon: 6000,
-          evCarbon: 3000,
-          pvCarbon: 2000,
-          labourCost: 5000,
-          materialCost: 3500
+        // Use hovered values if available, otherwise use sample data
+        const displayData = hoveredValues || {
+          racks: 15,
+          spaces: 25
         };
 
         const categories = [
-          { name: 'ASHP', carbon: sampleData.ashpCarbon, cost: 0 },
-          { name: 'EV', carbon: sampleData.evCarbon, cost: 0 },
-          { name: 'PV', carbon: sampleData.pvCarbon, cost: 0 },
-          { name: 'Labour', carbon: 0, cost: sampleData.labourCost },
-          { name: 'Material', carbon: 0, cost: sampleData.materialCost }
+          { name: 'Racks', value: displayData.racks },
+          { name: 'Spaces', value: displayData.spaces }
         ];
 
-        const maxOverall = Math.max(
-          ...categories.map(c => Math.max(c.carbon, c.cost)),
-          1
-        );
+        // Use global stats for normalization if available, otherwise local max
+        const maxRacksGlobal = GroupedBarGlyph.globalStats.maxRacks || 1;
+        const maxSpacesGlobal = GroupedBarGlyph.globalStats.maxSpaces || 1;
+        const maxValue = Math.max(maxRacksGlobal, maxSpacesGlobal, 
+                                  Math.max(...categories.map(c => c.value), 1));
 
         // Color palette
-        const carbonColors = {
-          ashp: { r: 46, g: 204, b: 113 },
-          ev: { r: 52, g: 152, b: 219 },
-          pv: { r: 34, g: 139, b: 184 },
-          default: { r: 70, g: 180, b: 150 }
-        };
-        
-        const costColors = {
-          labour: { r: 255, g: 159, b: 64 },
-          material: { r: 200, g: 100, b: 50 },
-          default: { r: 150, g: 150, b: 150 }
+        const colors = {
+          racks: { r: 52, g: 152, b: 219 },      // Blue
+          spaces: { r: 46, g: 204, b: 113 },     // Green
+          default: { r: 70, g: 180, b: 150 }     // Teal
         };
 
         // Chart layout
         const numCategories = categories.length;
         const barGroupWidth = width / numCategories;
-        const barWidth = barGroupWidth * 0.5; // Slightly wider since we only show one bar per category
+        const barWidth = barGroupWidth * 0.85; // 85% of group width (matches glyph)
         const chartPadding = height * 0.1;
 
         ctx.save();
@@ -877,54 +1001,35 @@
         // Draw bars
         categories.forEach((cat, idx) => {
           const groupLeft = left + idx * barGroupWidth;
-          const isTechnology = cat.name === 'ASHP' || cat.name === 'EV' || cat.name === 'PV';
           const barLeft = groupLeft + (barGroupWidth - barWidth) / 2; // Center the bar
           
-          let carbonColor, costColor;
-          if (cat.name === 'ASHP') {
-            carbonColor = carbonColors.ashp;
-            costColor = null;
-          } else if (cat.name === 'EV') {
-            carbonColor = carbonColors.ev;
-            costColor = null;
-          } else if (cat.name === 'PV') {
-            carbonColor = carbonColors.pv;
-            costColor = null;
-          } else if (cat.name === 'Labour') {
-            carbonColor = null;
-            costColor = costColors.labour;
-          } else if (cat.name === 'Material') {
-            carbonColor = null;
-            costColor = costColors.material;
+          let color;
+          if (cat.name === 'Racks') {
+            color = colors.racks;
+          } else if (cat.name === 'Spaces') {
+            color = colors.spaces;
           } else {
-            carbonColor = carbonColors.default;
-            costColor = costColors.default;
+            color = colors.default;
           }
 
-          // Draw Carbon bar (only for technologies)
-          if (isTechnology && cat.carbon > 0 && carbonColor) {
-            const carbonHeight = ((cat.carbon / maxOverall) * (height - chartPadding * 2));
-            const carbonTop = bottom - chartPadding - carbonHeight;
+          // Draw bar if value > 0
+          if (cat.value > 0 && color) {
+            // Normalize using global max for consistency with glyphs
+            const metricMax = cat.name === 'Racks' ? maxRacksGlobal : maxSpacesGlobal;
+            const normalizedHeight = (cat.value / maxValue) * (height - chartPadding * 2);
+            const barHeight = Math.max(2, normalizedHeight);
+            const barTop = bottom - chartPadding - barHeight;
             
-            ctx.fillStyle = `rgba(${carbonColor.r}, ${carbonColor.g}, ${carbonColor.b}, 0.85)`;
-            ctx.fillRect(barLeft, carbonTop, barWidth, carbonHeight);
+            // Use same opacity logic as glyphs
+            const opacity = 0.6 + (cat.value / metricMax) * 0.3;
             
-            ctx.strokeStyle = `rgba(${carbonColor.r}, ${carbonColor.g}, ${carbonColor.b}, 1)`;
-            ctx.lineWidth = 0.5;
-            ctx.strokeRect(barLeft, carbonTop, barWidth, carbonHeight);
-          }
-
-          // Draw Cost bar (only for Labour/Material)
-          if (!isTechnology && cat.cost > 0 && costColor) {
-            const costHeight = ((cat.cost / maxOverall) * (height - chartPadding * 2));
-            const costTop = bottom - chartPadding - costHeight;
+            ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${opacity})`;
+            ctx.fillRect(barLeft, barTop, barWidth, barHeight);
             
-            ctx.fillStyle = `rgba(${costColor.r}, ${costColor.g}, ${costColor.b}, 0.85)`;
-            ctx.fillRect(barLeft, costTop, barWidth, costHeight);
-            
-            ctx.strokeStyle = `rgba(${costColor.r}, ${costColor.g}, ${costColor.b}, 1)`;
-            ctx.lineWidth = 0.5;
-            ctx.strokeRect(barLeft, costTop, barWidth, costHeight);
+            const borderOpacity = 0.5 + (cat.value / metricMax) * 0.5;
+            ctx.strokeStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${borderOpacity})`;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(barLeft, barTop, barWidth, barHeight);
           }
         });
 
@@ -943,25 +1048,39 @@
         const linesCtx = linesCanvas.getContext('2d');
         linesCtx.clearRect(0, 0, size, size);
 
-        // Add text labels below canvas
+        // Add text labels below canvas with actual values if hovering
         const labels = [
-          { label: 'Carbon (ASHP)', desc: 'Air Source Heat Pumps (green)', color: 'rgba(46, 204, 113, 0.85)' },
-          { label: 'Carbon (EV)', desc: 'Electric Vehicles (blue)', color: 'rgba(52, 152, 219, 0.85)' },
-          { label: 'Carbon (PV)', desc: 'Photovoltaic (dark blue)', color: 'rgba(34, 139, 184, 0.85)' },
-          { label: 'Cost (Labour)', desc: 'Labour costs (orange)', color: 'rgba(255, 159, 64, 0.85)' },
-          { label: 'Cost (Material)', desc: 'Material costs (dark orange)', color: 'rgba(200, 100, 50, 0.85)' }
+          { 
+            label: 'Racks', 
+            desc: hoveredValues ? `${displayData.racks} bike racks` : 'Number of bike racks (blue)',
+            value: displayData.racks,
+            color: 'rgba(52, 152, 219, 0.85)' 
+          },
+          { 
+            label: 'Spaces', 
+            desc: hoveredValues ? `${displayData.spaces} parking spaces` : 'Number of parking spaces (green)',
+            value: displayData.spaces,
+            color: 'rgba(46, 204, 113, 0.85)' 
+          }
         ];
 
         const labelsContainer = document.getElementById('legendLabels');
-        labelsContainer.innerHTML = labels.map((item, idx) => `
-          <div class="legend-label-item">
-            <div class="label-marker" style="background-color: ${item.color};"></div>
-            <div class="label-text">
-              <div class="label-title"><strong>${idx + 1}.</strong> ${item.label}</div>
-              <div class="label-desc">${item.desc}</div>
-            </div>
+        const title = hoveredValues ? 'Hovered Cell Values' : 'Parking Capacity';
+        
+        labelsContainer.innerHTML = `
+          <div style="margin-bottom: 8px; font-weight: 600; color: #333; font-size: 11px;">
+            ${title}
           </div>
-        `).join('');
+          ${labels.map((item, idx) => `
+            <div class="legend-label-item">
+              <div class="label-marker" style="background-color: ${item.color};"></div>
+              <div class="label-text">
+                <div class="label-title"><strong>${idx + 1}.</strong> ${item.label}${hoveredValues ? `: <strong>${item.value}</strong>` : ''}</div>
+                <div class="label-desc">${item.desc}</div>
+              </div>
+            </div>
+          `).join('')}
+        `;
       }
 
       // Draw legend after a short delay to ensure canvas is ready
