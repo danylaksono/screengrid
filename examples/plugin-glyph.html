@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Plugin Glyph Example</title>
+  <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    html, body, #map {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+    
+    .controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      z-index: 1000;
+      max-width: 280px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 13px;
+    }
+    
+    .controls h3 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+    }
+    
+    .control-group {
+      margin-bottom: 15px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .control-group:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+    
+    .control-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      color: #555;
+    }
+    
+    .control-group select {
+      width: 100%;
+      padding: 6px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    
+    .control-group input[type="range"] {
+      width: 100%;
+      margin: 5px 0;
+    }
+    
+    .control-group span {
+      display: inline-block;
+      margin-left: 8px;
+      font-weight: 500;
+      color: #333;
+      min-width: 40px;
+    }
+    
+    .control-group input[type="checkbox"] {
+      margin-right: 6px;
+    }
+    
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    
+    .legend-container {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      z-index: 1000;
+      max-width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 12px;
+    }
+    
+    .legend-container h3 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+    }
+    
+    #legendCanvas {
+      display: block;
+      margin: 0 auto 10px;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      background: #fafafa;
+    }
+    
+    #legendLabels {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #eee;
+    }
+    
+    .legend-label-item {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 8px;
+      font-size: 11px;
+    }
+    
+    .legend-label-item .label-marker {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      margin-right: 8px;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    
+    .legend-label-item .label-text {
+      flex: 1;
+    }
+    
+    .legend-label-item .label-title {
+      font-weight: 500;
+      color: #333;
+    }
+    
+    .legend-label-item .label-desc {
+      font-size: 10px;
+      color: #666;
+      margin-top: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  
+  <div class="controls">
+    <div class="control-group">
+      <h3>Basemap</h3>
+      <label for="basemapSelect">Style:</label>
+      <select id="basemapSelect">
+        <option value="osm">OpenStreetMap</option>
+        <option value="positron" selected>Carto Positron (Light)</option>
+        <option value="dark">Carto Dark Matter</option>
+        <option value="satellite">Satellite</option>
+      </select>
+    </div>
+    
+    <div class="control-group">
+      <h3>Layers</h3>
+      <label class="checkbox-label">
+        <input type="checkbox" id="showGlyphs" checked />
+        <span>Show grouped bar glyphs</span>
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" id="showPoints" />
+        <span>Show original data points</span>
+      </label>
+    </div>
+    
+    <div class="control-group">
+      <h3>Aggregation</h3>
+      <label for="cellSize">Cell Size (pixels):</label>
+      <input type="range" id="cellSize" min="20" max="120" step="10" value="60" />
+      <span id="cellSizeValue">60</span>
+    </div>
+  </div>
+  
+  <div class="legend-container" id="legendContainer">
+    <h3>Carbon vs Cost Comparison</h3>
+    <div id="legendContent">
+      <div style="position: relative; display: inline-block;">
+        <canvas id="legendCanvas" width="200" height="200"></canvas>
+        <canvas id="legendLines" width="200" height="200" style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
+      </div>
+      <div id="legendLabels"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { ScreenGridLayerGL, GlyphRegistry } from '../src/index.js';
+
+    // Grouped Bar Chart Glyph
+    // Visualizes Carbon vs Cost comparison across technologies using grouped bars
+    const GroupedBarGlyph = {
+      init({ layer, config } = {}) {
+        console.log('GroupedBarGlyph.init called for layer', layer && layer.id, 'config', config);
+        return {
+          destroy() {
+            console.log('GroupedBarGlyph instance destroyed for layer', layer && layer.id);
+          }
+        };
+      },
+
+      draw(ctx, x, y, normalizedValue, cellInfo, config = {}) {
+        const { cellData, cellSize, glyphRadius } = cellInfo;
+        if (!cellData || cellData.length === 0) return;
+
+        const glyphSize = config.glyphSize || glyphRadius || (cellSize || 20) * 0.4;
+        const width = glyphSize * 1.6;  // Width of the chart
+        const height = glyphSize * 1.2;  // Height of the chart
+        const left = x - width / 2;
+        const top = y - height / 2;
+        const bottom = top + height;
+        const right = left + width;
+
+        ctx.save();
+
+        // Aggregate data from all points in this cell
+        let ashpCarbon = 0;
+        let evCarbon = 0;
+        let pvCarbon = 0;
+        let labourCost = 0;
+        let materialCost = 0;
+
+        cellData.forEach(item => {
+          const d = item.data;
+          
+          // Carbon values (only for technologies)
+          if (d.ashp_carbonsaved != null) ashpCarbon += d.ashp_carbonsaved;
+          if (d.ev_carbonsaved != null) evCarbon += d.ev_carbonsaved;
+          if (d.pv_carbonsaved != null) pvCarbon += d.pv_carbonsaved;
+          
+          // Cost values (only for Labour and Material)
+          if (d.labour_cost != null) labourCost += d.labour_cost;
+          if (d.material_cost != null) materialCost += d.material_cost;
+          
+          // If total_cost exists but no breakdown, allocate to labour/material
+          if (d.total_cost != null && d.labour_cost == null && d.material_cost == null) {
+            // Distribute total_cost evenly to labour/material if no breakdown available
+            labourCost += d.total_cost * 0.5;
+            materialCost += d.total_cost * 0.5;
+          }
+        });
+
+        // Prepare data for charting
+        const categories = [
+          { name: 'ASHP', carbon: ashpCarbon, cost: 0 },
+          { name: 'EV', carbon: evCarbon, cost: 0 },
+          { name: 'PV', carbon: pvCarbon, cost: 0 },
+          { name: 'Labour', carbon: 0, cost: labourCost },
+          { name: 'Material', carbon: 0, cost: materialCost }
+        ];
+
+        // Find max values for normalization
+        const maxCarbon = Math.max(...categories.map(c => c.carbon), 1);
+        const maxCost = Math.max(...categories.map(c => c.cost), 1);
+        const maxOverall = Math.max(maxCarbon, maxCost, 1);
+
+        // Color palette: green/blue family for Carbon, orange/gray for Cost
+        const carbonColors = {
+          ashp: { r: 46, g: 204, b: 113 },   // Green
+          ev: { r: 52, g: 152, b: 219 },     // Blue
+          pv: { r: 34, g: 139, b: 184 },     // Darker blue
+          default: { r: 70, g: 180, b: 150 } // Teal
+        };
+        
+        const costColors = {
+          labour: { r: 255, g: 159, b: 64 },    // Orange
+          material: { r: 200, g: 100, b: 50 },  // Darker orange
+          default: { r: 150, g: 150, b: 150 }    // Gray
+        };
+
+        // Chart layout
+        const numCategories = categories.length;
+        const barGroupWidth = width / numCategories;
+        const barWidth = barGroupWidth * 0.5;  // Each bar is 50% of group width (only one bar per category)
+        const chartPadding = height * 0.1;
+
+        // Draw bars
+        categories.forEach((cat, idx) => {
+          const groupLeft = left + idx * barGroupWidth;
+          const isTechnology = cat.name === 'ASHP' || cat.name === 'EV' || cat.name === 'PV';
+          const hasCarbon = cat.carbon > 0;
+          const hasCost = cat.cost > 0;
+          
+          // Get colors for this category
+          let carbonColor, costColor;
+          if (cat.name === 'ASHP') {
+            carbonColor = carbonColors.ashp;
+            costColor = costColors.default;
+          } else if (cat.name === 'EV') {
+            carbonColor = carbonColors.ev;
+            costColor = costColors.default;
+          } else if (cat.name === 'PV') {
+            carbonColor = carbonColors.pv;
+            costColor = costColors.default;
+          } else if (cat.name === 'Labour') {
+            carbonColor = null;  // No carbon for labour
+            costColor = costColors.labour;
+          } else if (cat.name === 'Material') {
+            carbonColor = null;  // No carbon for material
+            costColor = costColors.material;
+          } else {
+            carbonColor = carbonColors.default;
+            costColor = costColors.default;
+          }
+
+          // Position bars consistently
+          let barLeft;
+          
+          if (isTechnology) {
+            // For technologies: center the carbon bar (no cost bar)
+            barLeft = groupLeft + (barGroupWidth - barWidth) / 2;
+          } else {
+            // For Labour/Material: center the cost bar
+            barLeft = groupLeft + (barGroupWidth - barWidth) / 2;
+          }
+
+          // Draw Carbon bar (only for technologies with carbon data)
+          if (isTechnology && hasCarbon && carbonColor) {
+            const carbonHeight = ((cat.carbon / maxOverall) * (height - chartPadding * 2));
+            const carbonTop = bottom - chartPadding - carbonHeight;
+            
+            ctx.fillStyle = `rgba(${carbonColor.r}, ${carbonColor.g}, ${carbonColor.b}, 0.85)`;
+            ctx.fillRect(barLeft, carbonTop, barWidth, carbonHeight);
+            
+            // Add subtle border
+            ctx.strokeStyle = `rgba(${carbonColor.r}, ${carbonColor.g}, ${carbonColor.b}, 1)`;
+            ctx.lineWidth = 0.5;
+            ctx.strokeRect(barLeft, carbonTop, barWidth, carbonHeight);
+          }
+
+          // Draw Cost bar (only for Labour/Material)
+          if (!isTechnology && hasCost && costColor) {
+            const costHeight = ((cat.cost / maxOverall) * (height - chartPadding * 2));
+            const costTop = bottom - chartPadding - costHeight;
+            
+            ctx.fillStyle = `rgba(${costColor.r}, ${costColor.g}, ${costColor.b}, 0.85)`;
+            ctx.fillRect(barLeft, costTop, barWidth, costHeight);
+            
+            // Add subtle border
+            ctx.strokeStyle = `rgba(${costColor.r}, ${costColor.g}, ${costColor.b}, 1)`;
+            ctx.lineWidth = 0.5;
+            ctx.strokeRect(barLeft, costTop, barWidth, costHeight);
+          }
+        });
+
+        // Draw baseline
+        ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(left, bottom - chartPadding);
+        ctx.lineTo(right, bottom - chartPadding);
+        ctx.stroke();
+
+        ctx.restore();
+      },
+
+      getLegend(gridData, config = {}) {
+        return {
+          type: 'custom',
+          title: 'Carbon vs Cost Comparison',
+          description: 'Grouped bar chart comparing carbon savings and costs:',
+          items: [
+            { label: 'Carbon (ASHP)', description: 'Air Source Heat Pumps (green)', color: 'rgba(46, 204, 113, 0.85)' },
+            { label: 'Carbon (EV)', description: 'Electric Vehicles (blue)', color: 'rgba(52, 152, 219, 0.85)' },
+            { label: 'Carbon (PV)', description: 'Photovoltaic (dark blue)', color: 'rgba(34, 139, 184, 0.85)' },
+            { label: 'Cost (Labour)', description: 'Labour costs (orange)', color: 'rgba(255, 159, 64, 0.85)' },
+            { label: 'Cost (Material)', description: 'Material costs (dark orange)', color: 'rgba(200, 100, 50, 0.85)' }
+          ]
+        };
+      }
+    };
+
+    // Register plugin
+    GlyphRegistry.register('grouped-bar', GroupedBarGlyph, { overwrite: true });
+
+    // Basemap styles
+    const basemapStyles = {
+      osm: {
+        version: 8,
+        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+        sources: {
+          'osm': {
+            type: 'raster',
+            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            attribution: '© OpenStreetMap contributors'
+          }
+        },
+        layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
+      },
+      positron: {
+        version: 8,
+        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+        sources: {
+          'carto': {
+            type: 'raster',
+            tiles: ['https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            attribution: '© CARTO, © OpenStreetMap contributors'
+          }
+        },
+        layers: [{ id: 'carto', type: 'raster', source: 'carto' }]
+      },
+      dark: {
+        version: 8,
+        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+        sources: {
+          'carto-dark': {
+            type: 'raster',
+            tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            attribution: '© CARTO, © OpenStreetMap contributors'
+          }
+        },
+        layers: [{ id: 'carto-dark', type: 'raster', source: 'carto-dark' }]
+      },
+      satellite: {
+        version: 8,
+        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+        sources: {
+          'satellite': {
+            type: 'raster',
+            tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+            tileSize: 256,
+            attribution: '© Esri'
+          }
+        },
+        layers: [{ id: 'satellite', type: 'raster', source: 'satellite' }]
+      }
+    };
+
+    // Create map - default center to Cambridge, UK (will be adjusted if fallback data is used)
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: basemapStyles.positron, // Default to Carto Positron
+      center: [0.1198, 52.2053], // Cambridge, UK
+      zoom: 11
+    });
+
+    // Point layer IDs
+    const POINTS_SOURCE_ID = 'data-points-source';
+    const POINTS_LAYER_ID = 'data-points-layer';
+    
+    let gridLayer = null;
+    let currentData = null;
+
+    map.on('load', async () => {
+      // Load a small dataset (use cambridge.json included in repo examples/data)
+      let data;
+      let usingFallback = false;
+      try {
+        // Correct relative path: data file is in the same `examples/data` folder
+        const resp = await fetch('./data/cambridge.json');
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+        }
+        data = await resp.json();
+        console.log(`Loaded ${data.length} data points from cambridge.json`);
+      } catch (e) {
+        // If fetching fails, fall back to a small sample dataset so the example still shows glyphs
+        console.warn('Failed to load data, using fallback sample data', e);
+        usingFallback = true;
+        data = [
+          { COORDINATES: [-122.41, 37.77], weight: 1 },
+          { COORDINATES: [-122.42, 37.76], weight: 1 },
+          { COORDINATES: [-122.40, 37.75], weight: 1 },
+          { COORDINATES: [-122.39, 37.74], weight: 1 },
+          { COORDINATES: [-122.43, 37.73], weight: 1 },
+          { COORDINATES: [-122.38, 37.78], weight: 1 }
+        ];
+        // Adjust map center for fallback data (San Francisco)
+        map.setCenter([-122.4, 37.74]);
+      }
+
+      // Filter data to only include entries with valid coordinates and meaningful weights
+      // This is important for cambridge.json which has many entries with null values
+      const validData = data.filter(d => {
+        // Check for valid position
+        const hasPosition = d.COORDINATES || d.coordinates || d.geometry?.coordinates || 
+                          (d.lat != null && d.lon != null);
+        if (!hasPosition) return false;
+        
+        // Check for meaningful weight (for cambridge data)
+        if (!usingFallback) {
+          // For cambridge data, require at least one meaningful value
+          return d.total_cost != null || d.ashp_carbonsaved != null || d.weight != null;
+        }
+        // For fallback data, just check position
+        return true;
+      });
+
+      console.log(`Using ${validData.length} valid data points (filtered from ${data.length})`);
+
+      // Store for point layer
+      currentData = validData;
+
+      // Create point layer GeoJSON
+      const pointGeoJSON = {
+        type: 'FeatureCollection',
+        features: validData.map(d => {
+          let coords;
+          if (d.COORDINATES) coords = d.COORDINATES;
+          else if (d.coordinates) coords = d.coordinates;
+          else if (d.geometry?.coordinates) coords = d.geometry.coordinates;
+          else if (d.lat != null && d.lon != null) coords = [d.lon, d.lat];
+          else return null;
+          
+          return {
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: coords },
+            properties: d
+          };
+        }).filter(f => f !== null)
+      };
+
+      // Add point source with clustering (initially hidden)
+      if (!map.getSource(POINTS_SOURCE_ID)) {
+        map.addSource(POINTS_SOURCE_ID, {
+          type: 'geojson',
+          data: pointGeoJSON,
+          cluster: true,
+          clusterMaxZoom: 14,
+          clusterRadius: 50
+        });
+      } else {
+        map.getSource(POINTS_SOURCE_ID).setData(pointGeoJSON);
+      }
+
+      // Add clustered point layers (initially hidden)
+      // Clustered circles
+      if (!map.getLayer('clusters')) {
+        map.addLayer({
+          id: 'clusters',
+          type: 'circle',
+          source: POINTS_SOURCE_ID,
+          filter: ['has', 'point_count'],
+          paint: {
+            'circle-color': [
+              'step',
+              ['get', 'point_count'],
+              '#e74c3c',
+              10, '#f39c12',
+              50, '#3498db',
+              100, '#9b59b6'
+            ],
+            'circle-radius': [
+              'step',
+              ['get', 'point_count'],
+              8,
+              10, 12,
+              50, 16,
+              100, 20
+            ],
+            'circle-opacity': 0.6,
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 1
+          },
+          layout: {
+            visibility: 'none'
+          }
+        });
+      }
+
+      // Cluster count labels
+      if (!map.getLayer('cluster-count')) {
+        map.addLayer({
+          id: 'cluster-count',
+          type: 'symbol',
+          source: POINTS_SOURCE_ID,
+          filter: ['has', 'point_count'],
+          layout: {
+            'text-field': '{point_count_abbreviated}',
+            'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+            'text-size': 11,
+            visibility: 'none'
+          },
+          paint: {
+            'text-color': '#ffffff'
+          }
+        });
+      }
+
+      // Unclustered points
+      if (!map.getLayer(POINTS_LAYER_ID)) {
+        map.addLayer({
+          id: POINTS_LAYER_ID,
+          type: 'circle',
+          source: POINTS_SOURCE_ID,
+          filter: ['!', ['has', 'point_count']],
+          paint: {
+            'circle-radius': 3,
+            'circle-color': '#e74c3c',
+            'circle-opacity': 0.6,
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 0.5
+          },
+          layout: {
+            visibility: 'none' // Hidden by default
+          }
+        });
+      }
+
+      const layer = new ScreenGridLayerGL({
+        id: 'efficiency-gauge-layer',
+        data: validData,
+        getPosition: (d) => {
+          // Handle multiple data formats
+          if (d.COORDINATES) return d.COORDINATES;
+          if (d.coordinates) return d.coordinates;
+          if (d.geometry?.coordinates) return d.geometry.coordinates;
+          // Handle lat/lon format (cambridge.json uses this)
+          if (d.lat != null && d.lon != null) return [d.lon, d.lat];
+          return null;
+        },
+        getWeight: (d) => {
+          // Use weight field if available, otherwise use a meaningful value from cambridge data
+          if (d.weight != null) return d.weight;
+          // For cambridge data, prefer total_cost or ashp_carbonsaved
+          if (d.total_cost != null && d.total_cost > 0) return d.total_cost;
+          if (d.ashp_carbonsaved != null && d.ashp_carbonsaved > 0) return d.ashp_carbonsaved;
+          return 1;
+        },
+        cellSizePixels: 60,
+        colorScale: (v) => [255 * v, 200 * (1 - v), 50, 220],
+        enableGlyphs: true,
+        // Use the registered plugin by name. onDrawCell still supported and would override this.
+        glyph: 'grouped-bar',
+        glyphConfig: { glyphSize: null }, // Use default sizing
+        glyphSize: 0.85, // Fixed glyph size relative to cell
+        onAggregate: (grid) => console.log('Aggregated grid', grid)
+      });
+
+      map.addLayer(layer);
+      gridLayer = layer;
+
+      // Setup controls
+      const basemapSelect = document.getElementById('basemapSelect');
+      const showGlyphsCheckbox = document.getElementById('showGlyphs');
+      const showPointsCheckbox = document.getElementById('showPoints');
+      const cellSizeSlider = document.getElementById('cellSize');
+      const cellSizeValue = document.getElementById('cellSizeValue');
+
+      // Helper function to update point layer visibility
+      function updatePointsLayer() {
+        const showPoints = showPointsCheckbox.checked;
+        const visibility = showPoints ? 'visible' : 'none';
+        
+        if (map.getLayer('clusters')) {
+          map.setLayoutProperty('clusters', 'visibility', visibility);
+        }
+        if (map.getLayer('cluster-count')) {
+          map.setLayoutProperty('cluster-count', 'visibility', visibility);
+        }
+        if (map.getLayer(POINTS_LAYER_ID)) {
+          map.setLayoutProperty(POINTS_LAYER_ID, 'visibility', visibility);
+        }
+      }
+
+      // Cell size slider (controls aggregation size)
+      cellSizeSlider.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        cellSizeValue.textContent = value;
+        if (gridLayer) {
+          gridLayer.setConfig({ cellSizePixels: value });
+        }
+      });
+
+      // Helper function to re-add layers after style change
+      function reAddLayers() {
+        // Re-add grid layer
+        if (gridLayer && !map.getLayer(gridLayer.id)) {
+          map.addLayer(gridLayer);
+        }
+        
+        // Re-add point source and layer if they don't exist
+        if (!map.getSource(POINTS_SOURCE_ID) && currentData) {
+          const pointGeoJSON = {
+            type: 'FeatureCollection',
+            features: currentData.map(d => {
+              let coords;
+              if (d.COORDINATES) coords = d.COORDINATES;
+              else if (d.coordinates) coords = d.coordinates;
+              else if (d.geometry?.coordinates) coords = d.geometry.coordinates;
+              else if (d.lat != null && d.lon != null) coords = [d.lon, d.lat];
+              else return null;
+              
+              return {
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: coords },
+                properties: d
+              };
+            }).filter(f => f !== null)
+          };
+          
+          map.addSource(POINTS_SOURCE_ID, {
+            type: 'geojson',
+            data: pointGeoJSON,
+            cluster: true,
+            clusterMaxZoom: 14,
+            clusterRadius: 50
+          });
+        }
+        
+        // Re-add clustered point layers if they don't exist
+        if (map.getSource(POINTS_SOURCE_ID)) {
+          if (!map.getLayer('clusters')) {
+            map.addLayer({
+              id: 'clusters',
+              type: 'circle',
+              source: POINTS_SOURCE_ID,
+              filter: ['has', 'point_count'],
+              paint: {
+                'circle-color': [
+                  'step',
+                  ['get', 'point_count'],
+                  '#e74c3c',
+                  10, '#f39c12',
+                  50, '#3498db',
+                  100, '#9b59b6'
+                ],
+                'circle-radius': [
+                  'step',
+                  ['get', 'point_count'],
+                  8,
+                  10, 12,
+                  50, 16,
+                  100, 20
+                ],
+                'circle-opacity': 0.6,
+                'circle-stroke-color': '#ffffff',
+                'circle-stroke-width': 1
+              },
+              layout: {
+                visibility: showPointsCheckbox.checked ? 'visible' : 'none'
+              }
+            });
+          }
+
+          if (!map.getLayer('cluster-count')) {
+            map.addLayer({
+              id: 'cluster-count',
+              type: 'symbol',
+              source: POINTS_SOURCE_ID,
+              filter: ['has', 'point_count'],
+              layout: {
+                'text-field': '{point_count_abbreviated}',
+                'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+                'text-size': 11,
+                visibility: showPointsCheckbox.checked ? 'visible' : 'none'
+              },
+              paint: {
+                'text-color': '#ffffff'
+              }
+            });
+          }
+
+          if (!map.getLayer(POINTS_LAYER_ID)) {
+            map.addLayer({
+              id: POINTS_LAYER_ID,
+              type: 'circle',
+              source: POINTS_SOURCE_ID,
+              filter: ['!', ['has', 'point_count']],
+              paint: {
+                'circle-radius': 3,
+                'circle-color': '#e74c3c',
+                'circle-opacity': 0.6,
+                'circle-stroke-color': '#ffffff',
+                'circle-stroke-width': 0.5
+              },
+              layout: {
+                visibility: showPointsCheckbox.checked ? 'visible' : 'none'
+              }
+            });
+          } else {
+            updatePointsLayer();
+          }
+        }
+      }
+
+      // Basemap selector
+      basemapSelect.addEventListener('change', (e) => {
+        const styleKey = e.target.value;
+        const newStyle = basemapStyles[styleKey];
+        if (newStyle) {
+          map.setStyle(newStyle);
+          map.once('style.load', () => {
+            reAddLayers();
+          });
+        }
+      });
+
+      // Glyph layer toggle
+      showGlyphsCheckbox.addEventListener('change', () => {
+        if (gridLayer) {
+          gridLayer.setConfig({ enabled: showGlyphsCheckbox.checked });
+        }
+      });
+
+      // Point layer toggle
+      showPointsCheckbox.addEventListener('change', () => {
+        updatePointsLayer();
+      });
+
+      // Draw visual legend with glyph illustration
+      function drawLegendGlyph() {
+        const canvas = document.getElementById('legendCanvas');
+        const ctx = canvas.getContext('2d');
+        const size = 200;
+        const padding = 15;
+        const width = size - padding * 2;
+        const height = size - padding * 2;
+        const left = padding;
+        const top = padding;
+        const bottom = top + height;
+        const right = left + width;
+
+        // Clear canvas
+        ctx.clearRect(0, 0, size, size);
+
+        // Sample data for legend illustration
+        const sampleData = {
+          ashpCarbon: 6000,
+          evCarbon: 3000,
+          pvCarbon: 2000,
+          labourCost: 5000,
+          materialCost: 3500
+        };
+
+        const categories = [
+          { name: 'ASHP', carbon: sampleData.ashpCarbon, cost: 0 },
+          { name: 'EV', carbon: sampleData.evCarbon, cost: 0 },
+          { name: 'PV', carbon: sampleData.pvCarbon, cost: 0 },
+          { name: 'Labour', carbon: 0, cost: sampleData.labourCost },
+          { name: 'Material', carbon: 0, cost: sampleData.materialCost }
+        ];
+
+        const maxOverall = Math.max(
+          ...categories.map(c => Math.max(c.carbon, c.cost)),
+          1
+        );
+
+        // Color palette
+        const carbonColors = {
+          ashp: { r: 46, g: 204, b: 113 },
+          ev: { r: 52, g: 152, b: 219 },
+          pv: { r: 34, g: 139, b: 184 },
+          default: { r: 70, g: 180, b: 150 }
+        };
+        
+        const costColors = {
+          labour: { r: 255, g: 159, b: 64 },
+          material: { r: 200, g: 100, b: 50 },
+          default: { r: 150, g: 150, b: 150 }
+        };
+
+        // Chart layout
+        const numCategories = categories.length;
+        const barGroupWidth = width / numCategories;
+        const barWidth = barGroupWidth * 0.5; // Slightly wider since we only show one bar per category
+        const chartPadding = height * 0.1;
+
+        ctx.save();
+
+        // Draw bars
+        categories.forEach((cat, idx) => {
+          const groupLeft = left + idx * barGroupWidth;
+          const isTechnology = cat.name === 'ASHP' || cat.name === 'EV' || cat.name === 'PV';
+          const barLeft = groupLeft + (barGroupWidth - barWidth) / 2; // Center the bar
+          
+          let carbonColor, costColor;
+          if (cat.name === 'ASHP') {
+            carbonColor = carbonColors.ashp;
+            costColor = null;
+          } else if (cat.name === 'EV') {
+            carbonColor = carbonColors.ev;
+            costColor = null;
+          } else if (cat.name === 'PV') {
+            carbonColor = carbonColors.pv;
+            costColor = null;
+          } else if (cat.name === 'Labour') {
+            carbonColor = null;
+            costColor = costColors.labour;
+          } else if (cat.name === 'Material') {
+            carbonColor = null;
+            costColor = costColors.material;
+          } else {
+            carbonColor = carbonColors.default;
+            costColor = costColors.default;
+          }
+
+          // Draw Carbon bar (only for technologies)
+          if (isTechnology && cat.carbon > 0 && carbonColor) {
+            const carbonHeight = ((cat.carbon / maxOverall) * (height - chartPadding * 2));
+            const carbonTop = bottom - chartPadding - carbonHeight;
+            
+            ctx.fillStyle = `rgba(${carbonColor.r}, ${carbonColor.g}, ${carbonColor.b}, 0.85)`;
+            ctx.fillRect(barLeft, carbonTop, barWidth, carbonHeight);
+            
+            ctx.strokeStyle = `rgba(${carbonColor.r}, ${carbonColor.g}, ${carbonColor.b}, 1)`;
+            ctx.lineWidth = 0.5;
+            ctx.strokeRect(barLeft, carbonTop, barWidth, carbonHeight);
+          }
+
+          // Draw Cost bar (only for Labour/Material)
+          if (!isTechnology && cat.cost > 0 && costColor) {
+            const costHeight = ((cat.cost / maxOverall) * (height - chartPadding * 2));
+            const costTop = bottom - chartPadding - costHeight;
+            
+            ctx.fillStyle = `rgba(${costColor.r}, ${costColor.g}, ${costColor.b}, 0.85)`;
+            ctx.fillRect(barLeft, costTop, barWidth, costHeight);
+            
+            ctx.strokeStyle = `rgba(${costColor.r}, ${costColor.g}, ${costColor.b}, 1)`;
+            ctx.lineWidth = 0.5;
+            ctx.strokeRect(barLeft, costTop, barWidth, costHeight);
+          }
+        });
+
+        // Draw baseline
+        ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(left, bottom - chartPadding);
+        ctx.lineTo(right, bottom - chartPadding);
+        ctx.stroke();
+
+        ctx.restore();
+
+        // Clear lines canvas (not needed for bar chart, but keep for compatibility)
+        const linesCanvas = document.getElementById('legendLines');
+        const linesCtx = linesCanvas.getContext('2d');
+        linesCtx.clearRect(0, 0, size, size);
+
+        // Add text labels below canvas
+        const labels = [
+          { label: 'Carbon (ASHP)', desc: 'Air Source Heat Pumps (green)', color: 'rgba(46, 204, 113, 0.85)' },
+          { label: 'Carbon (EV)', desc: 'Electric Vehicles (blue)', color: 'rgba(52, 152, 219, 0.85)' },
+          { label: 'Carbon (PV)', desc: 'Photovoltaic (dark blue)', color: 'rgba(34, 139, 184, 0.85)' },
+          { label: 'Cost (Labour)', desc: 'Labour costs (orange)', color: 'rgba(255, 159, 64, 0.85)' },
+          { label: 'Cost (Material)', desc: 'Material costs (dark orange)', color: 'rgba(200, 100, 50, 0.85)' }
+        ];
+
+        const labelsContainer = document.getElementById('legendLabels');
+        labelsContainer.innerHTML = labels.map((item, idx) => `
+          <div class="legend-label-item">
+            <div class="label-marker" style="background-color: ${item.color};"></div>
+            <div class="label-text">
+              <div class="label-title"><strong>${idx + 1}.</strong> ${item.label}</div>
+              <div class="label-desc">${item.desc}</div>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // Draw legend after a short delay to ensure canvas is ready
+      setTimeout(() => {
+        drawLegendGlyph();
+      }, 100);
+    });
+  </script>
+</body>
+</html>
+

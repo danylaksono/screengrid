@@ -5,6 +5,7 @@
 
 import { LegendDataExtractor } from './LegendDataExtractor.js';
 import { LegendRenderers } from './LegendRenderers.js';
+import { GlyphRegistry } from '../glyphs/GlyphRegistry.js';
 
 export class Legend {
   /**
@@ -177,6 +178,51 @@ export class Legend {
 
     this.gridData = gridData;
     this.config = config;
+
+    // If a glyph plugin is registered and exposes a legend, prefer it.
+    if (this.layer && this.layer.config && this.layer.config.glyph) {
+      try {
+        const plugin = GlyphRegistry.get(this.layer.config.glyph);
+        if (plugin && typeof plugin.getLegend === 'function') {
+          const pluginLegend = plugin.getLegend(gridData, this.layer.config, { layer: this.layer });
+          if (pluginLegend) {
+            // pluginLegend may be an array of legend sections or a single legend object
+            if (Array.isArray(pluginLegend)) {
+              LegendRenderers.renderMultiDimensional(this.element, pluginLegend, { title: this.title, ...this.renderOptions });
+            } else if (pluginLegend.type) {
+              // dispatch by type
+              switch (pluginLegend.type) {
+                case 'color-scale':
+                  LegendRenderers.renderColorScale(this.element, pluginLegend, { title: this.title, ...this.renderOptions });
+                  break;
+                case 'categorical':
+                  LegendRenderers.renderCategorical(this.element, pluginLegend, { title: this.title, ...this.renderOptions });
+                  break;
+                case 'temporal':
+                  LegendRenderers.renderTemporal(this.element, pluginLegend, { title: this.title, ...this.renderOptions });
+                  break;
+                case 'size-scale':
+                  LegendRenderers.renderSizeScale(this.element, pluginLegend, { title: this.title, ...this.renderOptions });
+                  break;
+                default:
+                  // If unknown, try multi renderer with single section
+                  LegendRenderers.renderMultiDimensional(this.element, [pluginLegend], { title: this.title, ...this.renderOptions });
+              }
+            } else if (typeof pluginLegend === 'string') {
+              // Allow plugin to return HTML snippet
+              this.element.innerHTML = pluginLegend;
+            } else {
+              // Fallback: try to stringify
+              this.element.innerHTML = `<div class="glyph-legend-title">${this.title}</div><pre>${JSON.stringify(pluginLegend, null, 2)}</pre>`;
+            }
+
+            return; // plugin provided legend rendered — exit
+          }
+        }
+      } catch (e) {
+        console.error('Legend: plugin.getLegend threw an error:', e);
+      }
+    }
 
     // Determine legend type
     let legendType = this.type;

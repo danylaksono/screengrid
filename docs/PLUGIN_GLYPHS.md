@@ -2,7 +2,9 @@
 
 This document describes the design, API, and usage for the ScreenGrid glyph plugin system.
 
-Status: PR-ready skeleton implementation included in `src/glyphs/GlyphRegistry.js` and integration wired into `ScreenGridLayerGL.js`.
+📖 **📚 For comprehensive documentation**: See [PLUGIN_GLYPH_ECOSYSTEM.md](./PLUGIN_GLYPH_ECOSYSTEM.md) for detailed evaluation, all available plugins, usage patterns, and complete API reference.
+
+Status: ✅ **Fully implemented and production-ready**. Complete implementation in `src/glyphs/GlyphRegistry.js` with full integration into `ScreenGridLayerGL.js`. Four built-in plugins available, lifecycle hooks implemented, and legend support functional.
 
 ## Goals
 
@@ -79,10 +81,10 @@ Notes:
 
 ## Future improvements (post-MVP)
 
-- Per-layer plugin lifecycle hooks: call `plugin.init(layer, config)` and `plugin.destroy()` so plugins can manage state.
-- Legend integration: allow `Legend` to call `plugin.getLegend(cellInfo)` when available.
-- Optional sandboxing: consider WebWorker or sandboxed if third-party plugins run untrusted code.
-- Dynamic loading: allow registering plugins from URLs (with security considerations).
+- ✅ **Implemented**: Per-layer plugin lifecycle hooks (`plugin.init(layer, config)` and `plugin.destroy()`)
+- ✅ **Implemented**: Legend integration (Legend module calls `plugin.getLegend()` when available)
+- ⏳ **Planned**: Optional sandboxing: consider WebWorker or sandboxed if third-party plugins run untrusted code.
+- ⏳ **Planned**: Dynamic loading: allow registering plugins from URLs (with security considerations).
 
 ## Files changed in this PR
 

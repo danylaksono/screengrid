@@ -36,6 +36,8 @@ export class ScreenGridLayerGL {
     this.gl = null;
     this.pointsProjected = [];
     this.gridData = null;
+    // Plugin instance returned by plugin.init (if any)
+    this._glyphInstance = null;
   }
 
   // ============ MapLibre GL Interface ============
@@ -64,6 +66,9 @@ export class ScreenGridLayerGL {
     try {
       // Initialize canvas
       this.canvasManager.init(map);
+
+      // Initialize glyph plugin for this layer (if configured)
+      this._initGlyphPlugin();
 
       // Bind events
       this.eventBinder.bind(map, {
@@ -96,6 +101,9 @@ export class ScreenGridLayerGL {
     this.eventBinder.unbind();
     this.canvasManager.cleanup();
 
+    // Destroy glyph plugin instance if present
+    this._destroyGlyphPlugin();
+
     this.map = null;
     this.pointsProjected = [];
     this.gridData = null;
@@ -107,7 +115,14 @@ export class ScreenGridLayerGL {
    * Called to render the layer
    */
   render() {
-    if (!this.config.enabled || !this.canvasManager.getContext()) {
+    const ctx = this.canvasManager.getContext();
+    if (!ctx) {
+      return;
+    }
+
+    // If disabled, clear the canvas and return
+    if (!this.config.enabled) {
+      this.canvasManager.clear();
       return;
     }
 
@@ -124,6 +139,11 @@ export class ScreenGridLayerGL {
   setData(newData) {
     this.config = ConfigManager.update(this.config, { data: newData });
     this._projectPoints();
+    
+    // Trigger repaint so changes are visible immediately
+    if (this.map) {
+      this.map.triggerRepaint();
+    }
   }
 
   /**
@@ -131,8 +151,22 @@ export class ScreenGridLayerGL {
    * @param {Object} updates - Partial configuration updates
    */
   setConfig(updates) {
+    const previousGlyph = this.config ? this.config.glyph : null;
     this.config = ConfigManager.update(this.config, updates);
+
+    // If glyph name changed, re-initialize/destroy plugin lifecycle
+    const newGlyph = this.config ? this.config.glyph : null;
+    if (previousGlyph !== newGlyph) {
+      this._destroyGlyphPlugin();
+      this._initGlyphPlugin();
+    }
+
     this._projectPoints();
+    
+    // Trigger repaint so changes are visible immediately
+    if (this.map) {
+      this.map.triggerRepaint();
+    }
   }
 
   // ============ Public Query Methods ============
@@ -165,6 +199,46 @@ export class ScreenGridLayerGL {
   }
 
   // ============ Internal Methods ============
+
+  /**
+   * Initialize glyph plugin for this layer if configured
+   * @private
+   */
+  _initGlyphPlugin() {
+    if (!this.config || !this.config.glyph) return;
+    try {
+      const plugin = GlyphRegistry.get(this.config.glyph);
+      if (plugin && typeof plugin.init === 'function') {
+        // Allow plugin.init to return a per-layer instance/state
+        this._glyphInstance = plugin.init({ layer: this, config: this.config.glyphConfig || {} }) || null;
+      }
+    } catch (e) {
+      console.error(`Glyph plugin init failed for "${this.config.glyph}":`, e);
+      this._glyphInstance = null;
+    }
+  }
+
+  /**
+   * Destroy glyph plugin instance for this layer
+   * @private
+   */
+  _destroyGlyphPlugin() {
+    if (!this.config || !this.config.glyph) return;
+    try {
+      const plugin = GlyphRegistry.get(this.config.glyph);
+      // If plugin returned an instance with destroy, prefer that
+      if (this._glyphInstance && typeof this._glyphInstance.destroy === 'function') {
+        this._glyphInstance.destroy();
+      } else if (plugin && typeof plugin.destroy === 'function') {
+        plugin.destroy({ layer: this });
+      }
+    } catch (e) {
+      console.error(`Glyph plugin destroy failed for "${this.config.glyph}":`, e);
+    } finally {
+      this._glyphInstance = null;
+    }
+  }
+
 
   /**
    * Project geographic coordinates to screen space

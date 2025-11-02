@@ -101,8 +101,9 @@ export class CanvasManager {
   clear() {
     if (!this.ctx || !this.overlayCanvas) return;
 
-    const dpr = window.devicePixelRatio || 1;
-    this.ctx.clearRect(0, 0, this.overlayCanvas.width / dpr, this.overlayCanvas.height / dpr);
+    // Use display size (same as renderer) since transform is already applied
+    const { width, height } = this.getDisplaySize();
+    this.ctx.clearRect(0, 0, width, height);
   }
 
   /**
