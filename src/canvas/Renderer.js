@@ -18,18 +18,34 @@ export class Renderer {
    */
   static render(aggregationResult, ctx, config) {
     if (!aggregationResult || !ctx) {
-      console.log('No aggregation result or context available for rendering');
+      console.log('[Renderer] No aggregation result or context available for rendering', {
+        hasResult: !!aggregationResult,
+        hasContext: !!ctx
+      });
       return;
     }
 
     const { grid, cellData, cols, rows, cellSizePixels } = aggregationResult;
-    const { colorScale, enableGlyphs, onDrawCell, glyphSize } = config;
+    const { colorScale, enableGlyphs, onDrawCell, glyphSize, showBackground } = config;
 
     const maxVal = Math.max(...grid);
     if (maxVal === 0) {
-      console.log('No data to render (max value is 0)');
+      console.log('[Renderer] No data to render (max value is 0)', {
+        gridLength: grid.length,
+        cols,
+        rows
+      });
       return;
     }
+
+    console.log('[Renderer] Rendering grid:', {
+      cols,
+      rows,
+      maxVal,
+      cellsWithData: grid.filter((v) => v > 0).length,
+      enableGlyphs,
+      hasOnDrawCell: !!onDrawCell
+    });
 
     // console.log('Rendering grid:', {
     //   cols,
@@ -54,8 +70,18 @@ export class Renderer {
           const y = r * cellSizePixels;
           const normVal = val / maxVal;
 
+          // Determine if background should be drawn
+          // Default to true if showBackground is not explicitly false
+          const shouldShowBackground = showBackground !== false;
+          const drawBackground = !enableGlyphs || !onDrawCell || (enableGlyphs && onDrawCell && shouldShowBackground);
+
+          // Draw background if needed
+          if (drawBackground) {
+            Renderer._drawCell(ctx, x, y, cellSizePixels, normVal, colorScale, enableGlyphs && onDrawCell);
+          }
+
+          // Draw glyph on top if enabled
           if (enableGlyphs && onDrawCell) {
-            // Draw custom glyph
             Renderer._drawGlyph(
               ctx,
               x,
@@ -66,9 +92,6 @@ export class Renderer {
               onDrawCell,
               cellData[idx]
             );
-          } else {
-            // Draw colored rectangle
-            Renderer._drawCell(ctx, x, y, cellSizePixels, normVal, colorScale);
           }
         }
       }
@@ -79,9 +102,11 @@ export class Renderer {
    * Draw a colored cell
    * @private
    */
-  static _drawCell(ctx, x, y, size, normVal, colorScale) {
+  static _drawCell(ctx, x, y, size, normVal, colorScale, withGlyphs = false) {
     const [rC, gC, bC, aC] = colorScale(normVal);
-    ctx.fillStyle = `rgba(${rC}, ${gC}, ${bC}, ${aC / 255})`;
+    // Reduce opacity slightly when glyphs are enabled to make them stand out
+    const opacity = withGlyphs ? aC * 0.6 : aC;
+    ctx.fillStyle = `rgba(${rC}, ${gC}, ${bC}, ${opacity / 255})`;
     ctx.fillRect(x, y, size, size);
   }
 
