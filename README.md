@@ -4,7 +4,7 @@
 
 A GPU/Canvas hybrid Screen-Space Grid Aggregation library for MapLibre GL JS. This library provides efficient real-time aggregation of point data into screen-space grids with customizable styling, interactive features, and advanced glyph drawing capabilities.
 
-This library is inspired by Aidan Slingsby's Gridded Glyphmaps and deck.gl's `ScreenGridLayer` but is built from the ground up with a modular architecture, focusing on performance, flexibility, and ease of use.
+This library is inspired by Aidan Slingsby's [Gridded Glyphmaps](https://openaccess.city.ac.uk/id/eprint/31115/) and borrows some basic concepts from deck.gl's [`ScreenGridLayer`](https://deck.gl/docs/api-reference/aggregation-layers/screen-grid-layer), but is built from the ground up with a modular architecture, focusing on performance, flexibility, and ease of use, particularly for MaplibreGL ecosystem.
 
 ![](./screengrid.png)
 
@@ -14,6 +14,8 @@ This library is inspired by Aidan Slingsby's Gridded Glyphmaps and deck.gl's `Sc
 - **Customizable Styling**: Flexible color scales and cell sizing
 - **Interactive Events**: Hover and click handlers for grid cells
 - **Glyph Drawing**: Custom glyph rendering with Canvas 2D for advanced visualizations
+- **Plugin Ecosystem**: Reusable, named glyph plugins with registry system, lifecycle hooks, and legend integration
+- **Built-in Plugins**: Four ready-to-use plugins (`circle`, `bar`, `pie`, `heatmap`) plus utilities for custom plugins
 - **MapLibre Integration**: Seamless integration with MapLibre GL JS
 - **Performance Optimized**: Uses Canvas 2D rendering for optimal performance
 - **Responsive Design**: Automatically adjusts to map viewport changes
@@ -180,7 +182,7 @@ const maplibregl = require('maplibre-gl');
 `maplibre-gl` is a peer dependency and is not bundled. In UMD builds, it is expected as a global `maplibregl`.                                                                                                                                             
 ## 🎨 Glyph Drawing
 
-The library supports custom glyph drawing through the `onDrawCell` callback. This enables rich multivariate visualizations including time series, categorical breakdowns, and complex relationships.
+The library supports custom glyph drawing through the `onDrawCell` callback and a powerful **Plugin Ecosystem** for reusable glyph visualizations. This enables rich multivariate visualizations including time series, categorical breakdowns, and complex relationships.
 
 📖 **📚 Comprehensive Guide**: See [docs/GLYPH_DRAWING_GUIDE.md](./docs/GLYPH_DRAWING_GUIDE.md) for detailed documentation on:
 - All built-in glyph utilities (8 types including time series)
@@ -189,7 +191,7 @@ The library supports custom glyph drawing through the `onDrawCell` callback. Thi
 - Time series and spatio-temporal visualization
 - Advanced patterns and best practices
 
-### Quick Example
+### Quick Example: Using onDrawCell
 
 ```javascript
 const gridLayer = new ScreenGridLayerGL({
@@ -219,6 +221,115 @@ const gridLayer = new ScreenGridLayerGL({
 });
 ```
 
+## 🔌 Plugin Ecosystem
+
+ScreenGrid includes a **Plugin Ecosystem** that allows you to create reusable, named glyph visualizations. This system provides:
+
+- **Built-in Plugins**: Four ready-to-use plugins (`circle`, `bar`, `pie`, `heatmap`)
+- **Plugin Registry**: Register custom plugins by name for reuse across multiple layers
+- **Lifecycle Hooks**: Support for initialization and cleanup
+- **Legend Integration**: Automatic legend generation for plugins
+- **Backward Compatible**: Existing `onDrawCell` callbacks work with highest precedence
+
+📖 **📚 Full Documentation**: See [docs/PLUGIN_GLYPH_ECOSYSTEM.md](./docs/PLUGIN_GLYPH_ECOSYSTEM.md) for comprehensive plugin documentation, API reference, and usage patterns.
+
+### Using Built-in Plugins
+
+```javascript
+import { ScreenGridLayerGL } from 'screengrid';
+
+// Use a built-in plugin
+const layer = new ScreenGridLayerGL({
+  data,
+  getPosition: (d) => d.coordinates,
+  glyph: 'circle',  // Built-in plugin name
+  glyphConfig: {
+    radius: 15,
+    color: '#3498db',
+    alpha: 0.9
+  },
+  enableGlyphs: true
+});
+```
+
+### Available Built-in Plugins
+
+1. **`circle`** - Simple filled circle with customizable size, color, and opacity
+2. **`bar`** - Horizontal bar chart showing multiple values side-by-side
+3. **`pie`** - Pie chart showing proportional distribution of values
+4. **`heatmap`** - Circle with color intensity representing normalized values
+
+### Creating Custom Plugins
+
+```javascript
+import { ScreenGridLayerGL, GlyphRegistry } from 'screengrid';
+
+// Define a custom plugin
+const MyCustomGlyph = {
+  draw(ctx, x, y, normalizedValue, cellInfo, config) {
+    const radius = config.radius || cellInfo.glyphRadius;
+    ctx.fillStyle = config.color || '#3498db';
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, 2 * Math.PI);
+    ctx.fill();
+  },
+  
+  // Optional: initialization hook
+  init({ layer, config }) {
+    console.log(`Initializing plugin for layer ${layer.id}`);
+    return {
+      destroy() {
+        console.log('Cleaning up plugin');
+      }
+    };
+  },
+  
+  // Optional: legend support
+  getLegend(gridData, config) {
+    return {
+      type: 'custom',
+      title: 'My Visualization',
+      items: [
+        { label: 'Category A', color: '#ff0000' },
+        { label: 'Category B', color: '#00ff00' }
+      ]
+    };
+  }
+};
+
+// Register the plugin
+GlyphRegistry.register('myGlyph', MyCustomGlyph);
+
+// Use the registered plugin
+const layer = new ScreenGridLayerGL({
+  data,
+  glyph: 'myGlyph',  // Use by name
+  glyphConfig: { radius: 15, color: '#ff6600' },
+  enableGlyphs: true
+});
+```
+
+### Plugin Precedence
+
+When rendering glyphs, the system uses the following precedence order (highest to lowest):
+
+1. **User-provided `onDrawCell` callback** (full backward compatibility)
+2. **Registered plugin via `glyph` name**
+3. **Color-mode rendering** (no glyphs)
+
+This ensures backward compatibility while allowing gradual migration to the plugin system.
+
+### Plugin Example
+
+See [`examples/plugin-glyph.html`](./examples/plugin-glyph.html) for a complete example demonstrating:
+- Custom plugin registration (`grouped-bar` plugin)
+- Lifecycle hooks (`init` and `destroy`)
+- Legend integration
+- Global state management for cross-cell normalization
+- Interactive hover effects
+
+📖 **For detailed plugin API documentation**: See [docs/PLUGIN_GLYPH_ECOSYSTEM.md](./docs/PLUGIN_GLYPH_ECOSYSTEM.md)
+
 ## 📚 Examples
 
 ### Running the Examples
@@ -238,6 +349,7 @@ npx http-server -p 8000
 4. **Legend Example** (`examples/legend-example.html`) - Demonstrates legend functionality
 5. **Time Series** (`examples/timeseries.html`) - Temporal data visualization
 6. **Multivariate Time Series** (`examples/multivariate-timeseries.html`) - Advanced multi-attribute temporal visualization
+7. **Plugin Glyph** (`examples/plugin-glyph.html`) - Complete plugin ecosystem example with custom `grouped-bar` plugin, lifecycle hooks, and legend integration
 
 ### Example Features
 
@@ -266,8 +378,10 @@ npx http-server -p 8000
 | `onAggregate` | Function | `null` | Callback when grid is aggregated |
 | `onHover` | Function | `null` | Callback when hovering over cells |
 | `onClick` | Function | `null` | Callback when clicking cells |
-| `onDrawCell` | Function | `null` | Callback for custom glyph drawing |
+| `onDrawCell` | Function | `null` | Callback for custom glyph drawing (highest precedence) |
 | `enableGlyphs` | boolean | `false` | Enable glyph-based rendering |
+| `glyph` | string | `null` | Registered plugin name to use (e.g., `'circle'`, `'bar'`, `'pie'`, `'heatmap'`) |
+| `glyphConfig` | object | `{}` | Configuration object passed to plugin's `draw()` method |
 | `glyphSize` | number | `0.8` | Size of glyphs relative to cell size |
 | `adaptiveCellSize` | boolean | `false` | Enable adaptive cell sizing |
 | `minCellSize` | number | `20` | Minimum cell size in pixels |
@@ -299,6 +413,34 @@ ScreenGridLayerGL.drawHeatmapGlyph(ctx, x, y, radius, normalizedValue, colorScal
 // Radial bar chart glyph (v2.0.0+)
 ScreenGridLayerGL.drawRadialBarGlyph(ctx, x, y, values, maxValue, maxRadius, color);
 ```
+
+### GlyphRegistry API
+
+The `GlyphRegistry` manages the plugin ecosystem and provides methods for registering and managing glyph plugins:
+
+```javascript
+import { GlyphRegistry } from 'screengrid';
+
+// Register a plugin
+GlyphRegistry.register(name, plugin, { overwrite = false })
+
+// Retrieve a plugin
+GlyphRegistry.get(name)
+
+// Check if plugin exists
+GlyphRegistry.has(name)
+
+// List all registered plugins
+GlyphRegistry.list()
+
+// Unregister a plugin
+GlyphRegistry.unregister(name)
+
+// Clear all plugins (use with caution)
+GlyphRegistry.clear()
+```
+
+See [Plugin Ecosystem](#-plugin-ecosystem) section above for detailed usage examples.
 
 ## 📊 Legend Module
 

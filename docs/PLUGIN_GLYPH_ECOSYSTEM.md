@@ -244,43 +244,59 @@ Custom plugins can be created by implementing the plugin interface. The ecosyste
 
 ### `grouped-bar` — Grouped Bar Chart Plugin
 
-**Location**: `examples/plugin-glyph.html` (lines 203-384)
+**Location**: `examples/plugin-glyph.html` (lines 203-391)
 
-**Description**: A sophisticated custom plugin that visualizes carbon savings vs. cost comparison across multiple technology categories (ASHP, EV, PV) and cost types (Labour, Material).
+**Description**: A sophisticated custom plugin that visualizes parking capacity data comparing bike racks vs. parking spaces using grouped bars. This plugin demonstrates advanced plugin features including global state management, cross-cell normalization, and interactive hover effects.
 
 **Features**:
-- Multivariate data aggregation (carbon and cost values)
-- Category-specific color schemes
-- Dual-axis visualization (carbon for technologies, cost for expenses)
+- Multivariate data aggregation (racks and spaces values)
+- Category-specific color schemes (blue for racks, green for spaces)
+- Global normalization for cross-cell comparison
 - Integrated legend support via `getLegend()` method
 - Lifecycle hooks (`init()` and `destroy()`)
+- Interactive hover effects with comparison outlines
+- Global statistics tracking across all cells
 
 **Key Implementation Details**:
 
 ```javascript
 const GroupedBarGlyph = {
+  // Global stats for normalization across all cells
+  globalStats: {
+    maxRacks: 0,
+    maxSpaces: 0,
+    maxTotal: 0,
+    initialized: false
+  },
+  
   init({ layer, config } = {}) {
-    // Optional initialization per layer instance
+    // Store layer reference and reset global stats
+    this.layerRef = layer;
+    this.globalStats = { maxRacks: 0, maxSpaces: 0, maxTotal: 0, initialized: false };
     return {
       destroy() {
-        // Cleanup if needed
+        console.log('GroupedBarGlyph instance destroyed');
       }
     };
   },
 
   draw(ctx, x, y, normalizedValue, cellInfo, config = {}) {
-    // 1. Aggregate data from cellData
+    // 1. Aggregate data from cellData (racks and spaces)
     // 2. Calculate chart dimensions
-    // 3. Draw bars for each category
-    // 4. Apply color schemes
+    // 3. Draw grouped bars for each category (racks vs spaces)
+    // 4. Apply color schemes (blue for racks, green for spaces)
+    // 5. Show comparison outline when hovering over different cell
   },
 
   getLegend(gridData, config = {}) {
-    // Return legend metadata
     return {
       type: 'custom',
-      title: 'Carbon vs Cost Comparison',
-      items: [...]
+      title: 'Parking Capacity',
+      description: 'Grouped bar chart comparing bike racks and parking spaces:',
+      items: [
+        { label: 'Racks', description: 'Number of bike racks (blue)', color: 'rgba(52, 152, 219, 0.85)' },
+        { label: 'Spaces', description: 'Number of parking spaces (green)', color: 'rgba(46, 204, 113, 0.85)' }
+      ]
     };
   }
 };

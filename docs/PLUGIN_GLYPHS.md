@@ -18,9 +18,9 @@ Status: ✅ **Fully implemented and production-ready**. Complete implementation 
 - Registration: `GlyphRegistry.register(name, plugin, { overwrite=false })`
 - Plugin shape (required/optional fields):
   - `draw(ctx, x, y, normalizedValue, cellInfo, config)` — required. Draw into the provided Canvas 2D context.
-  - `init?(opts)` — optional. Called by a layer if the layer wants to invoke initialization. (Not used in MVP.)
-  - `destroy?()` — optional. Called on layer removal if used.
-  - `getLegend?(cellInfo)` — optional. Return legend entries for the cell.
+  - `init?({ layer, config })` — optional. Called when a layer using this plugin is created. Can return an object with a `destroy()` method for cleanup.
+  - `destroy?({ layer })` — optional. Called on layer removal if used (or if `init()` didn't return a destroy method).
+  - `getLegend?(gridData, config)` — optional. Return legend entries for the plugin visualization.
 
 ## Layer integration
 
@@ -40,7 +40,7 @@ Implementation detail: the layer constructs a wrapper `onDrawCell` function from
 Register a glyph in your app startup code:
 
 ```javascript
-import { GlyphRegistry } from 'screengrid/src/glyphs/GlyphRegistry.js';
+import { GlyphRegistry } from 'screengrid';
 
 GlyphRegistry.register('myGauge', {
   draw(ctx, x, y, normalizedValue, cellInfo, config) {
