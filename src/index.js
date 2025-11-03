@@ -27,6 +27,13 @@ export { GlyphRegistry } from './glyphs/GlyphRegistry.js';
 // Configuration
 export { ConfigManager } from './config/ConfigManager.js';
 
+// Aggregation modes
+export { AggregationModeRegistry } from './aggregation/AggregationModeRegistry.js';
+export { ScreenGridMode } from './aggregation/modes/ScreenGridMode.js';
+export { ScreenHexMode } from './aggregation/modes/ScreenHexMode.js';
+// Ensure built-in modes are registered when this module is imported
+import './aggregation/modes/index.js';
+
 // Legend module
 export { Legend } from './legend/Legend.js';
 export { LegendDataExtractor } from './legend/LegendDataExtractor.js';

@@ -22,6 +22,9 @@ export class ConfigManager {
     maxCellSize: 100,
     zoomBasedSize: false,
     enabled: true,
+    // Aggregation mode configuration
+    aggregationMode: 'screen-grid', // 'screen-grid' | 'screen-hex' | 'map-h3' | string (custom)
+    aggregationModeConfig: {}, // Mode-specific configuration
   };
 
   /**
