@@ -25,10 +25,6 @@ export class ConfigManager {
     // Aggregation mode configuration
     aggregationMode: 'screen-grid', // 'screen-grid' | 'screen-hex' | 'map-h3' | string (custom)
     aggregationModeConfig: {}, // Mode-specific configuration
-    // Freeze mode configuration
-    freezeAggregation: false, // If true, aggregation is frozen
-    freezeOnMove: false, // Freeze only on pan (but update on zoom)
-    freezeOnZoom: false, // Freeze only on zoom (but update on pan)
   };
 
   /**

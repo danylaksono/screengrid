@@ -7,13 +7,15 @@ export class EventHandlers {
   /**
    * Handle hover events
    * @param {Object} event - MapLibre mouse event
-   * @param {Object} cellQueryEngine - CellQueryEngine instance
+   * @param {Object} queryTarget - CellQueryEngine instance or ScreenGridLayerGL layer
    * @param {Function} onHover - Hover callback from config
    */
-  static handleHover(event, cellQueryEngine, onHover) {
-    if (!onHover || !cellQueryEngine) return;
+  static handleHover(event, queryTarget, onHover) {
+    if (!onHover || !queryTarget) return;
 
-    const cell = cellQueryEngine.getCellAt({ x: event.point.x, y: event.point.y });
+    // Support both CellQueryEngine and ScreenGridLayerGL layer
+    // Both have getCellAt method, so call it directly
+    const cell = queryTarget.getCellAt({ x: event.point.x, y: event.point.y });
     if (cell) {
       onHover({ cell, event });
     }
@@ -22,13 +24,15 @@ export class EventHandlers {
   /**
    * Handle click events
    * @param {Object} event - MapLibre click event
-   * @param {Object} cellQueryEngine - CellQueryEngine instance
+   * @param {Object} queryTarget - CellQueryEngine instance or ScreenGridLayerGL layer
    * @param {Function} onClick - Click callback from config
    */
-  static handleClick(event, cellQueryEngine, onClick) {
-    if (!onClick || !cellQueryEngine) return;
+  static handleClick(event, queryTarget, onClick) {
+    if (!onClick || !queryTarget) return;
 
-    const cell = cellQueryEngine.getCellAt({ x: event.point.x, y: event.point.y });
+    // Support both CellQueryEngine and ScreenGridLayerGL layer
+    // Both have getCellAt method, so call it directly
+    const cell = queryTarget.getCellAt({ x: event.point.x, y: event.point.y });
     if (cell) {
       onClick({ cell, event });
     }

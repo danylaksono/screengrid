@@ -44,7 +44,6 @@ export class ScreenGridLayerGL {
     // Aggregation mode state
     this._aggregationModeInstance = null;
     this._aggregationModePlugin = null;
-    this._frozenAggregationResult = null;
   }
 
   // ============ MapLibre GL Interface ============
@@ -196,8 +195,7 @@ export class ScreenGridLayerGL {
     if (previousAggregationMode !== newAggregationMode) {
       this._destroyAggregationMode();
       this._initAggregationMode();
-      // Clear frozen result and grid data when mode changes
-      this._frozenAggregationResult = null;
+      // Clear grid data when mode changes
       this.gridData = null; // Clear stale aggregation data from previous mode
       // Clear canvas to remove old rendering from previous mode
       if (this.canvasManager) {
@@ -221,6 +219,7 @@ export class ScreenGridLayerGL {
    * @returns {Object|null} Cell information
    */
   getCellAt(point) {
+    // Normal mode
     if (!this.gridData || !this._aggregationModePlugin) {
       // Fallback to old behavior for backward compatibility
       return this.cellQueryEngine.getCellAt(point);
@@ -346,7 +345,6 @@ export class ScreenGridLayerGL {
     }
     this._aggregationModeInstance = null;
     this._aggregationModePlugin = null;
-    this._frozenAggregationResult = null;
   }
 
 
@@ -373,20 +371,6 @@ export class ScreenGridLayerGL {
     console.log('[ScreenGridLayerGL] _aggregate() called');
     if (!this.map) {
       console.log('[ScreenGridLayerGL] No map available for aggregation');
-      return;
-    }
-
-    // Check freeze conditions
-    if (this.config.freezeAggregation && this._frozenAggregationResult) {
-      console.log('[ScreenGridLayerGL] Using frozen aggregation result');
-      this.gridData = this._frozenAggregationResult;
-      // Still update cell query engine for compatibility
-      if (this.gridData && this._aggregationModePlugin?.type === 'screen-space') {
-        this.cellQueryEngine.setAggregationResult(this.gridData);
-      }
-      if (this.config.onAggregate) {
-        this.config.onAggregate(this.gridData);
-      }
       return;
     }
 
@@ -446,12 +430,7 @@ export class ScreenGridLayerGL {
       throw e;
     }
 
-    // Store frozen result if freeze is enabled
-    if (this.config.freezeAggregation) {
-      this._frozenAggregationResult = this.gridData;
-    }
-
-    // Update cell query engine (for backward compatibility with screen-space modes)
+    // Update cell query engine (for screen-space modes)
     if (this._aggregationModePlugin?.type === 'screen-space') {
       this.cellQueryEngine.setAggregationResult(this.gridData);
     }
@@ -479,11 +458,14 @@ export class ScreenGridLayerGL {
    */
   _draw() {
     const ctx = this.canvasManager.getContext();
-    if (!ctx || !this.gridData) {
-      console.log('[ScreenGridLayerGL] _draw() skipping - no ctx or gridData', {
-        hasCtx: !!ctx,
-        hasGridData: !!this.gridData
-      });
+    if (!ctx) {
+      console.log('[ScreenGridLayerGL] _draw() skipping - no ctx');
+      return;
+    }
+
+    // Normal rendering path
+    if (!this.gridData) {
+      console.log('[ScreenGridLayerGL] _draw() skipping - no gridData');
       return;
     }
 
@@ -566,7 +548,8 @@ export class ScreenGridLayerGL {
    * @private
    */
   _handleHover(e) {
-    EventHandlers.handleHover(e, this.cellQueryEngine, this.config.onHover);
+    // Pass layer instance so it can use mode-aware getCellAt() for both grid and hex modes
+    EventHandlers.handleHover(e, this, this.config.onHover);
   }
 
   /**
@@ -574,7 +557,8 @@ export class ScreenGridLayerGL {
    * @private
    */
   _handleClick(e) {
-    EventHandlers.handleClick(e, this.cellQueryEngine, this.config.onClick);
+    // Pass layer instance so it can use mode-aware getCellAt() for both grid and hex modes
+    EventHandlers.handleClick(e, this, this.config.onClick);
   }
 
   /**
@@ -586,10 +570,6 @@ export class ScreenGridLayerGL {
     const modePlugin = this._aggregationModePlugin || 
       AggregationModeRegistry.get(this.config.aggregationMode || 'screen-grid');
     
-    if (this.config.freezeAggregation || this.config.freezeOnZoom) {
-      return; // Skip projection/aggregation
-    }
-
     if (modePlugin && !modePlugin.needsUpdateOnZoom()) {
       return; // Mode doesn't need update on zoom
     }
@@ -608,10 +588,6 @@ export class ScreenGridLayerGL {
     const modePlugin = this._aggregationModePlugin || 
       AggregationModeRegistry.get(this.config.aggregationMode || 'screen-grid');
     
-    if (this.config.freezeAggregation || this.config.freezeOnMove) {
-      return; // Skip projection/aggregation
-    }
-
     if (modePlugin && !modePlugin.needsUpdateOnMove()) {
       return; // Mode doesn't need update on move
     }
@@ -619,33 +595,6 @@ export class ScreenGridLayerGL {
     EventHandlers.handleMove(() => {
       this._projectPoints();
     });
-  }
-
-  // ============ Freeze Control Methods ============
-
-  /**
-   * Freeze aggregation at current state
-   */
-  freezeAggregation() {
-    this.setConfig({ freezeAggregation: true });
-  }
-
-  /**
-   * Unfreeze aggregation
-   */
-  unfreezeAggregation() {
-    this.setConfig({ freezeAggregation: false });
-    this._frozenAggregationResult = null;
-  }
-
-  /**
-   * Toggle freeze state
-   */
-  toggleFreezeAggregation() {
-    this.setConfig({ freezeAggregation: !this.config.freezeAggregation });
-    if (!this.config.freezeAggregation) {
-      this._frozenAggregationResult = null;
-    }
   }
 
   // ============ Static Glyph Utilities ============
