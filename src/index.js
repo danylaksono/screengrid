@@ -10,6 +10,11 @@ export { ScreenGridLayerGL } from './ScreenGridLayerGL.js';
 export { Aggregator } from './core/Aggregator.js';
 export { Projector } from './core/Projector.js';
 export { CellQueryEngine } from './core/CellQueryEngine.js';
+// Geometry placement modules
+export { PlacementEngine } from './core/geometry/PlacementEngine.js';
+export { PlacementValidator } from './core/geometry/PlacementValidator.js';
+export { PlacementStrategyRegistry } from './core/geometry/strategies/index.js';
+export { GeometryUtils } from './core/geometry/GeometryUtils.js';
 
 // Canvas modules
 export { CanvasManager } from './canvas/CanvasManager.js';

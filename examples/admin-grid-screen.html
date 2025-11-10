@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScreenGrid - Admin Areas with Grid-Screen Placement</title>
+    <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        #map {
+            width: 100vw;
+            height: 100vh;
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            max-width: 300px;
+        }
+        .info h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+        }
+        .info p {
+            margin: 5px 0;
+            font-size: 12px;
+            color: #666;
+        }
+        .controls {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+        }
+        .controls button {
+            margin: 5px 5px 5px 0;
+            padding: 5px 10px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="info">
+        <h3>Admin Areas - Grid-Screen</h3>
+        <p>This example demonstrates <code>grid-screen</code> placement strategy.</p>
+        <p>Anchors are placed at screen-grid centers inside polygons.</p>
+        <p>Strategy: <strong>grid-screen</strong></p>
+        <p>Render Mode: <strong>feature-anchors</strong></p>
+        <div class="controls">
+            <button onclick="toggleRenderMode()">Toggle Render Mode</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { ScreenGridLayerGL } from '../dist/screengrid.mjs';
+
+        // Sample admin boundary polygons (San Francisco area)
+        const adminGeoJSON = {
+            type: 'FeatureCollection',
+            features: [
+                {
+                    type: 'Feature',
+                    id: 'admin1',
+                    properties: { name: 'District 1', population: 50000, weight: 1 },
+                    geometry: {
+                        type: 'Polygon',
+                        coordinates: [[
+                            [-122.45, 37.78],
+                            [-122.40, 37.78],
+                            [-122.40, 37.82],
+                            [-122.45, 37.82],
+                            [-122.45, 37.78]
+                        ]]
+                    }
+                },
+                {
+                    type: 'Feature',
+                    id: 'admin2',
+                    properties: { name: 'District 2', population: 75000, weight: 1.5 },
+                    geometry: {
+                        type: 'Polygon',
+                        coordinates: [[
+                            [-122.40, 37.78],
+                            [-122.35, 37.78],
+                            [-122.35, 37.82],
+                            [-122.40, 37.82],
+                            [-122.40, 37.78]
+                        ]]
+                    }
+                },
+                {
+                    type: 'Feature',
+                    id: 'admin3',
+                    properties: { name: 'District 3', population: 60000, weight: 1.2 },
+                    geometry: {
+                        type: 'Polygon',
+                        coordinates: [[
+                            [-122.45, 37.74],
+                            [-122.40, 37.74],
+                            [-122.40, 37.78],
+                            [-122.45, 37.78],
+                            [-122.45, 37.74]
+                        ]]
+                    }
+                }
+            ]
+        };
+
+        // Initialize map
+        const map = new maplibregl.Map({
+            container: 'map',
+        style: 'https://tiles.openfreemap.org/styles/liberty',
+            center: [-122.42, 37.78],
+            zoom: 12
+        });
+
+        let gridLayer = null;
+        let currentRenderMode = 'feature-anchors';
+
+        // Make toggleRenderMode available globally
+        window.toggleRenderMode = function() {
+            if (!gridLayer) return;
+            
+            currentRenderMode = currentRenderMode === 'feature-anchors' ? 'screen-grid' : 'feature-anchors';
+            gridLayer.setConfig({ renderMode: currentRenderMode });
+            
+            const infoEl = document.querySelector('.info p:last-of-type');
+            if (infoEl) {
+                infoEl.innerHTML = `Render Mode: <strong>${currentRenderMode}</strong>`;
+            }
+        };
+
+        map.on('load', () => {
+            // Create grid layer with grid-screen placement
+            gridLayer = new ScreenGridLayerGL({
+                source: adminGeoJSON,
+                placement: {
+                    strategy: 'grid-screen',
+                    spacing: { pixels: 60 }, // Match cellSizePixels for 1:1 coverage
+                    maxPerFeature: 200
+                },
+                renderMode: 'feature-anchors',
+                anchorSizePixels: 8,
+                cellSizePixels: 60,
+                enableGlyphs: true,
+                onDrawCell: (ctx, x, y, normVal, cellInfo) => {
+                    const radius = cellInfo.glyphRadius || 6;
+                    ctx.fillStyle = 'rgba(52, 152, 219, 0.85)';
+                    ctx.beginPath();
+                    ctx.arc(x, y, radius, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(41, 128, 185, 0.9)';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                },
+                onHover: ({ cell }) => {
+                    console.log('Hover:', cell);
+                },
+                onClick: ({ cell }) => {
+                    alert(`Clicked: ${cell.props?.name || 'Unknown'}\nPopulation: ${cell.props?.population || 'N/A'}`);
+                }
+            });
+
+            map.addLayer(gridLayer);
+            console.log('Grid layer added with grid-screen placement');
+        });
+    </script>
+</body>
+</html>
+

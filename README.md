@@ -2,7 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/screengrid.svg)](https://www.npmjs.com/package/screengrid)
 
-A GPU/Canvas hybrid Screen-Space Grid Aggregation library for MapLibre GL JS. This library provides efficient real-time aggregation of point data into screen-space grids with customizable styling, interactive features, and advanced glyph drawing capabilities.
+A GPU/Canvas hybrid Screen-Space Grid Aggregation library for MapLibre GL JS. This library provides efficient real-time aggregation of point data into screen-space grids with customizable styling, interactive features, and advanced glyph drawing capabilities. It now also supports non-point geometries via a geometry placement preprocessor and a per-feature glyph rendering mode.
 
 This library is inspired by Aidan Slingsby's [Gridded Glyphmaps](https://openaccess.city.ac.uk/id/eprint/31115/) and borrows some basic concepts from deck.gl's [`ScreenGridLayer`](https://deck.gl/docs/api-reference/aggregation-layers/screen-grid-layer), but is built from the ground up with a modular architecture, focusing on performance, flexibility, and ease of use, particularly for MaplibreGL ecosystem.
 
@@ -21,6 +21,8 @@ This library is inspired by Aidan Slingsby's [Gridded Glyphmaps](https://openacc
 - **Responsive Design**: Automatically adjusts to map viewport changes
 - **Zoom-based Sizing**: Dynamic cell size adjustment based on zoom level
 - **Multi-attribute Visualization**: Support for visualizing multiple data attributes per cell
+- **Geometry Input (NEW)**: Accept GeoJSON `source` with `placement` strategies for Polygon/Line inputs
+- **Feature Anchors (NEW)**: Render one glyph per feature anchor with `renderMode: 'feature-anchors'`
 
 ## 📁 Project Structure
 
@@ -370,7 +372,7 @@ npx http-server -p 8000
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `id` | string | `"screen-grid-layer"` | Unique identifier for the layer |
-| `data` | Array | `[]` | Array of data points to aggregate |
+| `data` | Array | `[]` | Array of data points to aggregate (legacy point input) |
 | `getPosition` | Function | `(d) => d.coordinates` | Function to extract coordinates from data |
 | `getWeight` | Function | `() => 1` | Function to extract weight from data |
 | `cellSizePixels` | number | `50` | Size of each grid cell in pixels |
@@ -388,6 +390,12 @@ npx http-server -p 8000
 | `maxCellSize` | number | `100` | Maximum cell size in pixels |
 | `zoomBasedSize` | boolean | `false` | Adjust cell size based on zoom level |
 | `enabled` | boolean | `true` | Whether the layer is enabled |
+| `source` | GeoJSON | `null` | GeoJSON Feature/FeatureCollection or array of Features (mutually exclusive with `data`) |
+| `placement` | object | `null` | Placement config to derive anchors from geometries (see docs) |
+| `renderMode` | `'screen-grid'|'feature-anchors'` | `'screen-grid'` | Rendering path (aggregate vs draw directly) |
+| `anchorSizePixels` | number | `auto` | Glyph size in pixels for `feature-anchors` mode |
+
+See `docs/GEOMETRY_INPUT_AND_PLACEMENT.md` and `docs/PLACEMENT_CONFIG.md` for geometry input, placement strategies, and validation rules.
 
 ## 🛠️ Built-in Glyph Utilities
 

@@ -3,6 +3,8 @@
  * Centralized configuration management with defaults
  */
 
+import { PlacementValidator } from '../core/geometry/PlacementValidator.js';
+
 export class ConfigManager {
   static DEFAULT_CONFIG = {
     id: 'screen-grid-layer',
@@ -25,6 +27,11 @@ export class ConfigManager {
     // Aggregation mode configuration
     aggregationMode: 'screen-grid', // 'screen-grid' | 'screen-hex' | 'map-h3' | string (custom)
     aggregationModeConfig: {}, // Mode-specific configuration
+    // Geometry placement configuration (Option B)
+    source: null, // GeoJSON FeatureCollection, Feature, or array of Features
+    placement: null, // Placement configuration object
+    renderMode: 'screen-grid', // 'screen-grid' | 'feature-anchors'
+    anchorSizePixels: null, // Auto-calculated if null, based on cellSizePixels * glyphSize
   };
 
   /**
@@ -33,10 +40,38 @@ export class ConfigManager {
    * @returns {Object} Merged configuration
    */
   static create(options = {}) {
-    return {
+    const config = {
       ...ConfigManager.DEFAULT_CONFIG,
       ...options,
     };
+
+    // Validate placement configuration
+    const validation = PlacementValidator.validate(config);
+    if (!validation.valid) {
+      const errorMsg = `ConfigManager: Invalid configuration:\n${validation.errors.join('\n')}`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    // Emit warnings (de-duplicated per session)
+    if (validation.warnings.length > 0) {
+      validation.warnings.forEach(warning => {
+        console.warn(`ConfigManager: ${warning}`);
+      });
+    }
+
+    // Auto-switch renderMode for grid-screen strategy to avoid double aggregation
+    if (config.placement?.strategy === 'grid-screen' && config.renderMode === 'screen-grid') {
+      console.warn('ConfigManager: Auto-switching renderMode to \'feature-anchors\' for grid-screen strategy to avoid double aggregation.');
+      config.renderMode = 'feature-anchors';
+    }
+
+    // Auto-calculate anchorSizePixels if not provided and in feature-anchors mode
+    if (config.renderMode === 'feature-anchors' && config.anchorSizePixels === null) {
+      config.anchorSizePixels = Math.round(config.cellSizePixels * config.glyphSize * 0.9);
+    }
+
+    return config;
   }
 
   /**
@@ -46,10 +81,38 @@ export class ConfigManager {
    * @returns {Object} Updated configuration
    */
   static update(config, updates = {}) {
-    return {
+    const updated = {
       ...config,
       ...updates,
     };
+
+    // Validate updated configuration
+    const validation = PlacementValidator.validate(updated);
+    if (!validation.valid) {
+      const errorMsg = `ConfigManager: Invalid configuration update:\n${validation.errors.join('\n')}`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    // Emit warnings
+    if (validation.warnings.length > 0) {
+      validation.warnings.forEach(warning => {
+        console.warn(`ConfigManager: ${warning}`);
+      });
+    }
+
+    // Auto-switch renderMode for grid-screen strategy
+    if (updated.placement?.strategy === 'grid-screen' && updated.renderMode === 'screen-grid') {
+      console.warn('ConfigManager: Auto-switching renderMode to \'feature-anchors\' for grid-screen strategy.');
+      updated.renderMode = 'feature-anchors';
+    }
+
+    // Auto-calculate anchorSizePixels if needed
+    if (updated.renderMode === 'feature-anchors' && updated.anchorSizePixels === null) {
+      updated.anchorSizePixels = Math.round(updated.cellSizePixels * updated.glyphSize * 0.9);
+    }
+
+    return updated;
   }
 
   /**
@@ -58,14 +121,34 @@ export class ConfigManager {
    * @returns {boolean} True if valid
    */
   static isValid(config) {
-    return (
-      config &&
-      typeof config === 'object' &&
-      Array.isArray(config.data) &&
-      typeof config.getPosition === 'function' &&
-      typeof config.getWeight === 'function' &&
-      typeof config.cellSizePixels === 'number' &&
-      config.cellSizePixels > 0
-    );
+    if (!config || typeof config !== 'object') {
+      return false;
+    }
+
+    // Check cellSizePixels
+    if (typeof config.cellSizePixels !== 'number' || config.cellSizePixels <= 0) {
+      return false;
+    }
+
+    // Check if using data path (legacy)
+    const hasDataPath = config.data && Array.isArray(config.data) && 
+                       typeof config.getPosition === 'function' &&
+                       typeof config.getWeight === 'function';
+
+    // Check if using source path (new)
+    const hasSourcePath = config.source && config.placement;
+
+    // Must have one or the other (mutual exclusivity checked by PlacementValidator)
+    if (!hasDataPath && !hasSourcePath) {
+      // Allow empty data array for initialization
+      if (Array.isArray(config.data) && (!config.source || !config.placement)) {
+        return true; // Valid empty state
+      }
+      return false;
+    }
+
+    // Use PlacementValidator for full validation
+    const validation = PlacementValidator.validate(config);
+    return validation.valid;
   }
 }
