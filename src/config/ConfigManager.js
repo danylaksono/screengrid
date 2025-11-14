@@ -6,6 +6,16 @@
 import { PlacementValidator } from '../core/geometry/PlacementValidator.js';
 
 export class ConfigManager {
+  // Keep track of emitted warnings to avoid noisy repeated logs
+  static _emittedWarnings = new Set();
+
+  static _warnOnce(message) {
+    if (!ConfigManager._emittedWarnings.has(message)) {
+      console.warn(`ConfigManager: ${message}`);
+      ConfigManager._emittedWarnings.add(message);
+    }
+  }
+
   static DEFAULT_CONFIG = {
     id: 'screen-grid-layer',
     data: [],
@@ -32,6 +42,8 @@ export class ConfigManager {
     placement: null, // Placement configuration object
     renderMode: 'screen-grid', // 'screen-grid' | 'feature-anchors'
     anchorSizePixels: null, // Auto-calculated if null, based on cellSizePixels * glyphSize
+    // When true, emit verbose internal debug logs (disabled by default)
+    debugLogs: false,
   };
 
   /**
@@ -53,16 +65,16 @@ export class ConfigManager {
       throw new Error(errorMsg);
     }
 
-    // Emit warnings (de-duplicated per session)
+    // Emit warnings once per session to avoid noisy repeated logs
     if (validation.warnings.length > 0) {
       validation.warnings.forEach(warning => {
-        console.warn(`ConfigManager: ${warning}`);
+        ConfigManager._warnOnce(warning);
       });
     }
 
     // Auto-switch renderMode for grid-screen strategy to avoid double aggregation
     if (config.placement?.strategy === 'grid-screen' && config.renderMode === 'screen-grid') {
-      console.warn('ConfigManager: Auto-switching renderMode to \'feature-anchors\' for grid-screen strategy to avoid double aggregation.');
+      ConfigManager._warnOnce("Auto-switching renderMode to 'feature-anchors' for grid-screen strategy to avoid double aggregation.");
       config.renderMode = 'feature-anchors';
     }
 
@@ -94,16 +106,16 @@ export class ConfigManager {
       throw new Error(errorMsg);
     }
 
-    // Emit warnings
+    // Emit warnings once per session
     if (validation.warnings.length > 0) {
       validation.warnings.forEach(warning => {
-        console.warn(`ConfigManager: ${warning}`);
+        ConfigManager._warnOnce(warning);
       });
     }
 
-    // Auto-switch renderMode for grid-screen strategy
+    // Auto-switch renderMode for grid-screen strategy (deduped warning)
     if (updated.placement?.strategy === 'grid-screen' && updated.renderMode === 'screen-grid') {
-      console.warn('ConfigManager: Auto-switching renderMode to \'feature-anchors\' for grid-screen strategy.');
+      ConfigManager._warnOnce("Auto-switching renderMode to 'feature-anchors' for grid-screen strategy.");
       updated.renderMode = 'feature-anchors';
     }
 

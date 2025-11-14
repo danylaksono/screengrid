@@ -99,8 +99,8 @@ interface LayerOptionsExtension {
 
 7) Double aggregation safeguard
 - If `placement.strategy === 'grid-screen'` and `renderMode === 'screen-grid'`:
-  - Either warn and auto-switch to `'feature-anchors'`, or throw with a helpful message (decision TBD by UX preference).
-  - Suggested behavior (non-breaking): log a console warning and auto-switch render mode to `'feature-anchors'`.
+  - The library auto-switches `renderMode` to `'feature-anchors'` to avoid double aggregation and logs a single, deduplicated console warning to inform users of the switch.
+  - This auto-switch is non-breaking and intended to prevent unintended double-aggregation when sampling polygon interiors using screen-space grid centers.
 
 8) View-dependent recomputation
 - If `spacing` uses `{ pixels }` or `zoomAdaptive: true`, mark placement as view-dependent.

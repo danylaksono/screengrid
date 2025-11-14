@@ -89,10 +89,10 @@ export class PolylabelStrategy {
                 positions = [[GeometryUtils.centroidOfLine(allCoords)]];
               }
             } else if (geometry.type === 'Point') {
-              positions = [[geometry.coordinates]];
+              positions = [geometry.coordinates];
             } else if (geometry.type === 'MultiPoint') {
               if (partition === 'per-part') {
-                positions = geometry.coordinates.map(coord => [coord]);
+                positions = geometry.coordinates.map(coord => coord);
               } else {
                 positions = [[GeometryUtils.centroidOfPoints(geometry.coordinates)]];
               }

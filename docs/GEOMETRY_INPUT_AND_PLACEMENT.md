@@ -58,7 +58,7 @@ See also: `docs/PLACEMENT_CONFIG.md` for the full schema and validation rules.
   - `source + placement` produce anchors → anchors drawn directly with glyphs.
   - Best for one-glyph-per-feature or controlled sampling like `grid-screen`.
 
-Note: When using `grid-screen`, the system auto-switches to `feature-anchors` to avoid double aggregation.
+Note: When using `grid-screen`, the library auto-switches `renderMode` to `feature-anchors` to avoid double aggregation and emits a single deduplicated console warning to inform the user.
 
 ---
 

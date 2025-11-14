@@ -32,12 +32,12 @@ export class CentroidStrategy {
 
         switch (geometry.type) {
           case 'Point':
-            positions = [[geometry.coordinates]];
+            positions = [geometry.coordinates];
             break;
 
           case 'MultiPoint':
             if (partition === 'per-part') {
-              positions = geometry.coordinates.map(coord => [coord]);
+              positions = geometry.coordinates.map(coord => coord);
             } else {
               // Union: use centroid of all points
               positions = [[GeometryUtils.centroidOfPoints(geometry.coordinates)]];
