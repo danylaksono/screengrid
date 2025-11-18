@@ -10,6 +10,11 @@ export { ScreenGridLayerGL } from './ScreenGridLayerGL.js';
 export { Aggregator } from './core/Aggregator.js';
 export { Projector } from './core/Projector.js';
 export { CellQueryEngine } from './core/CellQueryEngine.js';
+// Geometry placement modules
+export { PlacementEngine } from './core/geometry/PlacementEngine.js';
+export { PlacementValidator } from './core/geometry/PlacementValidator.js';
+export { PlacementStrategyRegistry } from './core/geometry/strategies/index.js';
+export { GeometryUtils } from './core/geometry/GeometryUtils.js';
 
 // Canvas modules
 export { CanvasManager } from './canvas/CanvasManager.js';
@@ -33,6 +38,15 @@ export { ScreenGridMode } from './aggregation/modes/ScreenGridMode.js';
 export { ScreenHexMode } from './aggregation/modes/ScreenHexMode.js';
 // Ensure built-in modes are registered when this module is imported
 import './aggregation/modes/index.js';
+
+// Aggregation functions
+export { AggregationFunctionRegistry, AggregationFunctions } from './aggregation/functions/index.js';
+
+// Normalization functions
+export { NormalizationFunctionRegistry, NormalizationFunctions } from './normalization/functions/index.js';
+
+// Data utilities
+export { groupBy, extractAttributes, computeStats, groupByTime } from './utils/DataUtilities.js';
 
 // Legend module
 export { Legend } from './legend/Legend.js';

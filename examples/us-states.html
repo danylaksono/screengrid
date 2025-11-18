@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ScreenGrid — US States (Geometry Placement)</title>
+    <link href="https://unpkg.com/maplibre-gl@^4/dist/maplibre-gl.css" rel="stylesheet" />
+    <style>
+      html, body, #map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; margin: 0; }
+      .panel {
+        position: absolute; z-index: 10; top: 10px; left: 10px;
+        background: rgba(255,255,255,0.95); padding: 10px 12px; border-radius: 6px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; font-size: 13px;
+        max-width: 360px;
+      }
+      .panel h3 { margin: 0 0 8px 0; font-size: 15px; }
+      .row { margin: 6px 0; }
+      .row label { display: inline-block; min-width: 120px; }
+      .row select, .row button { font-size: 13px; }
+      code { background: #f5f5f5; padding: 1px 4px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div class="panel">
+      <h3>US States — Geometry Placement</h3>
+      <div class="row"><label>Data:</label><span>US States (GeoJSON, open data)</span></div>
+      <div class="row"><label>Placement:</label>
+        <select id="placementSelect">
+          <option value="centroid">centroid</option>
+          <option value="grid-screen">grid-screen</option>
+          <option value="polylabel">polylabel (optional)</option>
+        </select>
+      </div>
+      <div class="row"><label>Render Mode:</label>
+        <select id="renderModeSelect">
+          <option value="feature-anchors">feature-anchors</option>
+          <option value="screen-grid">screen-grid</option>
+        </select>
+      </div>
+      <div class="row"><label>Spacing:</label>
+        <select id="spacingSelect">
+          <option value="60">60 px</option>
+          <option value="40">40 px</option>
+          <option value="80">80 px</option>
+        </select>
+        <span>(only for grid-screen)</span>
+      </div>
+      <div class="row">
+        <button id="applyBtn">Apply</button>
+      </div>
+      <div class="row">
+        <small>Tip: For <code>grid-screen</code>, <code>renderMode</code> auto-switches to <code>feature-anchors</code> to avoid double aggregation.</small>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/maplibre-gl@^4/dist/maplibre-gl.js"></script>
+    <script type="module">
+      import { ScreenGridLayerGL } from '../dist/screengrid.mjs';
+
+      // US States GeoJSON (public, CORS-enabled)
+      const STATES_URL = 'https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json';
+
+      const map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://tiles.openfreemap.org/styles/liberty',
+        center: [-98.5795, 39.8283], // Continental US
+        zoom: 3.5
+      });
+
+      let statesGeoJSON = null;
+      let layer = null;
+
+      async function loadStates() {
+        const res = await fetch(STATES_URL);
+        statesGeoJSON = await res.json();
+      }
+
+      function buildLayerConfig() {
+        const placement = document.getElementById('placementSelect').value;
+        const renderMode = document.getElementById('renderModeSelect').value;
+        const spacingPx = parseInt(document.getElementById('spacingSelect').value, 10);
+
+        const base = {
+          source: statesGeoJSON,
+          cellSizePixels: 60,
+          enableGlyphs: true,
+          onDrawCell: (ctx, x, y, normVal, cellInfo) => {
+            const radius = cellInfo.glyphRadius || 8;
+            const alpha = 0.5 + 0.5 * normVal;
+            ctx.fillStyle = `rgba(46, 204, 113, ${alpha})`;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(39, 174, 96, 0.95)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          },
+          onHover: ({ cell }) => {
+            if (!cell) return;
+            map.getCanvas().style.cursor = 'pointer';
+          },
+          onClick: ({ cell }) => {
+            if (!cell) return;
+            const name = cell.props?.name || cell.props?.NAME || cell.props?.state || 'Unknown';
+            alert(`State: ${name}`);
+          }
+        };
+
+        if (placement === 'centroid' || placement === 'polylabel') {
+          return {
+            ...base,
+            placement: { strategy: placement },
+            renderMode: renderMode // feature-anchors recommended
+          };
+        }
+
+        if (placement === 'grid-screen') {
+          return {
+            ...base,
+            placement: { strategy: 'grid-screen', spacing: { pixels: spacingPx }, maxPerFeature: 300 },
+            renderMode // will auto-switch to feature-anchors internally if needed
+          };
+        }
+
+        // Fallback to centroid
+        return {
+          ...base,
+          placement: { strategy: 'centroid' },
+          renderMode
+        };
+      }
+
+      function applyConfig() {
+        if (!layer) return;
+        const cfg = buildLayerConfig();
+        layer.setConfig(cfg);
+      }
+
+      document.getElementById('applyBtn').addEventListener('click', applyConfig);
+
+      map.on('load', async () => {
+        await loadStates();
+
+        // Initial layer
+        layer = new ScreenGridLayerGL(buildLayerConfig());
+        map.addLayer(layer);
+      });
+    </script>
+  </body>
+</html>
+
+

@@ -3,6 +3,8 @@
  * Pure business logic for aggregating points into grid cells
  */
 
+import { AggregationFunctionRegistry, AggregationFunctions } from '../aggregation/functions/index.js';
+
 export class Aggregator {
   /**
    * Aggregate projected points into a grid
@@ -11,13 +13,19 @@ export class Aggregator {
    * @param {number} width - Canvas width in pixels
    * @param {number} height - Canvas height in pixels
    * @param {number} cellSizePixels - Size of each grid cell
+   * @param {Function|string} aggregationFunction - Aggregation function or name (default: sum)
    * @returns {Object} Aggregation result: {grid, cellData, cols, rows, width, height, cellSizePixels}
    */
-  static aggregate(projectedPoints, originalData, width, height, cellSizePixels) {
+  static aggregate(projectedPoints, originalData, width, height, cellSizePixels, aggregationFunction = null) {
     const cols = Math.ceil(width / cellSizePixels);
     const rows = Math.ceil(height / cellSizePixels);
     const grid = new Array(rows * cols).fill(0);
     const cellData = new Array(rows * cols).fill(null).map(() => []);
+
+    // Get aggregation function (default to sum for backward compatibility)
+    const aggFn = aggregationFunction 
+      ? (AggregationFunctionRegistry.get(aggregationFunction) || aggregationFunction)
+      : AggregationFunctions.sum;
 
     // console.log('Aggregating points:', {
     //   totalPoints: projectedPoints.length,
@@ -26,7 +34,7 @@ export class Aggregator {
     //   gridSize: { cols, rows },
     // });
 
-    // Aggregate points into grid cells
+    // First pass: collect all points into cellData
     for (let i = 0; i < projectedPoints.length; i++) {
       const p = projectedPoints[i];
       const col = Math.floor(p.x / cellSizePixels);
@@ -35,15 +43,21 @@ export class Aggregator {
       // Bounds check
       if (col >= 0 && col < cols && row >= 0 && row < rows) {
         const idx = row * cols + col;
-        grid[idx] += p.w;
 
-        // Store original data point for glyph rendering
+        // Store original data point for glyph rendering and aggregation
         cellData[idx].push({
           data: originalData[i],
           weight: p.w,
           projectedX: p.x,
           projectedY: p.y,
         });
+      }
+    }
+
+    // Second pass: apply aggregation function to each cell
+    for (let idx = 0; idx < grid.length; idx++) {
+      if (cellData[idx].length > 0) {
+        grid[idx] = aggFn(cellData[idx]);
       }
     }
 
@@ -77,10 +91,11 @@ export class Aggregator {
    * @param {number} width - Canvas width
    * @param {number} height - Canvas height
    * @param {number} cellSizePixels - Cell size
+   * @param {Function|string} aggregationFunction - Aggregation function or name
    * @returns {Object} Aggregation result
    */
-  aggregate(projectedPoints, originalData, width, height, cellSizePixels) {
-    return Aggregator.aggregate(projectedPoints, originalData, width, height, cellSizePixels);
+  aggregate(projectedPoints, originalData, width, height, cellSizePixels, aggregationFunction = null) {
+    return Aggregator.aggregate(projectedPoints, originalData, width, height, cellSizePixels, aggregationFunction);
   }
 
   /**

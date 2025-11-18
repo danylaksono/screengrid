@@ -5,6 +5,7 @@
  */
 
 import { GlyphUtilities } from './GlyphUtilities.js';
+import { Logger } from '../utils/Logger.js';
 
 const _registry = new Map();
 
@@ -82,8 +83,7 @@ function _registerBuiltins() {
     });
   } catch (e) {
     // Defensive: registry may already contain these during hot reloads
-    // eslint-disable-next-line no-console
-    console.warn('GlyphRegistry: error registering built-ins', e);
+    Logger.warn('GlyphRegistry: error registering built-ins', e);
   }
 }
 

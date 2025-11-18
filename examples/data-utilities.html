@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScreenGrid - Data Utilities Example</title>
+    <link href="https://unpkg.com/maplibre-gl@^4/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/maplibre-gl@^4/dist/maplibre-gl.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            overflow: hidden;
+        }
+
+        #map {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 400px;
+            z-index: 1000;
+        }
+
+        .info-panel h1 {
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .info-panel p {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+
+        .utility-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .utility-section h2 {
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: #444;
+        }
+
+        .utility-section code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .cell-info {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .cell-info h3 {
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .cell-info pre {
+            background: #fff;
+            padding: 8px;
+            border-radius: 3px;
+            overflow-x: auto;
+            font-size: 11px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="info-panel">
+        <h1>Data Utilities Example</h1>
+        <p>This example demonstrates the data utility functions: <code>groupBy</code>, <code>extractAttributes</code>, <code>computeStats</code>, and <code>groupByTime</code>.</p>
+        
+        <div class="utility-section">
+            <h2>Hover over a cell to see:</h2>
+            <ul style="font-size: 12px; color: #666; margin-left: 20px;">
+                <li>Category breakdown (groupBy)</li>
+                <li>Multi-attribute extraction</li>
+                <li>Statistical summary (computeStats)</li>
+                <li>Time series data (groupByTime)</li>
+            </ul>
+        </div>
+
+        <div class="cell-info" id="cellInfo" style="display: none;">
+            <h3>Cell Data Analysis</h3>
+            <pre id="cellDataDisplay"></pre>
+        </div>
+    </div>
+
+    <script type="module">
+        import { ScreenGridLayerGL, groupBy, extractAttributes, computeStats, groupByTime, GlyphUtilities } from '../src/index.js';
+
+        // Generate sample data with multiple attributes
+        function generateSampleData() {
+            const data = [];
+            const categories = ['Residential', 'Commercial', 'Industrial'];
+            const years = [2020, 2021, 2022, 2023, 2024];
+            
+            // Generate points around San Francisco
+            for (let i = 0; i < 500; i++) {
+                const lat = 37.7749 + (Math.random() - 0.5) * 0.1;
+                const lng = -122.4194 + (Math.random() - 0.5) * 0.1;
+                const category = categories[Math.floor(Math.random() * categories.length)];
+                const year = years[Math.floor(Math.random() * years.length)];
+                
+                data.push({
+                    coordinates: [lng, lat],
+                    category: category,
+                    year: year,
+                    value: Math.random() * 100,
+                    temperature: 15 + Math.random() * 10,
+                    count: Math.floor(Math.random() * 20) + 1
+                });
+            }
+            
+            return data;
+        }
+
+        const data = generateSampleData();
+
+        // Initialize map
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: 'https://demotiles.maplibre.org/style.json',
+            center: [-122.4194, 37.7749],
+            zoom: 12
+        });
+
+        map.on('load', () => {
+            // Custom glyph that demonstrates all utilities
+            function drawUtilityDemoGlyph(ctx, x, y, normVal, cellInfo) {
+                const { cellData, cellSize, glyphRadius } = cellInfo;
+                if (!cellData || cellData.length === 0) return;
+
+                const radius = glyphRadius || cellSize * 0.4;
+
+                // 1. Use groupBy for category breakdown (pie chart)
+                const categories = groupBy(cellData, 'category', 'value');
+                const categoryValues = Array.from(categories.values());
+                const categoryKeys = Array.from(categories.keys());
+                
+                if (categoryValues.length > 0 && categoryValues.reduce((a, b) => a + b, 0) > 0) {
+                    const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f39c12', '#9b59b6'];
+                    GlyphUtilities.drawPieGlyph(
+                        ctx, x, y,
+                        categoryValues,
+                        radius * 0.8,
+                        colors.slice(0, categoryValues.length)
+                    );
+                }
+
+                // 2. Use extractAttributes for multi-attribute summary
+                const attrs = extractAttributes(cellData, {
+                    total: (item) => item.weight || item.data.value || 0,
+                    count: () => 1,
+                    avgValue: (item) => item.data.value || 0,
+                    avgTemp: (item) => item.data.temperature || 0
+                });
+
+                // 3. Use computeStats for uncertainty encoding
+                const stats = computeStats(cellData, 'temperature');
+                
+                // Draw a small indicator showing mean ± std
+                if (stats.count > 0) {
+                    ctx.strokeStyle = '#e74c3c';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    // Error bar on the right side
+                    const barX = x + radius + 5;
+                    const meanY = y;
+                    const errorHeight = stats.std * 2;
+                    ctx.moveTo(barX, meanY - errorHeight);
+                    ctx.lineTo(barX, meanY + errorHeight);
+                    ctx.moveTo(barX - 3, meanY - errorHeight);
+                    ctx.lineTo(barX + 3, meanY - errorHeight);
+                    ctx.moveTo(barX - 3, meanY + errorHeight);
+                    ctx.lineTo(barX + 3, meanY + errorHeight);
+                    ctx.stroke();
+                    
+                    // Mean point
+                    ctx.fillStyle = '#e74c3c';
+                    ctx.beginPath();
+                    ctx.arc(barX, meanY, 2, 0, 2 * Math.PI);
+                    ctx.fill();
+                }
+
+                // 4. Use groupByTime for time series (draw as small line)
+                const timeSeries = groupByTime(cellData, 'year', 'value', 'year');
+                if (timeSeries.length > 1) {
+                    const chartWidth = radius * 1.2;
+                    const chartHeight = radius * 0.6;
+                    const chartX = x - chartWidth / 2;
+                    const chartY = y + radius + 8;
+                    
+                    const values = timeSeries.map(d => d.value);
+                    const maxValue = Math.max(...values, 1);
+                    const minValue = Math.min(...values, 0);
+                    const range = maxValue - minValue || 1;
+                    
+                    ctx.strokeStyle = '#2ecc71';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    timeSeries.forEach((point, i) => {
+                        const px = chartX + (i / (timeSeries.length - 1)) * chartWidth;
+                        const py = chartY - ((point.value - minValue) / range) * chartHeight;
+                        if (i === 0) {
+                            ctx.moveTo(px, py);
+                        } else {
+                            ctx.lineTo(px, py);
+                        }
+                    });
+                    ctx.stroke();
+                }
+            }
+
+            // Create grid layer
+            const gridLayer = new ScreenGridLayerGL({
+                id: 'utility-demo-grid',
+                data: data,
+                getPosition: (d) => d.coordinates,
+                getWeight: (d) => d.value || 1,
+                cellSizePixels: 80,
+                enableGlyphs: true,
+                glyphSize: 0.85,
+                onDrawCell: drawUtilityDemoGlyph,
+                colorScale: (v) => [255 * v, 200 * (1 - v), 50, 100], // Subtle background
+                onHover: ({ cell }) => {
+                    if (!cell || !cell.cellData) {
+                        document.getElementById('cellInfo').style.display = 'none';
+                        return;
+                    }
+
+                    const cellData = cell.cellData;
+                    
+                    // Demonstrate all utilities
+                    const categories = groupBy(cellData, 'category', 'value');
+                    const attrs = extractAttributes(cellData, {
+                        total: (item) => item.weight || item.data.value || 0,
+                        count: () => 1,
+                        avgValue: (item) => item.data.value || 0,
+                        avgTemp: (item) => item.data.temperature || 0,
+                        categories: (item) => item.data.category
+                    });
+                    const stats = computeStats(cellData, 'temperature');
+                    const timeSeries = groupByTime(cellData, 'year', 'value', 'year');
+
+                    const display = {
+                        cell: {
+                            col: cell.col,
+                            row: cell.row,
+                            value: cell.value,
+                            dataPoints: cellData.length
+                        },
+                        groupBy: {
+                            description: 'Categories grouped by category property',
+                            result: Object.fromEntries(categories)
+                        },
+                        extractAttributes: {
+                            description: 'Multiple attributes extracted',
+                            result: {
+                                total: attrs.total,
+                                count: attrs.count,
+                                avgValue: attrs.avgValue != null && typeof attrs.avgValue === 'number' ? attrs.avgValue.toFixed(2) : 'N/A',
+                                avgTemp: attrs.avgTemp != null && typeof attrs.avgTemp === 'number' ? attrs.avgTemp.toFixed(2) : 'N/A',
+                                uniqueCategories: attrs.categories && Array.isArray(attrs.categories) ? [...new Set(attrs.categories)].length : 0
+                            }
+                        },
+                        computeStats: {
+                            description: 'Statistical summary of temperature',
+                            result: {
+                                mean: stats.mean != null && typeof stats.mean === 'number' ? stats.mean.toFixed(2) : 'N/A',
+                                std: stats.std != null && typeof stats.std === 'number' ? stats.std.toFixed(2) : 'N/A',
+                                min: stats.min != null && typeof stats.min === 'number' ? stats.min.toFixed(2) : 'N/A',
+                                max: stats.max != null && typeof stats.max === 'number' ? stats.max.toFixed(2) : 'N/A',
+                                count: stats.count || 0,
+                                sum: stats.sum != null && typeof stats.sum === 'number' ? stats.sum.toFixed(2) : 'N/A'
+                            }
+                        },
+                        groupByTime: {
+                            description: 'Time series grouped by year',
+                            result: timeSeries
+                        }
+                    };
+
+                    document.getElementById('cellDataDisplay').textContent = JSON.stringify(display, null, 2);
+                    document.getElementById('cellInfo').style.display = 'block';
+                }
+            });
+
+            map.addLayer(gridLayer);
+        });
+    </script>
+</body>
+</html>
+

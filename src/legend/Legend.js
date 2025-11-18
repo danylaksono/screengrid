@@ -6,6 +6,7 @@
 import { LegendDataExtractor } from './LegendDataExtractor.js';
 import { LegendRenderers } from './LegendRenderers.js';
 import { GlyphRegistry } from '../glyphs/GlyphRegistry.js';
+import { Logger } from '../utils/Logger.js';
 
 export class Legend {
   /**
@@ -220,7 +221,7 @@ export class Legend {
           }
         }
       } catch (e) {
-        console.error('Legend: plugin.getLegend threw an error:', e);
+        Logger.error('Legend: plugin.getLegend threw an error:', e);
       }
     }
 
@@ -246,7 +247,7 @@ export class Legend {
 
       case 'categorical':
         if (!this.categoryExtractor) {
-          console.warn('Legend: categoryExtractor required for categorical legend');
+          Logger.warn('Legend: categoryExtractor required for categorical legend');
           return;
         }
         legendData = LegendDataExtractor.extractCategorical(
@@ -264,7 +265,7 @@ export class Legend {
 
       case 'temporal':
         if (!this.timeExtractor) {
-          console.warn('Legend: timeExtractor required for temporal legend');
+          Logger.warn('Legend: timeExtractor required for temporal legend');
           return;
         }
         legendData = LegendDataExtractor.extractTemporal(
@@ -282,7 +283,7 @@ export class Legend {
 
       case 'size-scale':
         if (!this.sizeExtractor) {
-          console.warn('Legend: sizeExtractor required for size-scale legend');
+          Logger.warn('Legend: sizeExtractor required for size-scale legend');
           return;
         }
         legendData = LegendDataExtractor.extractSizeScale(gridData, this.sizeExtractor);
@@ -330,7 +331,7 @@ export class Legend {
         break;
 
       default:
-        console.warn(`Legend: Unknown legend type: ${legendType}`);
+        Logger.warn(`Legend: Unknown legend type: ${legendType}`);
     }
   }
 

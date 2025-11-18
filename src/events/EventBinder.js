@@ -33,7 +33,15 @@ export class EventBinder {
     this.map.on('zoom', this.handlers.onZoom);
     this.map.on('move', this.handlers.onMove);
 
-    console.log('Events bound to map');
+    // Debug-only message
+    // Importing Logger here would create a module-level dependency; prefer silent default.
+    try {
+      // eslint-disable-next-line import/no-dynamic-require, global-require
+      const { Logger } = require('../utils/Logger.js');
+      if (Logger) Logger.log('Events bound to map');
+    } catch (e) {
+      // ignore
+    }
   }
 
   /**
@@ -50,7 +58,13 @@ export class EventBinder {
     this.handlers = {};
     this.map = null;
 
-    console.log('Events unbound from map');
+    try {
+      // eslint-disable-next-line import/no-dynamic-require, global-require
+      const { Logger } = require('../utils/Logger.js');
+      if (Logger) Logger.log('Events unbound from map');
+    } catch (e) {
+      // ignore
+    }
   }
 
   /**

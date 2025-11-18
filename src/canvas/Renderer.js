@@ -3,8 +3,66 @@
  * Canvas drawing logic for grid cells
  */
 
+import { Logger } from '../utils/Logger.js';
+import { NormalizationFunctionRegistry, NormalizationFunctions } from '../normalization/functions/index.js';
+
 export class Renderer {
   constructor() {}
+
+  /**
+   * Compute statistics for normalization context
+   * @private
+   */
+  static _computeStats(grid) {
+    const cellsWithData = grid.filter((v) => {
+      // Handle both numbers and objects (for multi-attribute aggregation)
+      if (typeof v === 'number') {
+        return v > 0;
+      }
+      // For objects, check if any numeric property > 0
+      return v && typeof v === 'object' && Object.values(v).some(val => typeof val === 'number' && val > 0);
+    });
+
+    if (cellsWithData.length === 0) {
+      return {
+        max: 0,
+        min: 0,
+        mean: 0,
+        std: 0,
+        totalValue: 0,
+        cellsWithData: 0,
+      };
+    }
+
+    // Extract numeric values (handle both numbers and objects)
+    const numericValues = cellsWithData.map(v => {
+      if (typeof v === 'number') {
+        return v;
+      }
+      // For objects, use the first numeric value found (or sum all numeric values)
+      if (v && typeof v === 'object') {
+        const nums = Object.values(v).filter(val => typeof val === 'number');
+        return nums.length > 0 ? nums.reduce((sum, n) => sum + n, 0) : 0;
+      }
+      return 0;
+    });
+
+    const max = Math.max(...numericValues);
+    const min = Math.min(...numericValues);
+    const mean = numericValues.reduce((sum, v) => sum + v, 0) / numericValues.length;
+    const variance = numericValues.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / numericValues.length;
+    const std = Math.sqrt(variance);
+    const totalValue = numericValues.reduce((sum, v) => sum + v, 0);
+
+    return {
+      max,
+      min,
+      mean,
+      std,
+      totalValue,
+      cellsWithData: cellsWithData.length,
+    };
+  }
 
   /**
    * Render grid cells to canvas
@@ -15,10 +73,12 @@ export class Renderer {
    * @param {boolean} config.enableGlyphs - Enable glyph rendering
    * @param {Function} config.onDrawCell - Custom glyph drawing callback
    * @param {number} config.glyphSize - Glyph size factor
+   * @param {Function|string} config.normalizationFunction - Normalization function or name (default: max-local)
+   * @param {Object} config.normalizationContext - Additional context for normalization (e.g., globalMax)
    */
   static render(aggregationResult, ctx, config) {
     if (!aggregationResult || !ctx) {
-      console.log('[Renderer] No aggregation result or context available for rendering', {
+      Logger.log('[Renderer] No aggregation result or context available for rendering', {
         hasResult: !!aggregationResult,
         hasContext: !!ctx
       });
@@ -26,11 +86,21 @@ export class Renderer {
     }
 
     const { grid, cellData, cols, rows, cellSizePixels } = aggregationResult;
-    const { colorScale, enableGlyphs, onDrawCell, glyphSize, showBackground } = config;
+    const { 
+      colorScale, 
+      enableGlyphs, 
+      onDrawCell, 
+      glyphSize, 
+      showBackground,
+      normalizationFunction,
+      normalizationContext = {}
+    } = config;
 
-    const maxVal = Math.max(...grid);
-    if (maxVal === 0) {
-      console.log('[Renderer] No data to render (max value is 0)', {
+    // Compute stats for normalization
+    const stats = Renderer._computeStats(grid);
+    
+    if (stats.max === 0) {
+      Logger.log('[Renderer] No data to render (max value is 0)', {
         gridLength: grid.length,
         cols,
         rows
@@ -38,11 +108,22 @@ export class Renderer {
       return;
     }
 
-    console.log('[Renderer] Rendering grid:', {
+    // Get normalization function (default to max-local for backward compatibility)
+    const normFn = normalizationFunction
+      ? (NormalizationFunctionRegistry.get(normalizationFunction) || normalizationFunction)
+      : NormalizationFunctions.maxLocal;
+
+    // Build normalization context
+    const normContext = {
+      ...stats,
+      ...normalizationContext,
+    };
+
+    Logger.log('[Renderer] Rendering grid:', {
       cols,
       rows,
-      maxVal,
-      cellsWithData: grid.filter((v) => v > 0).length,
+      maxVal: stats.max,
+      cellsWithData: stats.cellsWithData,
       enableGlyphs,
       hasOnDrawCell: !!onDrawCell
     });
@@ -65,15 +146,39 @@ export class Renderer {
         const idx = r * cols + c;
         const val = grid[idx];
 
-        if (val > 0) {
+        // Check if cell has data (handle both numbers and objects)
+        const hasData = typeof val === 'number' 
+          ? val > 0 
+          : (val && typeof val === 'object' && Object.values(val).some(v => typeof v === 'number' && v > 0));
+
+        if (hasData) {
           const x = c * cellSizePixels;
           const y = r * cellSizePixels;
-          const normVal = val / maxVal;
+          
+          // Normalize value using normalization function
+          // For objects, pass the first numeric value or a primary value
+          const cellValue = typeof val === 'number' 
+            ? val 
+            : (val && typeof val === 'object' 
+              ? (val.value !== undefined ? val.value : Object.values(val).find(v => typeof v === 'number') || 0)
+              : 0);
+          
+          const normVal = normFn(grid, cellValue, idx, normContext);
+          
+          // Skip normalization if result is not a number (e.g., multi-attribute aggregation)
+          if (typeof normVal !== 'number' || isNaN(normVal)) {
+            continue;
+          }
 
           // Determine if background should be drawn
-          // Default to true if showBackground is not explicitly false
-          const shouldShowBackground = showBackground !== false;
-          const drawBackground = !enableGlyphs || !onDrawCell || (enableGlyphs && onDrawCell && shouldShowBackground);
+          // New default: when glyphs are active (enableGlyphs && onDrawCell),
+          // backgrounds are OFF unless showBackground is explicitly true.
+          // When glyphs are not active, backgrounds remain ON by default.
+          const glyphsActive = enableGlyphs && !!onDrawCell;
+          const shouldShowBackground = glyphsActive
+            ? showBackground === true
+            : showBackground !== false;
+          const drawBackground = !glyphsActive || shouldShowBackground;
 
           // Draw background if needed
           if (drawBackground) {
@@ -129,7 +234,7 @@ export class Renderer {
         normalizedValue: normVal,
       });
     } catch (e) {
-      console.error('Error in onDrawCell callback:', e);
+      Logger.error('Error in onDrawCell callback:', e);
     }
 
     ctx.restore();
@@ -140,6 +245,15 @@ export class Renderer {
    */
   render(aggregationResult, ctx, config) {
     Renderer.render(aggregationResult, ctx, config);
+  }
+  
+  /**
+   * Compute statistics for a grid (exposed for external use)
+   * @param {Array} grid - Grid array
+   * @returns {Object} Statistics object
+   */
+  static computeStats(grid) {
+    return Renderer._computeStats(grid);
   }
 
   /**

@@ -45,7 +45,8 @@ export const ScreenGridMode = {
       data,
       width,
       height,
-      config.cellSizePixels
+      config.cellSizePixels,
+      config.aggregationFunction // Pass aggregation function
     );
   },
 
@@ -64,6 +65,8 @@ export const ScreenGridMode = {
       onDrawCell: config.onDrawCell,
       glyphSize: config.glyphSize,
       showBackground: config.showBackground, // Pass showBackground to renderer
+      normalizationFunction: config.normalizationFunction, // Pass normalization function
+      normalizationContext: config.normalizationContext, // Pass normalization context
     });
   },
 

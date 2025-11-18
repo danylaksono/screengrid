@@ -48,6 +48,8 @@ Glyph drawing enables you to create rich, multi-dimensional visualizations that 
 
 The `onDrawCell` callback is invoked for each grid cell when `enableGlyphs: true` is set. It provides everything you need to draw custom visualizations.
 
+When `enableGlyphs: true` and a glyph is active (either via `onDrawCell` or a registered `glyph` plugin), the **default behaviour is now to hide the colored cell background**. You can turn the background back on by setting `aggregationModeConfig.showBackground = true` in your layer config.
+
 ### Callback Signature
 
 ```javascript
@@ -1085,6 +1087,15 @@ See the following example files for complete implementations:
 - **`examples/timeseries.html`**: Single-variable time series visualization
 - **`examples/multivariate-timeseries.html`**: Complex multivariate time series with split-screen layout
 - **`examples/legend-example.html`**: Glyphs combined with legend system
+- **`examples/data-utilities.html`**: Demonstrates data utility functions (`groupBy`, `extractAttributes`, `computeStats`, `groupByTime`)
+
+---
+
+## Related Documentation
+
+- **[Data Utilities Guide](./DATA_UTILITIES.md)**: Learn about utility functions for extracting and processing `cellData` (`groupBy`, `extractAttributes`, `computeStats`, `groupByTime`)
+- **[Cartography & Multivariate Design](./CARTOGRAPHY_AND_MULTIVARIATE_DESIGN.md)**: Design patterns and cartographic principles
+- **[Spatio-Temporal Guide](./SPATIO_TEMPORAL_GUIDE.md)**: Time series visualization patterns
 
 ---
 

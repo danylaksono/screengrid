@@ -5,6 +5,9 @@
  */
 
 import { Projector } from '../../core/Projector.js';
+import { AggregationFunctionRegistry, AggregationFunctions } from '../functions/index.js';
+import { NormalizationFunctionRegistry, NormalizationFunctions } from '../../normalization/functions/index.js';
+import { Renderer } from '../../canvas/Renderer.js';
 
 export const ScreenHexMode = {
   name: 'screen-hex',
@@ -43,11 +46,15 @@ export const ScreenHexMode = {
     const hexWidth = hexSize * Math.sqrt(3); // Width of hexagon (flat-top)
     const hexHeight = hexSize * 1.5; // Height of hexagon (flat-top)
     
+    // Get aggregation function (default to sum for backward compatibility)
+    const aggFn = config.aggregationFunction
+      ? (AggregationFunctionRegistry.get(config.aggregationFunction) || config.aggregationFunction)
+      : AggregationFunctions.sum;
+
     // Use Map for sparse storage (more efficient for hex grids)
-    const hexGrid = new Map(); // hexKey -> value
     const hexCellData = new Map(); // hexKey -> array of cell data
 
-    // Aggregate points into hex cells
+    // First pass: collect all points into cellData
     for (let i = 0; i < projectedPoints.length; i++) {
       const p = projectedPoints[i];
       
@@ -58,19 +65,25 @@ export const ScreenHexMode = {
       
       const hexKey = `${q},${r}`;
 
-      // Aggregate
-      if (!hexGrid.has(hexKey)) {
-        hexGrid.set(hexKey, 0);
+      // Store original data point
+      if (!hexCellData.has(hexKey)) {
         hexCellData.set(hexKey, []);
       }
       
-      hexGrid.set(hexKey, hexGrid.get(hexKey) + p.w);
       hexCellData.get(hexKey).push({
         data: data[i],
         weight: p.w,
         projectedX: p.x,
         projectedY: p.y,
       });
+    }
+
+    // Second pass: apply aggregation function to each cell
+    const hexGrid = new Map(); // hexKey -> aggregated value
+    for (const [hexKey, cellDataArray] of hexCellData.entries()) {
+      if (cellDataArray.length > 0) {
+        hexGrid.set(hexKey, aggFn(cellDataArray));
+      }
     }
 
     // Convert Map to arrays for compatibility
@@ -105,7 +118,6 @@ export const ScreenHexMode = {
    */
   render(aggregationResult, ctx, config, map) {
     const { grid, hexCoords, hexRadius, cellData } = aggregationResult;
-    const maxVal = Math.max(...grid, 1);
 
     ctx.clearRect(0, 0, aggregationResult.width, aggregationResult.height);
 
@@ -115,12 +127,37 @@ export const ScreenHexMode = {
       ...(aggregationResult.aggregationModeConfig || {}),
     };
 
+    // Get normalization function (default to max-local for backward compatibility)
+    const normFn = config.normalizationFunction
+      ? (NormalizationFunctionRegistry.get(config.normalizationFunction) || config.normalizationFunction)
+      : NormalizationFunctions.maxLocal;
+
+    // Compute stats for normalization context
+    const stats = Renderer.computeStats(grid);
+    const normContext = {
+      ...stats,
+      ...(config.normalizationContext || {}),
+    };
+
     for (let i = 0; i < grid.length; i++) {
       const val = grid[i];
       if (val <= 0) continue;
 
       const { q, r } = hexCoords[i];
-      const normVal = val / maxVal;
+      
+      // Normalize value using normalization function
+      const cellValue = typeof val === 'number' 
+        ? val 
+        : (val && typeof val === 'object' 
+          ? (val.value !== undefined ? val.value : Object.values(val).find(v => typeof v === 'number') || 0)
+          : 0);
+      
+      const normVal = normFn(grid, cellValue, i, normContext);
+      
+      // Skip if normalization result is not a number
+      if (typeof normVal !== 'number' || isNaN(normVal)) {
+        continue;
+      }
 
       // Convert hex coordinates to pixel coordinates (flat-top hexagon)
       const x = hexRadius * (Math.sqrt(3) * q + Math.sqrt(3) / 2 * r);

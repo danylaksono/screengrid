@@ -67,6 +67,19 @@ const colorSchemes = {
 };
 ```
 
+When you switch to glyph-based rendering (`enableGlyphs: true` with either `onDrawCell` or a `glyph` plugin), the default behaviour is to **turn off the colored cell background** so the glyphs stand out. If you want to keep the heatmap-style background behind your glyphs, set:
+
+```javascript
+const gridLayer = new ScreenGridLayerGL({
+  // ...other options
+  enableGlyphs: true,
+  onDrawCell: myGlyphFn,
+  aggregationModeConfig: {
+    showBackground: true // explicitly opt-in to background when using glyphs
+  }
+});
+```
+
 ### Performance Tuning
 
 - Adjust `cellSizePixels` for performance vs detail tradeoff
