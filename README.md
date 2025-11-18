@@ -193,6 +193,12 @@ The library supports custom glyph drawing through the `onDrawCell` callback and 
 - Time series and spatio-temporal visualization
 - Advanced patterns and best practices
 
+📖 **📊 Data Utilities**: See [docs/DATA_UTILITIES.md](./docs/DATA_UTILITIES.md) for utility functions that simplify common data processing patterns:
+- `groupBy` - Group data by categories
+- `extractAttributes` - Extract multiple attributes from cellData
+- `computeStats` - Compute statistics for uncertainty encoding
+- `groupByTime` - Group data by time periods for temporal visualizations
+
 ### Quick Example: Using onDrawCell
 
 ```javascript
@@ -352,6 +358,7 @@ npx http-server -p 8000
 5. **Time Series** (`examples/timeseries.html`) - Temporal data visualization
 6. **Multivariate Time Series** (`examples/multivariate-timeseries.html`) - Advanced multi-attribute temporal visualization
 7. **Plugin Glyph** (`examples/plugin-glyph.html`) - Complete plugin ecosystem example with custom `grouped-bar` plugin, lifecycle hooks, and legend integration
+8. **Data Utilities** (`examples/data-utilities.html`) - Demonstrates data utility functions (`groupBy`, `extractAttributes`, `computeStats`, `groupByTime`)
 
 ### Example Features
 
@@ -385,6 +392,9 @@ npx http-server -p 8000
 | `glyph` | string | `null` | Registered plugin name to use (e.g., `'circle'`, `'bar'`, `'pie'`, `'heatmap'`) |
 | `glyphConfig` | object | `{}` | Configuration object passed to plugin's `draw()` method |
 | `glyphSize` | number | `0.8` | Size of glyphs relative to cell size |
+| `aggregationFunction` | Function\|string | `'sum'` | Aggregation function or name (see [Aggregation Functions](#-aggregation-functions)) |
+| `normalizationFunction` | Function\|string | `'max-local'` | Normalization function or name (see [Normalization Functions](#-normalization-functions)) |
+| `normalizationContext` | object | `{}` | Additional context for normalization (e.g., `{globalMax: 1000}`) |
 | `adaptiveCellSize` | boolean | `false` | Enable adaptive cell sizing |
 | `minCellSize` | number | `20` | Minimum cell size in pixels |
 | `maxCellSize` | number | `100` | Maximum cell size in pixels |
@@ -396,6 +406,166 @@ npx http-server -p 8000
 | `anchorSizePixels` | number | `auto` | Glyph size in pixels for `feature-anchors` mode |
 
 See `docs/GEOMETRY_INPUT_AND_PLACEMENT.md` and `docs/PLACEMENT_CONFIG.md` for geometry input, placement strategies, and validation rules.
+
+## 📊 Aggregation Functions
+
+ScreenGrid supports flexible aggregation functions that determine how multiple data points within a cell are combined. You can use built-in functions or provide custom functions.
+
+### Built-in Aggregation Functions
+
+```javascript
+import { AggregationFunctions } from 'screengrid';
+
+// Sum (default) - sums all weights in a cell
+aggregationFunction: AggregationFunctions.sum
+// or
+aggregationFunction: 'sum'
+
+// Mean - average of all weights
+aggregationFunction: AggregationFunctions.mean
+// or
+aggregationFunction: 'mean'
+
+// Count - number of points in a cell
+aggregationFunction: AggregationFunctions.count
+// or
+aggregationFunction: 'count'
+
+// Max - maximum weight value
+aggregationFunction: AggregationFunctions.max
+// or
+aggregationFunction: 'max'
+
+// Min - minimum weight value
+aggregationFunction: AggregationFunctions.min
+// or
+aggregationFunction: 'min'
+```
+
+### Custom Aggregation Functions
+
+You can provide your own aggregation function to support multi-attribute aggregation or custom calculations:
+
+```javascript
+// Single-value custom aggregation
+aggregationFunction: (cellData) => {
+  // cellData is array of {data, weight, projectedX, projectedY}
+  return cellData.reduce((sum, item) => sum + item.weight * 2, 0);
+}
+
+// Multi-attribute aggregation (returns object)
+aggregationFunction: (cellData) => {
+  return {
+    total: cellData.reduce((sum, item) => sum + item.weight, 0),
+    count: cellData.length,
+    avg: cellData.reduce((sum, item) => sum + item.weight, 0) / cellData.length,
+    max: Math.max(...cellData.map(item => item.weight)),
+    // Access original data attributes
+    categories: cellData.map(item => item.data.category)
+  };
+}
+```
+
+### Registering Custom Aggregation Functions
+
+```javascript
+import { AggregationFunctionRegistry } from 'screengrid';
+
+// Register a custom function
+AggregationFunctionRegistry.register('custom-sum', (cellData) => {
+  return cellData.reduce((sum, item) => sum + item.weight, 0);
+});
+
+// Use it by name
+aggregationFunction: 'custom-sum'
+```
+
+**Note:** When using multi-attribute aggregation (returning objects), normalization is skipped automatically. You'll need to handle normalization in your glyph drawing function (`onDrawCell`) or custom glyph plugin.
+
+## 📈 Normalization Functions
+
+Normalization functions convert raw aggregated cell values to a normalized range (0-1) for consistent rendering. You can use built-in strategies or provide custom functions.
+
+### Built-in Normalization Functions
+
+```javascript
+import { NormalizationFunctions } from 'screengrid';
+
+// Max-local (default) - normalizes relative to max value in current grid
+normalizationFunction: NormalizationFunctions.maxLocal
+// or
+normalizationFunction: 'max-local'
+
+// Max-global - normalizes relative to a global maximum
+normalizationFunction: NormalizationFunctions.maxGlobal
+// Requires normalizationContext: {globalMax: 1000}
+normalizationContext: { globalMax: 1000 }
+
+// Z-score - normalizes using z-score transformation
+normalizationFunction: NormalizationFunctions.zScore
+// or
+normalizationFunction: 'z-score'
+
+// Percentile - normalizes based on percentile rank
+normalizationFunction: NormalizationFunctions.percentile
+// or
+normalizationFunction: 'percentile'
+```
+
+### Custom Normalization Functions
+
+```javascript
+// Custom normalization function
+normalizationFunction: (grid, cellValue, cellIndex, context) => {
+  // grid: array of all cell values
+  // cellValue: value of current cell
+  // cellIndex: index of current cell
+  // context: {max, min, mean, std, totalValue, cellsWithData, ...custom}
+  
+  // Example: logarithmic normalization
+  if (cellValue === 0 || context.max === 0) return 0;
+  return Math.log(cellValue + 1) / Math.log(context.max + 1);
+}
+```
+
+### Registering Custom Normalization Functions
+
+```javascript
+import { NormalizationFunctionRegistry } from 'screengrid';
+
+// Register a custom function
+NormalizationFunctionRegistry.register('log-normal', (grid, cellValue, cellIndex, context) => {
+  if (cellValue === 0 || context.max === 0) return 0;
+  return Math.log(cellValue + 1) / Math.log(context.max + 1);
+});
+
+// Use it by name
+normalizationFunction: 'log-normal'
+```
+
+### Example: Using Aggregation and Normalization Together
+
+```javascript
+import { ScreenGridLayerGL, AggregationFunctions, NormalizationFunctions } from 'screengrid';
+
+const layer = new ScreenGridLayerGL({
+  data: myData,
+  getPosition: d => d.coordinates,
+  getWeight: d => d.value,
+  
+  // Use mean aggregation instead of sum
+  aggregationFunction: AggregationFunctions.mean,
+  
+  // Use z-score normalization
+  normalizationFunction: NormalizationFunctions.zScore,
+  
+  // Or use global normalization with context
+  normalizationFunction: NormalizationFunctions.maxGlobal,
+  normalizationContext: { globalMax: 10000 },
+  
+  colorScale: (v) => [255 * v, 200 * (1 - v), 50, 220]
+});
+```
 
 ## 🛠️ Built-in Glyph Utilities
 
@@ -513,6 +683,14 @@ MIT License - see LICENSE file for details.
 5. Submit a pull request
 
 ## 📝 Changelog
+
+### v2.1.0 (Upcoming)
+- **NEW**: Aggregation function registry system with built-in functions (sum, mean, count, max, min)
+- **NEW**: Normalization function registry system with built-in strategies (max-local, max-global, z-score, percentile)
+- **NEW**: Support for custom aggregation functions (including multi-attribute aggregation)
+- **NEW**: Support for custom normalization functions
+- **IMPROVED**: Enhanced flexibility for data aggregation and normalization strategies
+- **IMPROVED**: Backward compatible - defaults preserve existing behavior
 
 ### v2.0.0
 - **NEW**: Comprehensive modular refactoring (11 modules with clean separation of concerns)

@@ -39,6 +39,15 @@ export { ScreenHexMode } from './aggregation/modes/ScreenHexMode.js';
 // Ensure built-in modes are registered when this module is imported
 import './aggregation/modes/index.js';
 
+// Aggregation functions
+export { AggregationFunctionRegistry, AggregationFunctions } from './aggregation/functions/index.js';
+
+// Normalization functions
+export { NormalizationFunctionRegistry, NormalizationFunctions } from './normalization/functions/index.js';
+
+// Data utilities
+export { groupBy, extractAttributes, computeStats, groupByTime } from './utils/DataUtilities.js';
+
 // Legend module
 export { Legend } from './legend/Legend.js';
 export { LegendDataExtractor } from './legend/LegendDataExtractor.js';

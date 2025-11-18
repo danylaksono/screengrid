@@ -612,6 +612,7 @@ export class ScreenGridLayerGL {
       ...this.config.aggregationModeConfig,
       cellSizePixels: this.config.cellSizePixels,
       displaySize: { width, height },
+      aggregationFunction: this.config.aggregationFunction, // Pass aggregation function
     };
 
     // Aggregate using mode plugin
@@ -736,6 +737,8 @@ export class ScreenGridLayerGL {
       onDrawCell: onDrawCell,
       glyphSize: this.config.glyphSize,
       showBackground: this.config.aggregationModeConfig?.showBackground, // Extract showBackground from mode config
+      normalizationFunction: this.config.normalizationFunction, // Pass normalization function
+      normalizationContext: this.config.normalizationContext, // Pass normalization context
     };
 
     // Merge mode config (showBackground is already extracted above, so it won't conflict)
