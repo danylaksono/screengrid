@@ -43,10 +43,17 @@ export class CanvasManager {
     }
     this.ctx = ctx;
 
-    console.log('CanvasManager initialized', {
-      canvasSize: { width: canvas.width, height: canvas.height },
-      devicePixelRatio: window.devicePixelRatio,
-    });
+    // Debug: initialization
+    try {
+      // eslint-disable-next-line import/no-dynamic-require, global-require
+      const { Logger } = require('../utils/Logger.js');
+      if (Logger) Logger.log('CanvasManager initialized', {
+        canvasSize: { width: canvas.width, height: canvas.height },
+        devicePixelRatio: window.devicePixelRatio,
+      });
+    } catch (e) {
+      // ignore
+    }
 
     // Initial size and DPI setup
     this.resize();
@@ -88,11 +95,17 @@ export class CanvasManager {
     // Set transform for DPI scaling
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    console.log('Canvas resized:', {
-      displaySize: { width: rect.width, height: rect.height },
-      deviceSize: { width: this.overlayCanvas.width, height: this.overlayCanvas.height },
-      dpr,
-    });
+    try {
+      // eslint-disable-next-line import/no-dynamic-require, global-require
+      const { Logger } = require('../utils/Logger.js');
+      if (Logger) Logger.log('Canvas resized:', {
+        displaySize: { width: rect.width, height: rect.height },
+        deviceSize: { width: this.overlayCanvas.width, height: this.overlayCanvas.height },
+        dpr,
+      });
+    } catch (e) {
+      // ignore
+    }
   }
 
   /**
@@ -151,6 +164,12 @@ export class CanvasManager {
     this.ctx = null;
     this.map = null;
 
-    console.log('CanvasManager cleaned up');
+    try {
+      // eslint-disable-next-line import/no-dynamic-require, global-require
+      const { Logger } = require('../utils/Logger.js');
+      if (Logger) Logger.log('CanvasManager cleaned up');
+    } catch (e) {
+      // ignore
+    }
   }
 }

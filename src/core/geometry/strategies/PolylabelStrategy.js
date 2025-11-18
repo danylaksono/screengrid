@@ -5,6 +5,7 @@
  */
 
 import { GeometryUtils } from '../GeometryUtils.js';
+import { Logger } from '../../../utils/Logger.js';
 
 // Try to load polylabel library (optional dependency)
 let polylabel = null;
@@ -42,12 +43,12 @@ export class PolylabelStrategy {
     const usePolylabel = polylabel !== null;
 
     if (!usePolylabel) {
-      console.warn('PolylabelStrategy: polylabel library not available. Install with: npm install polylabel. Falling back to centroid.');
+      Logger.warn('PolylabelStrategy: polylabel library not available. Install with: npm install polylabel. Falling back to centroid.');
     }
 
     for (const feature of features) {
       if (!feature || !feature.geometry) {
-        console.warn('PolylabelStrategy: skipping feature without geometry', feature);
+        Logger.warn('PolylabelStrategy: skipping feature without geometry', feature);
         continue;
       }
 
@@ -100,7 +101,7 @@ export class PolylabelStrategy {
             break;
 
           default:
-            console.warn(`PolylabelStrategy: unsupported geometry type '${geometry.type}'. Skipping feature id=${featureId}.`);
+          Logger.warn(`PolylabelStrategy: unsupported geometry type '${geometry.type}'. Skipping feature id=${featureId}.`);
             continue;
         }
 
@@ -116,7 +117,7 @@ export class PolylabelStrategy {
           }
         }
       } catch (error) {
-        console.warn(`PolylabelStrategy: error processing feature id=${featureId}, falling back to centroid:`, error);
+        Logger.warn(`PolylabelStrategy: error processing feature id=${featureId}, falling back to centroid:`, error);
         // Fallback to centroid
         try {
           if (geometry.type === 'Polygon') {
@@ -158,14 +159,14 @@ export class PolylabelStrategy {
 
       // Check timeout
       if (Date.now() - startTime > timeout) {
-        console.warn(`PolylabelStrategy: timeout for feature id=${featureId}, falling back to centroid`);
+        Logger.warn(`PolylabelStrategy: timeout for feature id=${featureId}, falling back to centroid`);
         return GeometryUtils.centroidOfPolygon(polygon[0]);
       }
 
       // polylabel returns {x: lng, y: lat}
       return [result.x, result.y];
     } catch (error) {
-      console.warn(`PolylabelStrategy: error computing polylabel for feature id=${featureId}, falling back to centroid:`, error);
+      Logger.warn(`PolylabelStrategy: error computing polylabel for feature id=${featureId}, falling back to centroid:`, error);
       return GeometryUtils.centroidOfPolygon(polygon[0]);
     }
   }

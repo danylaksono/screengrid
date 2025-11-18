@@ -4,6 +4,7 @@
  */
 
 import { GeometryUtils } from '../GeometryUtils.js';
+import { Logger } from '../../../utils/Logger.js';
 
 export class LineSampleStrategy {
   /**
@@ -46,7 +47,7 @@ export class LineSampleStrategy {
 
     for (const feature of features) {
       if (!feature || !feature.geometry) {
-        console.warn('LineSampleStrategy: skipping feature without geometry', feature);
+        Logger.warn('LineSampleStrategy: skipping feature without geometry', feature);
         continue;
       }
 
@@ -94,7 +95,7 @@ export class LineSampleStrategy {
             continue;
 
           default:
-            console.warn(`LineSampleStrategy: unsupported geometry type '${geometry.type}'. Skipping feature id=${featureId}.`);
+            Logger.warn(`LineSampleStrategy: unsupported geometry type '${geometry.type}'. Skipping feature id=${featureId}.`);
             continue;
         }
 
@@ -187,7 +188,7 @@ export class LineSampleStrategy {
           }
         }
       } catch (error) {
-        console.warn(`LineSampleStrategy: error processing feature id=${featureId}, skipping:`, error);
+        Logger.warn(`LineSampleStrategy: error processing feature id=${featureId}, skipping:`, error);
       }
     }
 

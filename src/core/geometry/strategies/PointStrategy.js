@@ -3,6 +3,8 @@
  * Pass-through strategy for Point/MultiPoint features
  */
 
+import { Logger } from '../../../utils/Logger.js';
+
 export class PointStrategy {
   /**
    * Place anchors using point pass-through strategy
@@ -16,7 +18,7 @@ export class PointStrategy {
 
     for (const feature of features) {
       if (!feature || !feature.geometry) {
-        console.warn('PointStrategy: skipping feature without geometry', feature);
+        Logger.warn('PointStrategy: skipping feature without geometry', feature);
         continue;
       }
 
@@ -48,11 +50,11 @@ export class PointStrategy {
 
           default:
             // For non-point geometries, skip with warning
-            console.warn(`PointStrategy: geometry type '${geometry.type}' is not a point. Skipping feature id=${featureId}.`);
+            Logger.warn(`PointStrategy: geometry type '${geometry.type}' is not a point. Skipping feature id=${featureId}.`);
             break;
         }
       } catch (error) {
-        console.warn(`PointStrategy: error processing feature id=${featureId}, skipping:`, error);
+        Logger.warn(`PointStrategy: error processing feature id=${featureId}, skipping:`, error);
       }
     }
 

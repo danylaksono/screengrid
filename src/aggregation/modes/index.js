@@ -4,6 +4,7 @@
  */
 
 import { AggregationModeRegistry } from '../AggregationModeRegistry.js';
+import { Logger } from '../../utils/Logger.js';
 import { ScreenGridMode } from './ScreenGridMode.js';
 import { ScreenHexMode } from './ScreenHexMode.js';
 
@@ -14,8 +15,7 @@ function _registerBuiltins() {
     AggregationModeRegistry.register('screen-hex', ScreenHexMode, { overwrite: true });
   } catch (e) {
     // Defensive: registry may already contain these during hot reloads
-    // eslint-disable-next-line no-console
-    console.warn('AggregationModeRegistry: error registering built-ins', e);
+    Logger.warn('AggregationModeRegistry: error registering built-ins', e);
   }
 }
 

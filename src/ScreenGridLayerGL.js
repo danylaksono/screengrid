@@ -17,6 +17,7 @@ import { AggregationModeRegistry } from './aggregation/AggregationModeRegistry.j
 import { PlacementEngine } from './core/geometry/PlacementEngine.js';
 // Ensure built-in modes are registered
 import './aggregation/modes/index.js';
+import { Logger } from './utils/Logger.js';
 
 export class ScreenGridLayerGL {
   /**
@@ -95,9 +96,9 @@ export class ScreenGridLayerGL {
       // Project initial data
       this._projectPoints();
 
-      if (this.config.debugLogs) console.log('ScreenGridLayerGL added to map');
+      Logger.log('ScreenGridLayerGL added to map');
     } catch (error) {
-      console.error('Error adding ScreenGridLayerGL to map:', error);
+      Logger.error('Error adding ScreenGridLayerGL to map:', error);
     }
   }
 
@@ -105,7 +106,7 @@ export class ScreenGridLayerGL {
    * Called before each render
    */
   prerender() {
-    if (this.config.debugLogs) console.log('[ScreenGridLayerGL] prerender() called');
+    Logger.log('[ScreenGridLayerGL] prerender() called');
     this._projectPoints();
   }
 
@@ -125,31 +126,31 @@ export class ScreenGridLayerGL {
     this._placementCacheKey = null;
     this._lastViewState = null;
 
-    if (this.config.debugLogs) console.log('ScreenGridLayerGL removed from map');
+    Logger.log('ScreenGridLayerGL removed from map');
   }
 
   /**
    * Called to render the layer
    */
   render() {
-    if (this.config.debugLogs) console.log('[ScreenGridLayerGL] render() called');
+    Logger.log('[ScreenGridLayerGL] render() called');
     const ctx = this.canvasManager.getContext();
     if (!ctx) {
-      if (this.config.debugLogs) console.log('[ScreenGridLayerGL] No canvas context available');
+      Logger.log('[ScreenGridLayerGL] No canvas context available');
       return;
     }
 
     // If disabled, clear the canvas and return
     if (!this.config.enabled) {
-      if (this.config.debugLogs) console.log('[ScreenGridLayerGL] Layer is disabled');
+      Logger.log('[ScreenGridLayerGL] Layer is disabled');
       this.canvasManager.clear();
       return;
     }
 
-    if (this.config.debugLogs) console.log('[ScreenGridLayerGL] Aggregating and drawing...');
+    Logger.log('[ScreenGridLayerGL] Aggregating and drawing...');
     this._aggregate();
-    if (this.config.debugLogs) console.log('[ScreenGridLayerGL] About to call _draw(), gridData exists:', !!this.gridData);
-    if (this.config.debugLogs) console.log('[ScreenGridLayerGL] gridData details:', {
+    Logger.log('[ScreenGridLayerGL] About to call _draw(), gridData exists:', !!this.gridData);
+    Logger.log('[ScreenGridLayerGL] gridData details:', {
       type: this.gridData?.type,
       cols: this.gridData?.cols,
       rows: this.gridData?.rows,
@@ -158,9 +159,9 @@ export class ScreenGridLayerGL {
     });
     try {
       this._draw();
-      if (this.config.debugLogs) console.log('[ScreenGridLayerGL] _draw() completed successfully');
+      Logger.log('[ScreenGridLayerGL] _draw() completed successfully');
     } catch (e) {
-      console.error('[ScreenGridLayerGL] Error in _draw():', e);
+      Logger.error('[ScreenGridLayerGL] Error in _draw():', e);
       throw e;
     }
   }
@@ -360,7 +361,7 @@ export class ScreenGridLayerGL {
         this._glyphInstance = plugin.init({ layer: this, config: this.config.glyphConfig || {} }) || null;
       }
     } catch (e) {
-      console.error(`Glyph plugin init failed for "${this.config.glyph}":`, e);
+      Logger.error(`Glyph plugin init failed for "${this.config.glyph}":`, e);
       this._glyphInstance = null;
     }
   }
@@ -380,7 +381,7 @@ export class ScreenGridLayerGL {
         plugin.destroy({ layer: this });
       }
     } catch (e) {
-      console.error(`Glyph plugin destroy failed for "${this.config.glyph}":`, e);
+      Logger.error(`Glyph plugin destroy failed for "${this.config.glyph}":`, e);
     } finally {
       this._glyphInstance = null;
     }
@@ -391,37 +392,37 @@ export class ScreenGridLayerGL {
    * @private
    */
   _initAggregationMode() {
-    if (this.config.debugLogs) console.log('[ScreenGridLayerGL] _initAggregationMode() called');
+    Logger.log('[ScreenGridLayerGL] _initAggregationMode() called');
     const modeName = this.config.aggregationMode || 'screen-grid';
-    if (this.config.debugLogs) console.log('[ScreenGridLayerGL] Looking for mode:', modeName);
-    if (this.config.debugLogs) console.log('[ScreenGridLayerGL] Available modes:', AggregationModeRegistry.list());
+    Logger.log('[ScreenGridLayerGL] Looking for mode:', modeName);
+    Logger.log('[ScreenGridLayerGL] Available modes:', AggregationModeRegistry.list());
     
     const modePlugin = AggregationModeRegistry.get(modeName);
     
     if (!modePlugin) {
       const error = `AggregationModeRegistry: mode "${modeName}" not found. Available modes: ${AggregationModeRegistry.list().join(', ')}`;
-      console.error('[ScreenGridLayerGL]', error);
+      Logger.error('[ScreenGridLayerGL]', error);
       throw new Error(error);
     }
 
-    if (this.config.debugLogs) console.log('[ScreenGridLayerGL] Mode plugin found:', modePlugin.name);
+    Logger.log('[ScreenGridLayerGL] Mode plugin found:', modePlugin.name);
     this._aggregationModePlugin = modePlugin;
 
     // Initialize mode if it has init method
     if (typeof modePlugin.init === 'function') {
       try {
-        if (this.config.debugLogs) console.log('[ScreenGridLayerGL] Initializing mode plugin...');
+        Logger.log('[ScreenGridLayerGL] Initializing mode plugin...');
         this._aggregationModeInstance = modePlugin.init(
           this.config.aggregationModeConfig || {},
           this.map
         );
-        if (this.config.debugLogs) console.log('[ScreenGridLayerGL] Mode plugin initialized');
+        Logger.log('[ScreenGridLayerGL] Mode plugin initialized');
       } catch (e) {
-        console.error(`[ScreenGridLayerGL] AggregationMode "${modeName}" init failed:`, e);
+        Logger.error(`[ScreenGridLayerGL] AggregationMode "${modeName}" init failed:`, e);
         this._aggregationModeInstance = null;
       }
       } else {
-      if (this.config.debugLogs) console.log('[ScreenGridLayerGL] Mode plugin has no init method');
+      Logger.log('[ScreenGridLayerGL] Mode plugin has no init method');
     }
   }
 
@@ -434,7 +435,7 @@ export class ScreenGridLayerGL {
       try {
         this._aggregationModeInstance.destroy();
       } catch (e) {
-        console.error('Error destroying aggregation mode instance:', e);
+        Logger.error('Error destroying aggregation mode instance:', e);
       }
     }
     this._aggregationModeInstance = null;
@@ -540,9 +541,9 @@ export class ScreenGridLayerGL {
       this._placementCacheKey = cacheKey;
       this._lastViewState = viewState;
       
-      if (this.config.debugLogs) console.log(`[ScreenGridLayerGL] Placement computed: ${this._anchors.length} anchors`);
+      Logger.log(`[ScreenGridLayerGL] Placement computed: ${this._anchors.length} anchors`);
     } catch (error) {
-      console.error('[ScreenGridLayerGL] Placement error:', error);
+      Logger.error('[ScreenGridLayerGL] Placement error:', error);
       this._anchors = [];
       this._placementCacheKey = null;
     }
@@ -554,23 +555,23 @@ export class ScreenGridLayerGL {
    * @private
    */
   _aggregate() {
-    if (this.config.debugLogs) console.log('[ScreenGridLayerGL] _aggregate() called');
+    Logger.log('[ScreenGridLayerGL] _aggregate() called');
     
     // Skip aggregation for feature-anchors mode
     if (this.config.renderMode === 'feature-anchors') {
-      if (this.config.debugLogs) console.log('[ScreenGridLayerGL] Skipping aggregation (feature-anchors mode)');
+      Logger.log('[ScreenGridLayerGL] Skipping aggregation (feature-anchors mode)');
       this.gridData = null;
       return;
     }
 
     if (!this.map) {
-      if (this.config.debugLogs) console.log('[ScreenGridLayerGL] No map available for aggregation');
+      Logger.log('[ScreenGridLayerGL] No map available for aggregation');
       return;
     }
 
     // Get aggregation mode plugin
     const modeName = this.config.aggregationMode || 'screen-grid';
-    if (this.config.debugLogs) console.log('[ScreenGridLayerGL] Getting mode plugin:', modeName);
+    Logger.log('[ScreenGridLayerGL] Getting mode plugin:', modeName);
     
     if (!this._aggregationModePlugin) {
       this._aggregationModePlugin = AggregationModeRegistry.get(modeName);
@@ -578,7 +579,7 @@ export class ScreenGridLayerGL {
     
     if (!this._aggregationModePlugin) {
       const error = `AggregationModeRegistry: mode "${modeName}" not found. Available modes: ${AggregationModeRegistry.list().join(', ')}`;
-      console.error('[ScreenGridLayerGL]', error);
+      Logger.error('[ScreenGridLayerGL]', error);
       throw new Error(error);
     }
 
@@ -598,7 +599,7 @@ export class ScreenGridLayerGL {
       getWeight = (d) => d.weight;
     }
 
-    if (this.config.debugLogs) console.log('[ScreenGridLayerGL] Aggregating with data:', {
+    Logger.log('[ScreenGridLayerGL] Aggregating with data:', {
       dataLength: dataToAggregate?.length || 0,
       hasGetPosition: typeof getPosition === 'function',
       hasGetWeight: typeof getWeight === 'function'
@@ -606,7 +607,7 @@ export class ScreenGridLayerGL {
 
     // Prepare config for aggregation
     const { width, height } = this.canvasManager.getDisplaySize();
-    if (this.config.debugLogs) console.log('[ScreenGridLayerGL] Canvas size:', { width, height });
+    Logger.log('[ScreenGridLayerGL] Canvas size:', { width, height });
     const modeConfig = {
       ...this.config.aggregationModeConfig,
       cellSizePixels: this.config.cellSizePixels,
@@ -614,7 +615,7 @@ export class ScreenGridLayerGL {
     };
 
     // Aggregate using mode plugin
-    if (this.config.debugLogs) console.log('[ScreenGridLayerGL] Calling mode plugin aggregate...');
+    Logger.log('[ScreenGridLayerGL] Calling mode plugin aggregate...');
     try {
       this.gridData = this._aggregationModePlugin.aggregate(
         dataToAggregate,
@@ -629,14 +630,14 @@ export class ScreenGridLayerGL {
         this.gridData.aggregationModeConfig = this.config.aggregationModeConfig;
       }
       
-      if (this.config.debugLogs) console.log('[ScreenGridLayerGL] Aggregation complete:', {
+      Logger.log('[ScreenGridLayerGL] Aggregation complete:', {
         hasGridData: !!this.gridData,
         gridLength: this.gridData?.grid?.length || 0,
         cols: this.gridData?.cols,
         rows: this.gridData?.rows
       });
     } catch (e) {
-      console.error('[ScreenGridLayerGL] Error during aggregation:', e);
+      Logger.error('[ScreenGridLayerGL] Error during aggregation:', e);
       throw e;
     }
 
@@ -647,19 +648,19 @@ export class ScreenGridLayerGL {
 
     // Trigger callback
     if (this.config.onAggregate) {
-      if (this.config.debugLogs) console.log('[ScreenGridLayerGL] Calling onAggregate callback');
+      Logger.log('[ScreenGridLayerGL] Calling onAggregate callback');
       try {
         this.config.onAggregate(this.gridData);
-        if (this.config.debugLogs) console.log('[ScreenGridLayerGL] onAggregate callback completed');
+        Logger.log('[ScreenGridLayerGL] onAggregate callback completed');
       } catch (e) {
-        console.error('[ScreenGridLayerGL] Error in onAggregate callback:', e);
+        Logger.error('[ScreenGridLayerGL] Error in onAggregate callback:', e);
         // Don't throw - allow rendering to continue even if callback fails
       }
     } else {
-      if (this.config.debugLogs) console.log('[ScreenGridLayerGL] No onAggregate callback defined');
+      Logger.log('[ScreenGridLayerGL] No onAggregate callback defined');
     }
     
-    if (this.config.debugLogs) console.log('[ScreenGridLayerGL] _aggregate() returning, gridData exists:', !!this.gridData);
+    Logger.log('[ScreenGridLayerGL] _aggregate() returning, gridData exists:', !!this.gridData);
   }
 
   /**
@@ -670,7 +671,7 @@ export class ScreenGridLayerGL {
   _draw() {
     const ctx = this.canvasManager.getContext();
     if (!ctx) {
-      if (this.config.debugLogs) console.log('[ScreenGridLayerGL] _draw() skipping - no ctx');
+      Logger.log('[ScreenGridLayerGL] _draw() skipping - no ctx');
       return;
     }
 
@@ -682,11 +683,11 @@ export class ScreenGridLayerGL {
 
     // Normal rendering path (screen-grid mode)
     if (!this.gridData) {
-      if (this.config.debugLogs) console.log('[ScreenGridLayerGL] _draw() skipping - no gridData');
+      Logger.log('[ScreenGridLayerGL] _draw() skipping - no gridData');
       return;
     }
 
-    if (this.config.debugLogs) console.log('[ScreenGridLayerGL] _draw() called with gridData:', {
+    Logger.log('[ScreenGridLayerGL] _draw() called with gridData:', {
       hasGridData: !!this.gridData,
       type: this.gridData.type,
       cols: this.gridData.cols,
@@ -699,11 +700,11 @@ export class ScreenGridLayerGL {
     const modePlugin = this._aggregationModePlugin || AggregationModeRegistry.get(modeName);
     
     if (!modePlugin) {
-      console.error(`AggregationModeRegistry: mode "${modeName}" not found`);
+      Logger.error(`AggregationModeRegistry: mode "${modeName}" not found`);
       return;
     }
     
-    if (this.config.debugLogs) console.log('[ScreenGridLayerGL] Using mode plugin:', modePlugin.name);
+    Logger.log('[ScreenGridLayerGL] Using mode plugin:', modePlugin.name);
 
     // Determine the onDrawCell behavior. Priority:
     // 1. user-provided onDrawCell callback
@@ -718,13 +719,13 @@ export class ScreenGridLayerGL {
         const glyphCfg = this.config.glyphConfig || {};
         onDrawCell = (ctxArg, x, y, normVal, cellInfo) => {
           try {
-            plugin.draw(ctxArg, x, y, normVal, cellInfo, glyphCfg);
-          } catch (e) {
-            console.error(`Glyph plugin "${this.config.glyph}" threw an error:`, e);
-          }
+              plugin.draw(ctxArg, x, y, normVal, cellInfo, glyphCfg);
+            } catch (e) {
+              Logger.error(`Glyph plugin "${this.config.glyph}" threw an error:`, e);
+            }
         };
       } else {
-        console.warn(`Glyph "${this.config.glyph}" not found in GlyphRegistry`);
+        Logger.warn(`Glyph "${this.config.glyph}" not found in GlyphRegistry`);
       }
     }
 
@@ -743,7 +744,7 @@ export class ScreenGridLayerGL {
       ...this.config.aggregationModeConfig,
     };
 
-    if (this.config.debugLogs) console.log('[ScreenGridLayerGL] Calling modePlugin.render() with:', {
+    Logger.log('[ScreenGridLayerGL] Calling modePlugin.render() with:', {
       hasGridData: !!this.gridData,
       hasCtx: !!ctx,
       modePluginName: modePlugin.name,
@@ -753,9 +754,9 @@ export class ScreenGridLayerGL {
     // Render using mode plugin
     try {
       modePlugin.render(this.gridData, ctx, modeConfig, this.map);
-      if (this.config.debugLogs) console.log('[ScreenGridLayerGL] modePlugin.render() completed');
+      Logger.log('[ScreenGridLayerGL] modePlugin.render() completed');
     } catch (e) {
-      console.error('[ScreenGridLayerGL] Error in modePlugin.render():', e);
+      Logger.error('[ScreenGridLayerGL] Error in modePlugin.render():', e);
       throw e;
     }
   }
@@ -848,7 +849,7 @@ export class ScreenGridLayerGL {
    */
   _drawFeatureAnchors(ctx) {
     if (!this.map || this._anchors.length === 0) {
-      if (this.config.debugLogs) console.log('[ScreenGridLayerGL] _drawFeatureAnchors: no anchors to draw');
+      Logger.log('[ScreenGridLayerGL] _drawFeatureAnchors: no anchors to draw');
       return;
     }
 
@@ -866,7 +867,7 @@ export class ScreenGridLayerGL {
           try {
             plugin.draw(ctxArg, x, y, normVal, cellInfo, glyphCfg);
           } catch (e) {
-            console.error(`Glyph plugin "${this.config.glyph}" threw an error:`, e);
+            Logger.error(`Glyph plugin "${this.config.glyph}" threw an error:`, e);
           }
         };
       }
@@ -923,7 +924,7 @@ export class ScreenGridLayerGL {
           ctx.fill();
         }
       } catch (error) {
-        console.warn(`[ScreenGridLayerGL] Error drawing anchor:`, error);
+        Logger.warn(`[ScreenGridLayerGL] Error drawing anchor:`, error);
       }
     }
   }

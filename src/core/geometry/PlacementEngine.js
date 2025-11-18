@@ -5,6 +5,7 @@
 
 import { PlacementValidator } from './PlacementValidator.js';
 import { PlacementStrategyRegistry } from './strategies/index.js';
+import { Logger } from '../../utils/Logger.js';
 
 export class PlacementEngine {
   /**
@@ -45,7 +46,7 @@ export class PlacementEngine {
       if (strategyName === 'grid-screen') {
         throw new Error('PlacementEngine: strategy \'grid-screen\' requires map instance.');
       }
-      console.warn(`PlacementEngine: strategy '${strategyName}' with pixel spacing or zoomAdaptive requires map instance. Some features may be skipped.`);
+      Logger.warn(`PlacementEngine: strategy '${strategyName}' with pixel spacing or zoomAdaptive requires map instance. Some features may be skipped.`);
     }
 
     // Apply jitter if configured

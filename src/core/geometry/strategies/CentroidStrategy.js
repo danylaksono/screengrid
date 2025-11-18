@@ -4,6 +4,7 @@
  */
 
 import { GeometryUtils } from '../GeometryUtils.js';
+import { Logger } from '../../../utils/Logger.js';
 
 export class CentroidStrategy {
   /**
@@ -19,7 +20,7 @@ export class CentroidStrategy {
 
     for (const feature of features) {
       if (!feature || !feature.geometry) {
-        console.warn('CentroidStrategy: skipping feature without geometry', feature);
+        Logger.warn('CentroidStrategy: skipping feature without geometry', feature);
         continue;
       }
 
@@ -76,7 +77,7 @@ export class CentroidStrategy {
             break;
 
           default:
-            console.warn(`CentroidStrategy: unsupported geometry type '${geometry.type}'. Skipping feature id=${featureId}.`);
+            Logger.warn(`CentroidStrategy: unsupported geometry type '${geometry.type}'. Skipping feature id=${featureId}.`);
             continue;
         }
 
@@ -92,7 +93,7 @@ export class CentroidStrategy {
           }
         }
       } catch (error) {
-        console.warn(`CentroidStrategy: error processing feature id=${featureId}, skipping:`, error);
+        Logger.warn(`CentroidStrategy: error processing feature id=${featureId}, skipping:`, error);
       }
     }
 

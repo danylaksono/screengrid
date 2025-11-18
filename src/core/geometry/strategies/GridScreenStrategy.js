@@ -4,6 +4,7 @@
  */
 
 import { GeometryUtils } from '../GeometryUtils.js';
+import { Logger } from '../../../utils/Logger.js';
 
 export class GridScreenStrategy {
   /**
@@ -55,7 +56,7 @@ export class GridScreenStrategy {
 
     for (const feature of features) {
       if (!feature || !feature.geometry) {
-        console.warn('GridScreenStrategy: skipping feature without geometry', feature);
+        Logger.warn('GridScreenStrategy: skipping feature without geometry', feature);
         continue;
       }
 
@@ -81,7 +82,7 @@ export class GridScreenStrategy {
             break;
 
           default:
-            console.warn(`GridScreenStrategy: unsupported geometry type '${geometry.type}'. Skipping feature id=${featureId}.`);
+            Logger.warn(`GridScreenStrategy: unsupported geometry type '${geometry.type}'. Skipping feature id=${featureId}.`);
             continue;
         }
 
@@ -139,7 +140,7 @@ export class GridScreenStrategy {
           }
         }
       } catch (error) {
-        console.warn(`GridScreenStrategy: error processing feature id=${featureId}, skipping:`, error);
+        Logger.warn(`GridScreenStrategy: error processing feature id=${featureId}, skipping:`, error);
         // Fallback to centroid on error
         try {
           if (geometry.type === 'Polygon') {

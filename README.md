@@ -1,4 +1,4 @@
-# ScreenGrid Library v2.0
+# ScreenGrid Library
 
 [![npm](https://img.shields.io/npm/v/screengrid.svg)](https://www.npmjs.com/package/screengrid)
 
@@ -381,7 +381,7 @@ npx http-server -p 8000
 | `onHover` | Function | `null` | Callback when hovering over cells |
 | `onClick` | Function | `null` | Callback when clicking cells |
 | `onDrawCell` | Function | `null` | Callback for custom glyph drawing (highest precedence) |
-| `enableGlyphs` | boolean | `false` | Enable glyph-based rendering |
+| `enableGlyphs` | boolean | `false` | Enable glyph-based rendering (when `true` and a glyph is active, cell backgrounds are **off by default** unless `aggregationModeConfig.showBackground === true`) |
 | `glyph` | string | `null` | Registered plugin name to use (e.g., `'circle'`, `'bar'`, `'pie'`, `'heatmap'`) |
 | `glyphConfig` | object | `{}` | Configuration object passed to plugin's `draw()` method |
 | `glyphSize` | number | `0.8` | Size of glyphs relative to cell size |
@@ -541,19 +541,6 @@ MIT License - see LICENSE file for details.
 - Customizable styling options
 
 
-## Future Plans
 
-### Short-term
-1. Add unit tests for each module
-2. Add integration tests
-3. Create CI/CD pipeline for testing
-4. Consider TypeScript definitions
-
-### Long-term
-1. Plugin system for custom glyphs 
-2. WebGL renderer alternative
-3. Server-side aggregation
-4. Framework bindings (React, Vue)
-5. Performance optimizations
 
 

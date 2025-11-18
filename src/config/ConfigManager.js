@@ -4,6 +4,7 @@
  */
 
 import { PlacementValidator } from '../core/geometry/PlacementValidator.js';
+import { setDebug, Logger } from '../utils/Logger.js';
 
 export class ConfigManager {
   // Keep track of emitted warnings to avoid noisy repeated logs
@@ -11,7 +12,7 @@ export class ConfigManager {
 
   static _warnOnce(message) {
     if (!ConfigManager._emittedWarnings.has(message)) {
-      console.warn(`ConfigManager: ${message}`);
+      Logger.warn(`ConfigManager: ${message}`);
       ConfigManager._emittedWarnings.add(message);
     }
   }
@@ -61,7 +62,7 @@ export class ConfigManager {
     const validation = PlacementValidator.validate(config);
     if (!validation.valid) {
       const errorMsg = `ConfigManager: Invalid configuration:\n${validation.errors.join('\n')}`;
-      console.error(errorMsg);
+      Logger.error(errorMsg);
       throw new Error(errorMsg);
     }
 
@@ -83,6 +84,9 @@ export class ConfigManager {
       config.anchorSizePixels = Math.round(config.cellSizePixels * config.glyphSize * 0.9);
     }
 
+    // Set global debug based on config
+    setDebug(config.debugLogs);
+
     return config;
   }
 
@@ -102,7 +106,7 @@ export class ConfigManager {
     const validation = PlacementValidator.validate(updated);
     if (!validation.valid) {
       const errorMsg = `ConfigManager: Invalid configuration update:\n${validation.errors.join('\n')}`;
-      console.error(errorMsg);
+      Logger.error(errorMsg);
       throw new Error(errorMsg);
     }
 
@@ -123,6 +127,9 @@ export class ConfigManager {
     if (updated.renderMode === 'feature-anchors' && updated.anchorSizePixels === null) {
       updated.anchorSizePixels = Math.round(updated.cellSizePixels * updated.glyphSize * 0.9);
     }
+
+    // Update global debug flag when config is updated
+    setDebug(updated.debugLogs);
 
     return updated;
   }

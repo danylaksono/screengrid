@@ -3,6 +3,8 @@
  * Canvas drawing logic for grid cells
  */
 
+import { Logger } from '../utils/Logger.js';
+
 export class Renderer {
   constructor() {}
 
@@ -18,7 +20,7 @@ export class Renderer {
    */
   static render(aggregationResult, ctx, config) {
     if (!aggregationResult || !ctx) {
-      console.log('[Renderer] No aggregation result or context available for rendering', {
+      Logger.log('[Renderer] No aggregation result or context available for rendering', {
         hasResult: !!aggregationResult,
         hasContext: !!ctx
       });
@@ -30,7 +32,7 @@ export class Renderer {
 
     const maxVal = Math.max(...grid);
     if (maxVal === 0) {
-      console.log('[Renderer] No data to render (max value is 0)', {
+      Logger.log('[Renderer] No data to render (max value is 0)', {
         gridLength: grid.length,
         cols,
         rows
@@ -38,7 +40,7 @@ export class Renderer {
       return;
     }
 
-    console.log('[Renderer] Rendering grid:', {
+    Logger.log('[Renderer] Rendering grid:', {
       cols,
       rows,
       maxVal,
@@ -71,9 +73,14 @@ export class Renderer {
           const normVal = val / maxVal;
 
           // Determine if background should be drawn
-          // Default to true if showBackground is not explicitly false
-          const shouldShowBackground = showBackground !== false;
-          const drawBackground = !enableGlyphs || !onDrawCell || (enableGlyphs && onDrawCell && shouldShowBackground);
+          // New default: when glyphs are active (enableGlyphs && onDrawCell),
+          // backgrounds are OFF unless showBackground is explicitly true.
+          // When glyphs are not active, backgrounds remain ON by default.
+          const glyphsActive = enableGlyphs && !!onDrawCell;
+          const shouldShowBackground = glyphsActive
+            ? showBackground === true
+            : showBackground !== false;
+          const drawBackground = !glyphsActive || shouldShowBackground;
 
           // Draw background if needed
           if (drawBackground) {
@@ -129,7 +136,7 @@ export class Renderer {
         normalizedValue: normVal,
       });
     } catch (e) {
-      console.error('Error in onDrawCell callback:', e);
+      Logger.error('Error in onDrawCell callback:', e);
     }
 
     ctx.restore();

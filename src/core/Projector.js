@@ -3,6 +3,8 @@
  * Pure function for projecting geographic coordinates to screen space
  */
 
+import { Logger } from '../utils/Logger.js';
+
 export class Projector {
   /**
    * Project geographic coordinates to screen space
@@ -24,22 +26,23 @@ export class Projector {
       throw new TypeError('Projector.projectPoints: getWeight must be a function');
     }
 
-    // console.log('Projecting points:', {
-    //   dataLength: data.length,
-    // });
+    // Debug: show when enabled
+    Logger.log('Projecting points:', {
+      dataLength: data.length,
+    });
 
     const projected = data
       .map((d, i) => {
         try {
           const pos = getPosition(d);
-          if (!pos || !Array.isArray(pos) || pos.length < 2) {
-            console.warn(`Projector: skipping point ${i} because getPosition did not return [lng, lat]`, pos);
+            if (!pos || !Array.isArray(pos) || pos.length < 2) {
+            Logger.warn(`Projector: skipping point ${i} because getPosition did not return [lng, lat]`, pos);
             return null;
           }
 
           const [lng, lat] = pos;
           if (typeof lng !== 'number' || typeof lat !== 'number') {
-            console.warn(`Projector: skipping point ${i} because lng/lat are not numbers`, pos);
+            Logger.warn(`Projector: skipping point ${i} because lng/lat are not numbers`, pos);
             return null;
           }
 
@@ -49,13 +52,13 @@ export class Projector {
           const w = getWeight(d);
           return { x, y, w };
         } catch (e) {
-          console.warn(`Projector: error projecting point ${i}, skipping`, e);
+          Logger.warn(`Projector: error projecting point ${i}, skipping`, e);
           return null;
         }
       })
       .filter(Boolean);
 
-    console.log('Points projected:', {
+    Logger.log('Points projected:', {
       total: projected.length,
       samplePoints: projected.slice(0, 3),
     });

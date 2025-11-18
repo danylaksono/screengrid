@@ -3,6 +3,8 @@
  * Event handler implementations
  */
 
+import { Logger } from '../utils/Logger.js';
+
 export class EventHandlers {
   /**
    * Handle hover events
@@ -76,7 +78,7 @@ export class EventHandlers {
 
     if (Math.abs(newCellSize - config.cellSizePixels) > 1) {
       config.cellSizePixels = newCellSize;
-      console.log('Cell size updated based on zoom:', {
+      Logger.log('Cell size updated based on zoom:', {
         zoom,
         zoomFactor,
         newCellSize,
