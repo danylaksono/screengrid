@@ -8,6 +8,7 @@ on:
 permissions:
   contents: read
   id-token: write
+  packages: write
 
 jobs:
   publish:
@@ -26,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Cache npm token
+        run: echo "NODE_AUTH_TOKEN=${{ secrets.NPM_TOKEN }}" >> $GITHUB_ENV
+
       - name: Build
         run: npm run build
 
@@ -35,8 +39,8 @@ jobs:
           const fs = require('fs');
           const pkgPath = './package.json';
           const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-          const coreVersion = pkg.version.split('+')[0];
-          pkg.version = `${coreVersion}+build.${process.env.GITHUB_RUN_NUMBER}`;
+          const coreVersion = pkg.version.split('-')[0];
+          pkg.version = `${coreVersion}-${process.env.GITHUB_RUN_NUMBER}`;
           fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
           EOF
 
@@ -55,8 +59,6 @@ jobs:
 
       - name: Publish to npm
         if: steps.versions.outputs.publish == 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           npm publish --access public --provenance
 
