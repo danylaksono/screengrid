@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScreenGrid - Creative Coding Examples</title>
+    <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .controls {
+            width: 350px;
+            background: #2a2a2a;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: -2px 0 20px rgba(0,0,0,0.5);
+        }
+        
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #fff;
+        }
+        
+        .subtitle {
+            color: #aaa;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+        
+        .control-group {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #444;
+        }
+        
+        .control-group:last-child {
+            border-bottom: none;
+        }
+        
+        .control-group h3 {
+            margin: 0 0 15px 0;
+            color: #fff;
+            font-size: 16px;
+        }
+        
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        
+        button {
+            padding: 10px 15px;
+            border: 2px solid #444;
+            border-radius: 6px;
+            background: #333;
+            color: #fff;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        
+        button:hover {
+            background: #444;
+            border-color: #555;
+        }
+        
+        button.active {
+            background: #4CAF50;
+            border-color: #4CAF50;
+            color: #fff;
+        }
+        
+        .slider-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: #ccc;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #444;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .value-display {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+            text-align: right;
+        }
+        
+        .info-panel {
+            background: #333;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .info-item {
+            margin-bottom: 8px;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .info-item strong {
+            color: #aaa;
+        }
+        
+        .info-item span {
+            color: #fff;
+        }
+        
+        .description {
+            background: #2a4a2a;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 12px;
+            line-height: 1.6;
+            color: #aaffaa;
+            border-left: 3px solid #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+        
+        <div class="controls">
+            <h1>🎨 Creative Coding</h1>
+            <div class="subtitle">Mosaic • Tessellations • Particles • Art</div>
+            
+            <div class="description" id="modeDescription">
+                Select a creative mode to explore different artistic visualizations powered by ScreenGrid's glyph system.
+            </div>
+            
+            <div class="control-group">
+                <h3>Creative Mode</h3>
+                <div class="button-group" style="grid-template-columns: 1fr 1fr 1fr;">
+                    <button id="mosaicBtn" class="active">Mosaic</button>
+                    <button id="tessellationBtn">Tessellation</button>
+                    <button id="particlesBtn">Particles</button>
+                    <button id="abstractBtn">Abstract</button>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>Grid Mode</h3>
+                <div class="button-group">
+                    <button id="gridModeBtn" class="active">Rectangular</button>
+                    <button id="hexModeBtn">Hexagonal</button>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>Cell Size</h3>
+                <div class="slider-group">
+                    <input type="range" id="cellSize" min="20" max="120" value="50" step="5">
+                    <div class="value-display"><span id="cellSizeValue">50px</span></div>
+                </div>
+            </div>
+            
+            <div class="control-group" id="patternControls">
+                <h3>Pattern Style</h3>
+                <div class="slider-group">
+                    <input type="range" id="patternComplexity" min="1" max="5" value="2" step="1">
+                    <div class="value-display">Complexity: <span id="patternComplexityValue">2</span></div>
+                </div>
+            </div>
+            
+            <div class="control-group" id="colorControls">
+                <h3>Color Scheme</h3>
+                <div class="button-group">
+                    <button id="scheme1Btn" class="active">Vibrant</button>
+                    <button id="scheme2Btn">Pastel</button>
+                    <button id="scheme3Btn">Monochrome</button>
+                    <button id="scheme4Btn">Neon</button>
+                </div>
+            </div>
+            
+            <div class="info-panel">
+                <div class="info-item">
+                    <strong>Mode:</strong> <span id="currentMode">Mosaic</span>
+                </div>
+                <div class="info-item">
+                    <strong>Grid Type:</strong> <span id="gridType">Rectangular</span>
+                </div>
+                <div class="info-item">
+                    <strong>Data Points:</strong> <span id="pointCount">-</span>
+                </div>
+                <div class="info-item">
+                    <strong>Cells:</strong> <span id="cellCount">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { ScreenGridLayerGL } from '../src/index.js';
+        
+        // Generate random data points around San Francisco
+        function generateRandomData(count = 500) {
+            const data = [];
+            const center = [-122.4194, 37.7749];
+            const spread = 0.1; // ~10km spread
+            
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.random() * spread;
+                const lat = center[1] + distance * Math.cos(angle);
+                const lon = center[0] + distance * Math.sin(angle) / Math.cos(center[1] * Math.PI / 180);
+                
+                data.push({
+                    coordinates: [lon, lat],
+                    weight: Math.random(),
+                    category: Math.floor(Math.random() * 4),
+                    intensity: Math.random(),
+                    rotation: Math.random() * Math.PI * 2
+                });
+            }
+            
+            return data;
+        }
+        
+        // Color schemes
+        const colorSchemes = {
+            vibrant: (v, i = 0) => {
+                const hue = (v * 360 + i * 60) % 360;
+                return `hsl(${hue}, 80%, 60%)`;
+            },
+            pastel: (v, i = 0) => {
+                const hue = (v * 180 + i * 30) % 180;
+                return `hsl(${hue}, 50%, 75%)`;
+            },
+            monochrome: (v) => {
+                const gray = Math.floor(v * 255);
+                return `rgb(${gray}, ${gray}, ${gray})`;
+            },
+            neon: (v, i = 0) => {
+                const hue = (v * 120 + i * 40) % 120;
+                return `hsl(${hue}, 100%, 50%)`;
+            }
+        };
+        
+        // Creative drawing functions
+        
+        // 1. MOSAIC TILES - Geometric patterns
+        function drawMosaicTile(ctx, x, y, normVal, cellInfo, config) {
+            const { cellData, cellSize, glyphRadius, col, row } = cellInfo;
+            const { complexity = 2, colorScheme = colorSchemes.vibrant, isHovered = false } = config;
+            
+            const size = cellSize * (isHovered ? 1.15 : 0.9); // Scale up on hover
+            const halfSize = size / 2;
+            const patternType = Math.floor((col + row * 7) % (3 + complexity));
+            
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // Base rotation based on cell position + hover rotation
+            const baseRotation = (col + row) * 0.1 + (isHovered ? Math.PI * 0.25 : 0);
+            ctx.rotate(baseRotation);
+            
+            // Hover glow effect
+            if (isHovered) {
+                const glowGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, halfSize * 1.5);
+                glowGradient.addColorStop(0, colorScheme(normVal, 0));
+                glowGradient.addColorStop(0.5, colorScheme(normVal, 1));
+                glowGradient.addColorStop(1, 'transparent');
+                ctx.fillStyle = glowGradient;
+                ctx.globalAlpha = 0.4;
+                ctx.beginPath();
+                ctx.arc(0, 0, halfSize * 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            switch (patternType) {
+                case 0: // Checkerboard squares
+                    const squareSize = size / (2 + complexity);
+                    for (let i = 0; i < 2 + complexity; i++) {
+                        for (let j = 0; j < 2 + complexity; j++) {
+                            const isEven = (i + j) % 2 === 0;
+                            ctx.fillStyle = colorScheme(normVal, i + j);
+                            ctx.globalAlpha = isEven ? 0.9 : 0.6;
+                            ctx.fillRect(
+                                -halfSize + i * squareSize,
+                                -halfSize + j * squareSize,
+                                squareSize * 0.95,
+                                squareSize * 0.95
+                            );
+                        }
+                    }
+                    break;
+                    
+                case 1: // Concentric circles
+                    const ringCount = 2 + complexity;
+                    for (let i = ringCount; i > 0; i--) {
+                        const radius = (size / 2) * (i / ringCount);
+                        ctx.fillStyle = colorScheme(normVal, i);
+                        ctx.globalAlpha = 0.7 + (i / ringCount) * 0.3;
+                        ctx.beginPath();
+                        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        // Cutout inner circle
+                        if (i > 1) {
+                            ctx.globalCompositeOperation = 'destination-out';
+                            ctx.beginPath();
+                            ctx.arc(0, 0, radius * 0.7, 0, Math.PI * 2);
+                            ctx.fill();
+                            ctx.globalCompositeOperation = 'source-over';
+                        }
+                    }
+                    break;
+                    
+                case 2: // Triangle tessellation
+                    const triSize = size / (1 + complexity);
+                    for (let i = 0; i < 1 + complexity; i++) {
+                        for (let j = 0; j < 1 + complexity; j++) {
+                            ctx.fillStyle = colorScheme(normVal, i + j);
+                            ctx.globalAlpha = 0.8;
+                            ctx.beginPath();
+                            const offsetX = -halfSize + i * triSize;
+                            const offsetY = -halfSize + j * triSize;
+                            ctx.moveTo(offsetX, offsetY);
+                            ctx.lineTo(offsetX + triSize, offsetY);
+                            ctx.lineTo(offsetX + triSize / 2, offsetY + triSize);
+                            ctx.closePath();
+                            ctx.fill();
+                        }
+                    }
+                    break;
+                    
+                default: // Radial spokes
+                    const spokeCount = 4 + complexity * 2;
+                    const angleStep = (Math.PI * 2) / spokeCount;
+                    for (let i = 0; i < spokeCount; i++) {
+                        const angle = i * angleStep;
+                        ctx.strokeStyle = colorScheme(normVal, i);
+                        ctx.lineWidth = size / (spokeCount * 2);
+                        ctx.globalAlpha = 0.8;
+                        ctx.beginPath();
+                        ctx.moveTo(0, 0);
+                        ctx.lineTo(
+                            Math.cos(angle) * halfSize,
+                            Math.sin(angle) * halfSize
+                        );
+                        ctx.stroke();
+                    }
+                    break;
+            }
+            
+            ctx.restore();
+        }
+        
+        // 2. TESSELLATION - Hexagonal patterns
+        function drawTessellation(ctx, x, y, normVal, cellInfo, config) {
+            const { cellSize, glyphRadius, col, row } = cellInfo;
+            const { colorScheme = colorSchemes.vibrant, isHovered = false } = config;
+            
+            const hexRadius = glyphRadius * (isHovered ? 1.2 : 1.0);
+            const sides = 6;
+            const angleStep = (Math.PI * 2) / sides;
+            
+            // Draw hexagon
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // Rotate based on data + hover pulse
+            const time = Date.now() * 0.001;
+            const hoverRotation = isHovered ? Math.sin(time * 3) * 0.2 : 0;
+            ctx.rotate(normVal * Math.PI * 2 + hoverRotation);
+            
+            // Hover pulse effect
+            if (isHovered) {
+                const pulseRadius = hexRadius * (1.1 + Math.sin(time * 5) * 0.1);
+                ctx.strokeStyle = colorScheme(normVal, 0);
+                ctx.lineWidth = 3;
+                ctx.globalAlpha = 0.6;
+                ctx.beginPath();
+                for (let i = 0; i < sides; i++) {
+                    const angle = i * angleStep;
+                    const px = Math.cos(angle) * pulseRadius;
+                    const py = Math.sin(angle) * pulseRadius;
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+                ctx.stroke();
+            }
+            
+            // Outer hexagon
+            ctx.fillStyle = colorScheme(normVal, 0);
+            ctx.globalAlpha = 0.9;
+            ctx.beginPath();
+            for (let i = 0; i < sides; i++) {
+                const angle = i * angleStep;
+                const px = Math.cos(angle) * hexRadius;
+                const py = Math.sin(angle) * hexRadius;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fill();
+            
+            // Inner pattern - smaller hexagons
+            const innerCount = 3;
+            for (let i = 0; i < innerCount; i++) {
+                const innerRadius = hexRadius * (0.3 + i * 0.2);
+                const offsetAngle = (i * Math.PI * 2) / innerCount;
+                const offsetX = Math.cos(offsetAngle) * (hexRadius * 0.3);
+                const offsetY = Math.sin(offsetAngle) * (hexRadius * 0.3);
+                
+                ctx.fillStyle = colorScheme(normVal, i + 1);
+                ctx.globalAlpha = 0.7;
+                ctx.beginPath();
+                for (let j = 0; j < sides; j++) {
+                    const angle = j * angleStep + offsetAngle;
+                    const px = offsetX + Math.cos(angle) * innerRadius;
+                    const py = offsetY + Math.sin(angle) * innerRadius;
+                    if (j === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+                ctx.fill();
+            }
+            
+            // Center circle
+            ctx.fillStyle = colorScheme(normVal, 4);
+            ctx.globalAlpha = 1.0;
+            ctx.beginPath();
+            ctx.arc(0, 0, hexRadius * 0.2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+        
+        // 3. PARTICLES - Individual animated elements
+        function drawParticle(ctx, x, y, normVal, cellInfo, config) {
+            const { cellData, glyphRadius } = cellInfo;
+            const { colorScheme = colorSchemes.vibrant, isHovered = false } = config;
+            
+            // Use time for animation (if available)
+            const time = Date.now() * 0.001;
+            
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // Rotate particle + faster rotation on hover
+            const rotationSpeed = isHovered ? 3 : 1;
+            const rotation = normVal * Math.PI * 2 + time * rotationSpeed;
+            ctx.rotate(rotation);
+            
+            // Hover explosion effect
+            if (isHovered) {
+                const explosionRadius = glyphRadius * (1.5 + Math.sin(time * 8) * 0.3);
+                const sparkleCount = 12;
+                for (let i = 0; i < sparkleCount; i++) {
+                    const angle = (i / sparkleCount) * Math.PI * 2 + time * 2;
+                    const distance = explosionRadius;
+                    const sparkleX = Math.cos(angle) * distance;
+                    const sparkleY = Math.sin(angle) * distance;
+                    
+                    ctx.fillStyle = colorScheme(normVal, i);
+                    ctx.globalAlpha = 0.9;
+                    ctx.beginPath();
+                    ctx.arc(sparkleX, sparkleY, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            
+            // Draw particle with multiple layers
+            const layers = 3;
+            for (let i = layers; i > 0; i--) {
+                const radius = glyphRadius * (i / layers);
+                const alpha = 0.3 + (i / layers) * 0.5;
+                
+                // Outer glow
+                if (i === layers) {
+                    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, radius * 1.5);
+                    gradient.addColorStop(0, colorScheme(normVal, i));
+                    gradient.addColorStop(1, 'transparent');
+                    ctx.fillStyle = gradient;
+                    ctx.globalAlpha = alpha * 0.5;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, radius * 1.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                // Main particle
+                ctx.fillStyle = colorScheme(normVal, i);
+                ctx.globalAlpha = alpha;
+                ctx.beginPath();
+                ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Inner highlight
+                if (i === 1) {
+                    ctx.fillStyle = '#fff';
+                    ctx.globalAlpha = 0.6;
+                    ctx.beginPath();
+                    ctx.arc(-radius * 0.3, -radius * 0.3, radius * 0.3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            
+            // Add sparkles
+            const sparkleCount = Math.floor(normVal * 4) + 1;
+            for (let i = 0; i < sparkleCount; i++) {
+                const angle = (i / sparkleCount) * Math.PI * 2 + time;
+                const distance = glyphRadius * 0.8;
+                const sparkleX = Math.cos(angle) * distance;
+                const sparkleY = Math.sin(angle) * distance;
+                
+                ctx.fillStyle = colorScheme(normVal, i);
+                ctx.globalAlpha = 0.8;
+                ctx.beginPath();
+                ctx.arc(sparkleX, sparkleY, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            ctx.restore();
+        }
+        
+        // 4. ABSTRACT ART - Data-driven abstract patterns
+        function drawAbstract(ctx, x, y, normVal, cellInfo, config) {
+            const { cellData, cellSize, glyphRadius, col, row } = cellInfo;
+            const { complexity = 2, colorScheme = colorSchemes.vibrant, isHovered = false } = config;
+            
+            const size = cellSize * (isHovered ? 1.1 : 0.95);
+            const halfSize = size / 2;
+            
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // Use cell position and data for deterministic randomness + hover animation
+            const seed = (col * 17 + row * 23) % 1000;
+            const time = Date.now() * 0.001;
+            const rotation = (seed / 1000) * Math.PI * 2 + (isHovered ? time * 0.5 : 0);
+            ctx.rotate(rotation);
+            
+            // Hover energy field
+            if (isHovered) {
+                const waveRadius = halfSize * (1.2 + Math.sin(time * 4) * 0.2);
+                ctx.strokeStyle = colorScheme(normVal, 0);
+                ctx.lineWidth = 2;
+                ctx.globalAlpha = 0.5;
+                ctx.beginPath();
+                ctx.arc(0, 0, waveRadius, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            
+            // Abstract pattern based on normalized value
+            if (normVal < 0.3) {
+                // Low values: flowing curves
+                ctx.strokeStyle = colorScheme(normVal, 0);
+                ctx.lineWidth = 3;
+                ctx.globalAlpha = 0.7;
+                ctx.beginPath();
+                for (let i = 0; i <= 20; i++) {
+                    const t = i / 20;
+                    const px = -halfSize + t * size;
+                    const py = Math.sin(t * Math.PI * 4 + seed) * (halfSize * 0.5);
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+            } else if (normVal < 0.7) {
+                // Medium values: organic blobs
+                const blobCount = 2 + complexity;
+                for (let i = 0; i < blobCount; i++) {
+                    const angle = (i / blobCount) * Math.PI * 2;
+                    const distance = halfSize * (0.3 + normVal * 0.4);
+                    const blobX = Math.cos(angle) * distance;
+                    const blobY = Math.sin(angle) * distance;
+                    const blobSize = halfSize * (0.2 + normVal * 0.3);
+                    
+                    const gradient = ctx.createRadialGradient(blobX, blobY, 0, blobX, blobY, blobSize);
+                    gradient.addColorStop(0, colorScheme(normVal, i));
+                    gradient.addColorStop(1, 'transparent');
+                    
+                    ctx.fillStyle = gradient;
+                    ctx.globalAlpha = 0.6;
+                    ctx.beginPath();
+                    ctx.arc(blobX, blobY, blobSize, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            } else {
+                // High values: geometric explosion
+                const rayCount = 8 + complexity * 2;
+                const angleStep = (Math.PI * 2) / rayCount;
+                
+                for (let i = 0; i < rayCount; i++) {
+                    const angle = i * angleStep;
+                    const rayLength = halfSize * (0.5 + normVal * 0.5);
+                    
+                    // Gradient ray
+                    const gradient = ctx.createLinearGradient(0, 0, 
+                        Math.cos(angle) * rayLength, 
+                        Math.sin(angle) * rayLength
+                    );
+                    gradient.addColorStop(0, colorScheme(normVal, i));
+                    gradient.addColorStop(1, 'transparent');
+                    
+                    ctx.strokeStyle = gradient;
+                    ctx.lineWidth = 4;
+                    ctx.globalAlpha = 0.8;
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.lineTo(
+                        Math.cos(angle) * rayLength,
+                        Math.sin(angle) * rayLength
+                    );
+                    ctx.stroke();
+                }
+                
+                // Center burst
+                ctx.fillStyle = colorScheme(normVal, rayCount);
+                ctx.globalAlpha = 1.0;
+                ctx.beginPath();
+                ctx.arc(0, 0, halfSize * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            ctx.restore();
+        }
+        
+        
+        // Initialize map
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                version: 8,
+                sources: {
+                    'dark': {
+                        type: 'raster',
+                        tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
+                        tileSize: 256,
+                        attribution: '© OpenStreetMap contributors © CARTO'
+                    }
+                },
+                layers: [
+                    { id: 'dark', type: 'raster', source: 'dark', paint: { 'raster-opacity': 1.0 } }
+                ]
+            },
+            center: [-122.4194, 37.7749],
+            zoom: 12
+        });
+        
+        let gridLayer = null;
+        let currentData = null;
+        let currentMode = 'mosaic';
+        let currentGridMode = 'screen-grid';
+        let currentCellSize = 50;
+        let currentComplexity = 2;
+        let currentColorScheme = 'vibrant';
+        let hoveredCell = null; // Track hovered cell for interactive effects
+        let animationFrameId = null; // For continuous animation loop
+        
+        // UI elements
+        const modeDescription = document.getElementById('modeDescription');
+        const cellSizeSlider = document.getElementById('cellSize');
+        const cellSizeValue = document.getElementById('cellSizeValue');
+        const patternComplexitySlider = document.getElementById('patternComplexity');
+        const patternComplexityValue = document.getElementById('patternComplexityValue');
+        
+        const mosaicBtn = document.getElementById('mosaicBtn');
+        const tessellationBtn = document.getElementById('tessellationBtn');
+        const particlesBtn = document.getElementById('particlesBtn');
+        const abstractBtn = document.getElementById('abstractBtn');
+        const gridModeBtn = document.getElementById('gridModeBtn');
+        const hexModeBtn = document.getElementById('hexModeBtn');
+        
+        const scheme1Btn = document.getElementById('scheme1Btn');
+        const scheme2Btn = document.getElementById('scheme2Btn');
+        const scheme3Btn = document.getElementById('scheme3Btn');
+        const scheme4Btn = document.getElementById('scheme4Btn');
+        
+        const currentModeSpan = document.getElementById('currentMode');
+        const gridTypeSpan = document.getElementById('gridType');
+        const pointCountSpan = document.getElementById('pointCount');
+        const cellCountSpan = document.getElementById('cellCount');
+        
+        // Mode descriptions
+        const modeDescriptions = {
+            mosaic: 'Geometric mosaic tiles with checkerboard, circles, triangles, and radial patterns. Each cell creates a unique tile based on its position. Hover to see scaling and rotation effects.',
+            tessellation: 'Hexagonal tessellation with nested patterns. Perfect for organic, honeycomb-like visualizations. Hover to see pulsing animations.',
+            particles: 'Individual particle effects with glow and sparkles. Best for feature-anchors mode with one glyph per point. Hover to see explosion effects.',
+            abstract: 'Data-driven abstract art with flowing curves, organic blobs, and geometric explosions based on cell values. Hover to see energy fields.',
+        };
+        
+        // Event listeners
+        cellSizeSlider.addEventListener('input', (e) => {
+            currentCellSize = parseInt(e.target.value);
+            cellSizeValue.textContent = `${currentCellSize}px`;
+            updateLayer();
+        });
+        
+        patternComplexitySlider.addEventListener('input', (e) => {
+            currentComplexity = parseInt(e.target.value);
+            patternComplexityValue.textContent = currentComplexity;
+            updateLayer();
+        });
+        
+        mosaicBtn.addEventListener('click', () => {
+            currentMode = 'mosaic';
+            updateModeButtons();
+            updateLayer();
+        });
+        
+        tessellationBtn.addEventListener('click', () => {
+            currentMode = 'tessellation';
+            updateModeButtons();
+            updateLayer();
+        });
+        
+        particlesBtn.addEventListener('click', () => {
+            currentMode = 'particles';
+            updateModeButtons();
+            updateLayer();
+        });
+        
+        abstractBtn.addEventListener('click', () => {
+            currentMode = 'abstract';
+            updateModeButtons();
+            updateLayer();
+        });
+        
+        
+        gridModeBtn.addEventListener('click', () => {
+            currentGridMode = 'screen-grid';
+            gridModeBtn.classList.add('active');
+            hexModeBtn.classList.remove('active');
+            gridTypeSpan.textContent = 'Rectangular';
+            updateLayer();
+        });
+        
+        hexModeBtn.addEventListener('click', () => {
+            currentGridMode = 'screen-hex';
+            hexModeBtn.classList.add('active');
+            gridModeBtn.classList.remove('active');
+            gridTypeSpan.textContent = 'Hexagonal';
+            updateLayer();
+        });
+        
+        scheme1Btn.addEventListener('click', () => {
+            currentColorScheme = 'vibrant';
+            updateSchemeButtons();
+            updateLayer();
+        });
+        
+        scheme2Btn.addEventListener('click', () => {
+            currentColorScheme = 'pastel';
+            updateSchemeButtons();
+            updateLayer();
+        });
+        
+        scheme3Btn.addEventListener('click', () => {
+            currentColorScheme = 'monochrome';
+            updateSchemeButtons();
+            updateLayer();
+        });
+        
+        scheme4Btn.addEventListener('click', () => {
+            currentColorScheme = 'neon';
+            updateSchemeButtons();
+            updateLayer();
+        });
+        
+        function updateModeButtons() {
+            [mosaicBtn, tessellationBtn, particlesBtn, abstractBtn].forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(`${currentMode}Btn`).classList.add('active');
+            modeDescription.textContent = modeDescriptions[currentMode];
+            currentModeSpan.textContent = currentMode.charAt(0).toUpperCase() + currentMode.slice(1);
+        }
+        
+        function updateSchemeButtons() {
+            [scheme1Btn, scheme2Btn, scheme3Btn, scheme4Btn].forEach(btn => {
+                btn.classList.remove('active');
+            });
+            const schemeMap = { vibrant: scheme1Btn, pastel: scheme2Btn, monochrome: scheme3Btn, neon: scheme4Btn };
+            schemeMap[currentColorScheme].classList.add('active');
+        }
+        
+        function getDrawFunction() {
+            const colorScheme = colorSchemes[currentColorScheme];
+            const config = {
+                complexity: currentComplexity,
+                colorScheme
+            };
+            
+            // Create a wrapper that checks hover state
+            const createDrawWrapper = (drawFn) => {
+                return (ctx, x, y, normVal, cellInfo) => {
+                    // Check if this cell is hovered (support both grid and hex modes)
+                    let isHovered = false;
+                    if (hoveredCell) {
+                        if (hoveredCell.hexCoords && cellInfo.hexCoords) {
+                            // Hex mode: compare hex coordinates
+                            isHovered = hoveredCell.hexCoords.q === cellInfo.hexCoords.q &&
+                                       hoveredCell.hexCoords.r === cellInfo.hexCoords.r;
+                        } else if (hoveredCell.col !== undefined && cellInfo.col !== undefined) {
+                            // Grid mode: compare col/row
+                            isHovered = hoveredCell.col === cellInfo.col &&
+                                       hoveredCell.row === cellInfo.row;
+                        } else if (hoveredCell.index !== undefined && cellInfo.index !== undefined) {
+                            // Fallback: compare index
+                            isHovered = hoveredCell.index === cellInfo.index;
+                        }
+                    }
+                    
+                    const configWithHover = { ...config, isHovered };
+                    drawFn(ctx, x, y, normVal, cellInfo, configWithHover);
+                };
+            };
+            
+            switch (currentMode) {
+                case 'mosaic':
+                    return createDrawWrapper(drawMosaicTile);
+                case 'tessellation':
+                    return createDrawWrapper(drawTessellation);
+                case 'particles':
+                    return createDrawWrapper(drawParticle);
+                case 'abstract':
+                    return createDrawWrapper(drawAbstract);
+                default:
+                    return null;
+            }
+        }
+        
+        function createLayer() {
+            if (!currentData) return;
+            
+            // Stop any existing animation
+            stopAnimationLoop();
+            
+            // Remove existing layer
+            if (gridLayer && map.getLayer(gridLayer.id)) {
+                map.removeLayer(gridLayer.id);
+            }
+            
+            const onDrawCell = getDrawFunction();
+            const useFeatureAnchors = currentMode === 'particles';
+            
+            // Store onDrawCell globally for animation loop
+            window.currentOnDrawCell = onDrawCell;
+            
+            const layerConfig = {
+                id: 'creative-grid-layer',
+                data: currentData,
+                getPosition: (d) => d.coordinates,
+                getWeight: (d) => d.weight,
+                cellSizePixels: currentCellSize,
+                enableGlyphs: true,
+                onDrawCell: onDrawCell,
+                glyphSize: 0.9,
+                aggregationMode: currentGridMode,
+                aggregationModeConfig: currentGridMode === 'screen-hex' 
+                    ? { hexSize: currentCellSize, showBackground: false }
+                    : { showBackground: false },
+                onAggregate: (grid) => {
+                    const cellsWithData = grid.grid ? grid.grid.filter(v => v > 0).length : 0;
+                    cellCountSpan.textContent = cellsWithData;
+                },
+                onHover: ({ cell }) => {
+                    // Update hovered cell (support both grid and hex modes)
+                    // Note: This callback only fires when a cell is found
+                    if (!cell) return;
+                    
+                    // Create a unique identifier for the cell
+                    let cellId = null;
+                    if (cell.hexCoords) {
+                        cellId = `hex_${cell.hexCoords.q}_${cell.hexCoords.r}`;
+                    } else if (cell.col !== undefined && cell.row !== undefined) {
+                        cellId = `grid_${cell.col}_${cell.row}`;
+                    } else if (cell.index !== undefined) {
+                        cellId = `idx_${cell.index}`;
+                    }
+                    
+                    // Only update if cell changed (avoid unnecessary updates)
+                    const previousCell = hoveredCell;
+                    if (!previousCell || previousCell.id !== cellId) {
+                        hoveredCell = {
+                            col: cell.col,
+                            row: cell.row,
+                            hexCoords: cell.hexCoords,
+                            index: cell.index,
+                            id: cellId
+                        };
+                        startAnimationLoop();
+                    }
+                }
+            };
+            
+            // For particles mode, use feature-anchors rendering
+            if (useFeatureAnchors) {
+                // Convert data to GeoJSON format
+                const geoJsonData = {
+                    type: 'FeatureCollection',
+                    features: currentData.map((d, i) => ({
+                        type: 'Feature',
+                        id: i,
+                        geometry: {
+                            type: 'Point',
+                            coordinates: d.coordinates
+                        },
+                        properties: {
+                            weight: d.weight,
+                            category: d.category,
+                            intensity: d.intensity
+                        }
+                    }))
+                };
+                
+                layerConfig.source = geoJsonData;
+                layerConfig.placement = { strategy: 'point' };
+                layerConfig.renderMode = 'feature-anchors';
+                layerConfig.anchorSizePixels = currentCellSize * 0.8;
+                delete layerConfig.data;
+                delete layerConfig.getPosition;
+                delete layerConfig.getWeight;
+            }
+            
+            gridLayer = new ScreenGridLayerGL(layerConfig);
+            map.addLayer(gridLayer);
+        }
+        
+        function updateLayer() {
+            if (gridLayer) {
+                createLayer();
+            }
+        }
+        
+        // Animation loop for smooth hover effects
+        function startAnimationLoop() {
+            if (animationFrameId) return; // Already running
+            
+            function animate() {
+                if (hoveredCell && gridLayer && map) {
+                    // Trigger repaint to show animated hover effects
+                    // The onDrawCell function will check hover state on each frame
+                    map.triggerRepaint();
+                    animationFrameId = requestAnimationFrame(animate);
+                } else {
+                    animationFrameId = null;
+                    // Final repaint to clear hover effects
+                    if (gridLayer && map) {
+                        map.triggerRepaint();
+                    }
+                }
+            }
+            
+            animate();
+        }
+        
+        function stopAnimationLoop() {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            // Final repaint to clear hover effects
+            if (gridLayer && map) {
+                map.triggerRepaint();
+            }
+        }
+        
+        // Initialize
+        map.on('load', () => {
+            // Generate random data
+            currentData = generateRandomData(800);
+            pointCountSpan.textContent = currentData.length;
+            
+            createLayer();
+            
+            // Track mouse movement to detect when we're not over a cell
+            // The onHover callback only fires when a cell is found, so we need
+            // to manually check when mouse moves to empty areas
+            let lastHoverCheck = null;
+            map.on('mousemove', (e) => {
+                if (!gridLayer) return;
+                
+                // Check if we're over a cell
+                const cell = gridLayer.getCellAt({ x: e.point.x, y: e.point.y });
+                
+                // If no cell found but we had a hovered cell, clear it
+                if (!cell && hoveredCell) {
+                    // Small delay to avoid flickering when moving between cells
+                    if (lastHoverCheck) clearTimeout(lastHoverCheck);
+                    lastHoverCheck = setTimeout(() => {
+                        if (!gridLayer.getCellAt({ x: e.point.x, y: e.point.y })) {
+                            hoveredCell = null;
+                            stopAnimationLoop();
+                        }
+                    }, 50);
+                } else if (cell) {
+                    // Clear any pending timeout since we found a cell
+                    if (lastHoverCheck) {
+                        clearTimeout(lastHoverCheck);
+                        lastHoverCheck = null;
+                    }
+                }
+            });
+            
+            // Add map-level mouse leave handler to clear hover when mouse leaves map
+            map.getCanvasContainer().addEventListener('mouseleave', () => {
+                if (lastHoverCheck) {
+                    clearTimeout(lastHoverCheck);
+                    lastHoverCheck = null;
+                }
+                if (hoveredCell) {
+                    hoveredCell = null;
+                    stopAnimationLoop();
+                }
+            });
+        });
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            stopAnimationLoop();
+        });
+    </script>
+</body>
+</html>
+

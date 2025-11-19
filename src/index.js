@@ -48,6 +48,9 @@ export { NormalizationFunctionRegistry, NormalizationFunctions } from './normali
 // Data utilities
 export { groupBy, extractAttributes, computeStats, groupByTime } from './utils/DataUtilities.js';
 
+// Logger utility
+export { Logger, setDebug } from './utils/Logger.js';
+
 // Legend module
 export { Legend } from './legend/Legend.js';
 export { LegendDataExtractor } from './legend/LegendDataExtractor.js';
