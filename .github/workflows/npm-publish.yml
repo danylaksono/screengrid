@@ -29,6 +29,17 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Stamp version with build number
+        run: |
+          node - <<'EOF'
+          const fs = require('fs');
+          const pkgPath = './package.json';
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+          const coreVersion = pkg.version.split('+')[0];
+          pkg.version = `${coreVersion}+build.${process.env.GITHUB_RUN_NUMBER}`;
+          fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+          EOF
+
       - name: Determine versions
         id: versions
         run: |
