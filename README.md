@@ -11,18 +11,22 @@ This library is inspired by Aidan Slingsby's [Gridded Glyphmaps](https://openacc
 ## 🚀 Features
 
 - **Real-time Aggregation**: Efficiently aggregates point data into screen-space grids
+- **Multiple Aggregation Modes**: Support for rectangular grids (`screen-grid`) and hexagonal tessellation (`screen-hex`)
 - **Customizable Styling**: Flexible color scales and cell sizing
 - **Interactive Events**: Hover and click handlers for grid cells
 - **Glyph Drawing**: Custom glyph rendering with Canvas 2D for advanced visualizations
 - **Plugin Ecosystem**: Reusable, named glyph plugins with registry system, lifecycle hooks, and legend integration
 - **Built-in Plugins**: Four ready-to-use plugins (`circle`, `bar`, `pie`, `heatmap`) plus utilities for custom plugins
+- **Flexible Aggregation Functions**: Built-in functions (sum, mean, count, max, min) with registry system for custom functions
+- **Customizable Normalization**: Multiple normalization strategies (max-local, max-global, z-score, percentile) with registry for custom functions
 - **MapLibre Integration**: Seamless integration with MapLibre GL JS
 - **Performance Optimized**: Uses Canvas 2D rendering for optimal performance
 - **Responsive Design**: Automatically adjusts to map viewport changes
 - **Zoom-based Sizing**: Dynamic cell size adjustment based on zoom level
 - **Multi-attribute Visualization**: Support for visualizing multiple data attributes per cell
-- **Geometry Input (NEW)**: Accept GeoJSON `source` with `placement` strategies for Polygon/Line inputs
-- **Feature Anchors (NEW)**: Render one glyph per feature anchor with `renderMode: 'feature-anchors'`
+- **Geometry Input**: Accept GeoJSON `source` with `placement` strategies for Polygon/Line inputs
+- **Feature Anchors**: Render one glyph per feature anchor with `renderMode: 'feature-anchors'`
+- **Debug Logging**: Configurable debug logging system for troubleshooting
 
 ## 📁 Project Structure
 
@@ -359,6 +363,10 @@ npx http-server -p 8000
 6. **Multivariate Time Series** (`examples/multivariate-timeseries.html`) - Advanced multi-attribute temporal visualization
 7. **Plugin Glyph** (`examples/plugin-glyph.html`) - Complete plugin ecosystem example with custom `grouped-bar` plugin, lifecycle hooks, and legend integration
 8. **Data Utilities** (`examples/data-utilities.html`) - Demonstrates data utility functions (`groupBy`, `extractAttributes`, `computeStats`, `groupByTime`)
+9. **Hex Mode** (`examples/hex-mode.html`) - Hexagonal aggregation mode with interactive controls
+10. **Hex Mode Simple** (`examples/hex-mode-simple.html`) - Simple hexagonal aggregation example
+11. **US States** (`examples/us-states.html`) - Geometry input example with polygon features
+12. **Creative Coding** (`examples/creative-coding.html`) - Artistic visualizations: mosaic tiles, tessellations, particles, and abstract patterns demonstrating the library's creative coding capabilities
 
 ### Example Features
 
@@ -395,17 +403,102 @@ npx http-server -p 8000
 | `aggregationFunction` | Function\|string | `'sum'` | Aggregation function or name (see [Aggregation Functions](#-aggregation-functions)) |
 | `normalizationFunction` | Function\|string | `'max-local'` | Normalization function or name (see [Normalization Functions](#-normalization-functions)) |
 | `normalizationContext` | object | `{}` | Additional context for normalization (e.g., `{globalMax: 1000}`) |
+| `aggregationMode` | string | `'screen-grid'` | Aggregation mode: `'screen-grid'` (rectangular) or `'screen-hex'` (hexagonal) |
+| `aggregationModeConfig` | object | `{}` | Mode-specific configuration (e.g., `{hexSize: 50, showBackground: true}` for hex mode) |
 | `adaptiveCellSize` | boolean | `false` | Enable adaptive cell sizing |
 | `minCellSize` | number | `20` | Minimum cell size in pixels |
 | `maxCellSize` | number | `100` | Maximum cell size in pixels |
 | `zoomBasedSize` | boolean | `false` | Adjust cell size based on zoom level |
 | `enabled` | boolean | `true` | Whether the layer is enabled |
+| `debugLogs` | boolean | `false` | Enable verbose debug logging (useful for troubleshooting) |
 | `source` | GeoJSON | `null` | GeoJSON Feature/FeatureCollection or array of Features (mutually exclusive with `data`) |
 | `placement` | object | `null` | Placement config to derive anchors from geometries (see docs) |
 | `renderMode` | `'screen-grid'|'feature-anchors'` | `'screen-grid'` | Rendering path (aggregate vs draw directly) |
 | `anchorSizePixels` | number | `auto` | Glyph size in pixels for `feature-anchors` mode |
 
 See `docs/GEOMETRY_INPUT_AND_PLACEMENT.md` and `docs/PLACEMENT_CONFIG.md` for geometry input, placement strategies, and validation rules.
+
+## 🔷 Aggregation Modes
+
+ScreenGrid supports multiple aggregation modes for different visualization needs. The default mode is `screen-grid` (rectangular cells), but you can also use `screen-hex` for hexagonal tessellation.
+
+### Available Modes
+
+#### `screen-grid` (Default)
+Rectangular grid cells aligned to screen pixels. This is the classic ScreenGrid behavior.
+
+```javascript
+const layer = new ScreenGridLayerGL({
+  data: myData,
+  aggregationMode: 'screen-grid', // Default, can be omitted
+  cellSizePixels: 50
+});
+```
+
+#### `screen-hex`
+Hexagonal tessellation in screen space. Provides a more organic, visually appealing grid pattern.
+
+```javascript
+const layer = new ScreenGridLayerGL({
+  data: myData,
+  aggregationMode: 'screen-hex',
+  aggregationModeConfig: {
+    hexSize: 50, // Size of hexagons (similar to cellSizePixels)
+    showBackground: true // Show colored hexagon backgrounds
+  }
+});
+```
+
+### Mode Configuration
+
+Each mode can have mode-specific configuration via `aggregationModeConfig`:
+
+**For `screen-hex`:**
+- `hexSize` (number): Size of hexagons in pixels (defaults to `cellSizePixels` if not provided)
+- `showBackground` (boolean): Whether to show colored hexagon backgrounds (default: `false` when glyphs are enabled)
+
+**For `screen-grid`:**
+- `showBackground` (boolean): Whether to show colored cell backgrounds (default: `false` when glyphs are enabled)
+
+### Custom Aggregation Modes
+
+You can register custom aggregation modes using the `AggregationModeRegistry`:
+
+```javascript
+import { AggregationModeRegistry } from 'screengrid';
+
+const MyCustomMode = {
+  name: 'my-custom-mode',
+  type: 'screen-space', // or 'geographic'
+  aggregate(data, getPosition, getWeight, map, config) {
+    // Custom aggregation logic
+    return aggregationResult;
+  },
+  render(aggregationResult, ctx, config, map) {
+    // Custom rendering logic
+  },
+  getCellAt(point, aggregationResult, map) {
+    // Custom cell query logic
+    return cellInfo;
+  },
+  getStats(aggregationResult) {
+    // Optional: custom statistics
+    return stats;
+  },
+  needsUpdateOnZoom() { return true; },
+  needsUpdateOnMove() { return true; }
+};
+
+AggregationModeRegistry.register('my-custom-mode', MyCustomMode);
+
+// Use it
+const layer = new ScreenGridLayerGL({
+  data: myData,
+  aggregationMode: 'my-custom-mode'
+});
+```
+
+See `examples/hex-mode.html` and `examples/hex-mode-simple.html` for complete examples of hexagonal aggregation.
 
 ## 📊 Aggregation Functions
 
@@ -620,6 +713,109 @@ GlyphRegistry.clear()
 
 See [Plugin Ecosystem](#-plugin-ecosystem) section above for detailed usage examples.
 
+### AggregationModeRegistry API
+
+The `AggregationModeRegistry` manages aggregation mode plugins:
+
+```javascript
+import { AggregationModeRegistry } from 'screengrid';
+
+// Register a custom mode
+AggregationModeRegistry.register(name, modePlugin, { overwrite = false })
+
+// Retrieve a mode
+AggregationModeRegistry.get(name)
+
+// Check if mode exists
+AggregationModeRegistry.has(name)
+
+// List all registered modes
+AggregationModeRegistry.list()
+
+// Unregister a mode
+AggregationModeRegistry.unregister(name)
+```
+
+### Logger API
+
+The `Logger` utility provides controlled debug logging:
+
+```javascript
+import { Logger, setDebug } from 'screengrid';
+
+// Enable/disable debug logging globally
+setDebug(true);
+
+// Use logger (logs only when debug is enabled)
+Logger.log('Debug message');
+Logger.warn('Warning message');
+Logger.error('Error message'); // Always shown, even when debug is disabled
+```
+
+**Note:** Debug logging can also be controlled via the `debugLogs` configuration option.
+
+## 📦 Exported Modules & Utilities
+
+The library exports various modules and utilities that you can use independently:
+
+### Core Classes
+- `ScreenGridLayerGL` - Main layer class
+- `Aggregator` - Pure aggregation logic
+- `Projector` - Coordinate projection utilities
+- `CellQueryEngine` - Spatial query engine
+
+### Aggregation & Normalization
+- `AggregationModeRegistry` - Registry for aggregation modes
+- `ScreenGridMode` - Rectangular grid mode
+- `ScreenHexMode` - Hexagonal grid mode
+- `AggregationFunctionRegistry` - Registry for aggregation functions
+- `AggregationFunctions` - Built-in aggregation functions (sum, mean, count, max, min)
+- `NormalizationFunctionRegistry` - Registry for normalization functions
+- `NormalizationFunctions` - Built-in normalization functions (max-local, max-global, z-score, percentile)
+
+### Glyphs & Plugins
+- `GlyphUtilities` - Low-level glyph drawing utilities
+- `GlyphRegistry` - Registry for glyph plugins
+
+### Geometry & Placement
+- `PlacementEngine` - Geometry placement engine
+- `PlacementValidator` - Placement configuration validator
+- `PlacementStrategyRegistry` - Registry for placement strategies
+- `GeometryUtils` - Geometry utility functions
+
+### Canvas & Rendering
+- `CanvasManager` - Canvas lifecycle management
+- `Renderer` - Rendering logic
+
+### Events
+- `EventBinder` - Event binding management
+- `EventHandlers` - Event handler implementations
+
+### Configuration & Utilities
+- `ConfigManager` - Configuration management
+- `Logger` - Debug logging utility
+- `setDebug` - Enable/disable debug logging
+- `groupBy` - Group data by categories
+- `extractAttributes` - Extract multiple attributes
+- `computeStats` - Compute statistics
+- `groupByTime` - Group data by time periods
+
+### Legend
+- `Legend` - Legend class
+- `LegendDataExtractor` - Legend data extraction
+- `LegendRenderers` - Legend rendering utilities
+
+**Example:**
+```javascript
+import { 
+  ScreenGridLayerGL,
+  AggregationModeRegistry,
+  GlyphRegistry,
+  Logger,
+  setDebug
+} from 'screengrid';
+```
+
 ## 📊 Legend Module
 
 The library includes a powerful Legend module for automatically generating data-driven legends:
@@ -660,11 +856,31 @@ See `examples/legend-example.html` for detailed usage examples.
 
 ### Debug Mode
 
-Enable debug logging by opening browser console. The library provides detailed logging for:
+Enable debug logging via the `debugLogs` configuration option:
+
+```javascript
+const layer = new ScreenGridLayerGL({
+  data: myData,
+  debugLogs: true // Enable verbose debug logging
+});
+```
+
+Or programmatically:
+
+```javascript
+import { setDebug } from 'screengrid';
+
+setDebug(true); // Enable debug logging globally
+```
+
+The library provides detailed logging for:
 - Layer initialization
 - Data aggregation
 - Rendering process
+- Event handling
 - Error states
+
+**Note:** Debug logs are disabled by default for performance. Enable only when troubleshooting.
 
 ## 👤 Author
 
@@ -684,12 +900,24 @@ MIT License - see LICENSE file for details.
 
 ## 📝 Changelog
 
-### v2.1.0 (Upcoming)
+### v2.2.0 (Current)
+- **NEW**: Hexagonal aggregation mode (`screen-hex`) for organic, visually appealing grid patterns
+- **NEW**: Aggregation mode registry system (`AggregationModeRegistry`) for extensible aggregation strategies
+- **NEW**: Mode-specific configuration via `aggregationModeConfig` option
+- **IMPROVED**: Better separation between aggregation logic and rendering logic
+- **IMPROVED**: Enhanced examples with hex mode demonstrations
+
+### v2.1.0
 - **NEW**: Aggregation function registry system with built-in functions (sum, mean, count, max, min)
 - **NEW**: Normalization function registry system with built-in strategies (max-local, max-global, z-score, percentile)
 - **NEW**: Support for custom aggregation functions (including multi-attribute aggregation)
 - **NEW**: Support for custom normalization functions
+- **NEW**: Geometry Input & Placement: Support for non-point geometries (Polygons, Lines) via `source` option and placement strategies
+- **NEW**: Feature Anchors Rendering Mode: `renderMode: 'feature-anchors'` for drawing glyphs directly at anchor positions
+- **NEW**: Data Utilities: Utility functions (`groupBy`, `extractAttributes`, `computeStats`, `groupByTime`) for data processing
+- **NEW**: Logger utility with configurable debug logging (`debugLogs` option)
 - **IMPROVED**: Enhanced flexibility for data aggregation and normalization strategies
+- **IMPROVED**: Enhanced documentation and examples
 - **IMPROVED**: Backward compatible - defaults preserve existing behavior
 
 ### v2.0.0

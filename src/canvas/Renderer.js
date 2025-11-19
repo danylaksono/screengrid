@@ -195,7 +195,10 @@ export class Renderer {
               normVal,
               glyphSize,
               onDrawCell,
-              cellData[idx]
+              cellData[idx],
+              c,
+              r,
+              idx
             );
           }
         }
@@ -219,7 +222,19 @@ export class Renderer {
    * Draw a custom glyph
    * @private
    */
-  static _drawGlyph(ctx, x, y, cellSize, normVal, glyphSize, onDrawCell, cellDataArray) {
+  static _drawGlyph(
+    ctx,
+    x,
+    y,
+    cellSize,
+    normVal,
+    glyphSize,
+    onDrawCell,
+    cellDataArray,
+    col,
+    row,
+    index
+  ) {
     const cellCenterX = x + cellSize / 2;
     const cellCenterY = y + cellSize / 2;
     const glyphRadius = (cellSize * glyphSize) / 2;
@@ -232,6 +247,10 @@ export class Renderer {
         cellSize,
         glyphRadius,
         normalizedValue: normVal,
+        col,
+        row,
+        index,
+        center: { x: cellCenterX, y: cellCenterY },
       });
     } catch (e) {
       Logger.error('Error in onDrawCell callback:', e);

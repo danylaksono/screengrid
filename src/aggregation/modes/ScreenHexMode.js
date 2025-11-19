@@ -164,7 +164,17 @@ export const ScreenHexMode = {
       const y = hexRadius * (3 / 2 * r);
 
       // Draw hexagon with merged config
-      this._drawHexagon(ctx, x, y, hexRadius, normVal, renderConfig, cellData[i]);
+      this._drawHexagon(
+        ctx,
+        x,
+        y,
+        hexRadius,
+        normVal,
+        renderConfig,
+        cellData[i],
+        hexCoords[i],
+        i
+      );
     }
   },
 
@@ -178,7 +188,17 @@ export const ScreenHexMode = {
    * @param {Object} config - Render configuration
    * @param {Array} cellDataArray - Array of cell data
    */
-  _drawHexagon(ctx, centerX, centerY, radius, normVal, config, cellDataArray) {
+  _drawHexagon(
+    ctx,
+    centerX,
+    centerY,
+    radius,
+    normVal,
+    config,
+    cellDataArray,
+    hexCoords,
+    cellIndex
+  ) {
     ctx.beginPath();
     // Draw flat-top hexagon (6 vertices)
     for (let i = 0; i < 6; i++) {
@@ -212,6 +232,9 @@ export const ScreenHexMode = {
         cellData: cellDataArray,
         cellSize: radius * 2,
         glyphRadius,
+        hexCoords,
+        index: cellIndex,
+        center: { x: centerX, y: centerY },
         normalizedValue: normVal,
       });
     }

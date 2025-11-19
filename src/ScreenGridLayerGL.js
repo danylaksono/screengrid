@@ -50,6 +50,7 @@ export class ScreenGridLayerGL {
     this._anchors = []; // Cached anchors from placement
     this._placementCacheKey = null; // Cache key for view-dependent placement
     this._lastViewState = null; // Track view state for cache invalidation
+    this._anchorsMaxWeight = 1; // Cached max weight for normalization
   }
 
   // ============ MapLibre GL Interface ============
@@ -125,6 +126,7 @@ export class ScreenGridLayerGL {
     this._anchors = [];
     this._placementCacheKey = null;
     this._lastViewState = null;
+    this._anchorsMaxWeight = 1;
 
     Logger.log('ScreenGridLayerGL removed from map');
   }
@@ -221,6 +223,7 @@ export class ScreenGridLayerGL {
     if (previousSource !== newSource || previousPlacement !== newPlacement) {
       this._placementCacheKey = null;
       this._anchors = [];
+      this._anchorsMaxWeight = 1;
     }
 
     // If renderMode changed, clear grid data
@@ -305,8 +308,7 @@ export class ScreenGridLayerGL {
 
     // Return anchor info in a cell-like format for consistency
     const weight = nearestAnchor.weight || 1;
-    const maxWeight = Math.max(...this._anchors.map(a => a.weight || 1), 1);
-    const normVal = weight / maxWeight;
+    const normVal = weight / this._anchorsMaxWeight;
 
     return {
       mode: 'feature-anchors',
@@ -515,11 +517,18 @@ export class ScreenGridLayerGL {
         
         // Recompute if zoom changed significantly or pan exceeded threshold
         const zoomThreshold = 0.5;
-        const panThreshold = 0.25; // 25% of viewport
+        const panThresholdFraction = 0.25; // 25% of viewport
+        
+        // Calculate viewport extent in geographic units (degrees)
+        const bounds = this.map.getBounds();
+        const viewportWidthDegrees = bounds.getEast() - bounds.getWest();
+        const viewportHeightDegrees = bounds.getNorth() - bounds.getSouth();
+        const panThresholdX = viewportWidthDegrees * panThresholdFraction;
+        const panThresholdY = viewportHeightDegrees * panThresholdFraction;
         
         if (zoomDelta > zoomThreshold || 
-            panDeltaX > panThreshold || 
-            panDeltaY > panThreshold) {
+            panDeltaX > panThresholdX || 
+            panDeltaY > panThresholdY) {
           // Cache miss - recompute
         } else {
           // Cache hit - reuse anchors
@@ -541,11 +550,17 @@ export class ScreenGridLayerGL {
       this._placementCacheKey = cacheKey;
       this._lastViewState = viewState;
       
+      // Cache max weight for normalization
+      this._anchorsMaxWeight = this._anchors.length > 0
+        ? Math.max(...this._anchors.map(a => a.weight || 1), 1)
+        : 1;
+      
       Logger.log(`[ScreenGridLayerGL] Placement computed: ${this._anchors.length} anchors`);
     } catch (error) {
       Logger.error('[ScreenGridLayerGL] Placement error:', error);
       this._anchors = [];
       this._placementCacheKey = null;
+      this._anchorsMaxWeight = 1;
     }
   }
 
@@ -885,6 +900,9 @@ export class ScreenGridLayerGL {
     const anchorSize = this.config.anchorSizePixels || 
                       Math.round(this.config.cellSizePixels * this.config.glyphSize * 0.9);
 
+    // Calculate max weight once (outside loop)
+    const maxWeight = this._anchorsMaxWeight;
+
     // Project anchors to screen space and draw
     for (const anchor of this._anchors) {
       try {
@@ -903,7 +921,6 @@ export class ScreenGridLayerGL {
         // Normalize weight (simple normalization: use weight / maxWeight)
         // For feature-anchors, we might want to normalize across all anchors
         const weight = anchor.weight || 1;
-        const maxWeight = Math.max(...this._anchors.map(a => a.weight || 1), 1);
         const normVal = weight / maxWeight;
 
         // Prepare cellInfo-like object for glyph drawing
