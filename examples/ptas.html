@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Public Transport Accessibility — Glyph Example</title>
+  <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+    }
+
+    #map {
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .controls {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 6px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+      z-index: 1000
+    }
+
+    .controls label {
+      display: block;
+      font-size: 13px;
+      margin-top: 6px
+    }
+
+    .controls input[type=range] {
+      width: 200px
+    }
+
+    .legend {
+      margin-top: 8px;
+      font-size: 12px;
+    }
+
+    .legend .bar {
+      width: 180px;
+      height: 12px;
+      border-radius: 3px;
+      margin-top: 6px;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+    }
+
+    .legend .row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .legend .label {
+      width: 90px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+  <div class="controls">
+    <div><strong>Public Transport Accessibility</strong></div>
+    <label>Time bin: <span id="minuteLabel">120</span> min</label>
+    <input id="timeSlider" type="range" min="0" max="7" step="1" value="7" />
+    <label>Normalization:
+      <select id="normalizationSelect">
+        <option value="max-local">Max (local)</option>
+        <option value="max-global">Max (global)</option>
+        <option value="z-score">Z-score</option>
+        <option value="percentile">Percentile</option>
+      </select>
+    </label>
+    <label><input id="cumulativeToggle" type="checkbox" /> Show cumulative layer</label>
+    <label><input id="sparkToggle" type="checkbox" /> Show sparkline</label>
+    <div style="margin-top:8px">Glyph size: <input id="glyphSize" type="range" min="0.3" max="1.2" step="0.1"
+        value="0.8" /></div>
+    <div class="legend" id="legend">
+      <div><strong>Legend</strong></div>
+      <div class="row">
+        <div class="label">Cells (primary)</div>
+        <div class="bar" id="legend-primary" style="background: linear-gradient(90deg, rgb(0,200,50), rgb(255,0,50));">
+        </div>
+      </div>
+      <div class="row">
+        <div class="label">Cumulative</div>
+        <div class="bar" id="legend-cumulative"
+          style="background: linear-gradient(90deg, rgb(0,120,255), rgb(200,0,0));"></div>
+      </div>
+      <div style="margin-top:6px; font-size:11px; color:#333;">Normalization: <span id="legend-norm">Max (local)</span>
+      </div>
+      <div style="margin-top:4px; font-size:11px; color:#333;">Cumulative = per-feature sum across selected time bins,
+        averaged per cell.</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { ScreenGridLayerGL } from '../src/index.js';
+    import '../src/glyphs/PublicTransportGlyph.js';
+
+    const MINUTES = [15, 30, 45, 60, 75, 90, 105, 120];
+
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: {
+        version: 8,
+        sources: {
+          'carto-dark': {
+            type: 'raster',
+            tiles: [
+              'https://a.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
+              'https://b.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
+              'https://c.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
+              'https://d.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png'
+            ],
+            tileSize: 256,
+            attribution: '© <a href="https://carto.com/">CARTO</a>'
+          }
+        },
+        layers: [{ id: 'carto-dark', type: 'raster', source: 'carto-dark' }]
+      },
+      center: [-1.25, 52.5],
+      zoom: 6
+    });
+
+    const minuteLabel = document.getElementById('minuteLabel');
+    const timeSlider = document.getElementById('timeSlider');
+    const sparkToggle = document.getElementById('sparkToggle');
+    const glyphSizeInput = document.getElementById('glyphSize');
+
+    let gridLayer = null;
+    let cumulativeLayer = null;
+    let data = null;
+    let currentGlobalMax = null;
+
+    async function loadData() {
+      const url = 'data/public_transport_accessibility.json';
+      try {
+        const res = await fetch(url);
+        data = await res.json();
+        console.log('Loaded accessibility data, records:', data.length);
+        setupLayer();
+      } catch (e) {
+        console.error('Failed to load data', e);
+      }
+    }
+
+    function setupLayer() {
+      if (!data) return;
+      if (gridLayer && map.getLayer(gridLayer.id)) map.removeLayer(gridLayer.id);
+
+      const cellSize = 60;
+      const timeIndex = Number(timeSlider.value);
+      const showSpark = sparkToggle.checked;
+      const glyphSize = Number(glyphSizeInput.value);
+      const normalization = document.getElementById('normalizationSelect').value;
+      const cumulativeOn = false; // primary layer is per-time by default
+
+      gridLayer = new ScreenGridLayerGL({
+        id: 'pta-glyph-layer',
+        data,
+        // data is expected to be features with a coordinate property named `centroid` or `COORDINATES`
+        getPosition: (d) => {
+          if (!d) return null;
+          // If the feature already provides a centroid array
+          if (Array.isArray(d.centroid) && d.centroid.length >= 2) return d.centroid;
+          // If the feature provides a simple COORDINATES array
+          if (Array.isArray(d.COORDINATES) && d.COORDINATES.length >= 2) return d.COORDINATES;
+          // If GeoJSON geometry is a Point / MultiPoint, extract first coordinate pair
+          if (d.geometry && d.geometry.type === 'Point' && Array.isArray(d.geometry.coordinates)) return d.geometry.coordinates;
+          if (d.geometry && d.geometry.type === 'MultiPoint' && Array.isArray(d.geometry.coordinates) && d.geometry.coordinates[0]) return d.geometry.coordinates[0];
+          // If the properties provide centroids as numbers (e.g., `cent_long` / `cent_lat`), use them
+          if (d.properties && typeof d.properties.cent_long === 'number' && typeof d.properties.cent_lat === 'number') return [d.properties.cent_long, d.properties.cent_lat];
+          // Fallback: try top-level cent_long / cent_lat
+          if (typeof d.cent_long === 'number' && typeof d.cent_lat === 'number') return [d.cent_long, d.cent_lat];
+          return null;
+        },
+        getWeight: () => 1,
+        cellSizePixels: cellSize,
+        colorScale: (v) => [255 * v, 200 * (1 - v), 50, 200],
+        enableGlyphs: true,
+        glyphSize: glyphSize,
+        glyph: 'public-transport',
+        glyphConfig: { timeIndex: timeIndex, showSparkline: showSpark, debug: true },
+        normalizationFunction: normalization,
+        normalizationContext: (normalization === 'max-global' && currentGlobalMax) ? { globalMax: currentGlobalMax } : {},
+        showBackground: true,
+        onAggregate: (grid) => {
+          console.log('Aggregated', grid.cols, 'x', grid.rows);
+          // compute global max for max-global normalization
+          try {
+            const values = (grid && grid.grid) ? grid.grid.map(v => (typeof v === 'number' ? v : (v && typeof v === 'object' ? Object.values(v).filter(n => typeof n === 'number').reduce((s, n) => s + n, 0) : 0))) : [];
+            const gm = values.length ? Math.max(...values) : 0;
+            currentGlobalMax = gm || 0;
+            if (gridLayer) gridLayer.setConfig({ normalizationContext: (document.getElementById('normalizationSelect').value === 'max-global') ? { globalMax: currentGlobalMax } : {} });
+            if (cumulativeLayer) cumulativeLayer.setConfig({ normalizationContext: (document.getElementById('normalizationSelect').value === 'max-global') ? { globalMax: currentGlobalMax } : {} });
+          } catch (e) {
+            console.warn('Failed to compute global max', e);
+          }
+        },
+        onHover: ({ cell }) => {
+          // optional: show hover details
+          // console.log('hover', cell);
+        }
+      });
+
+      map.addLayer(gridLayer);
+
+      // prepare cumulative layer but do not add to map by default
+      cumulativeLayer = new ScreenGridLayerGL({
+        id: 'pta-cumulative-layer',
+        data,
+        getPosition: gridLayer.config.getPosition,
+        getWeight: () => 1,
+        cellSizePixels: cellSize,
+        colorScale: (v) => [200 * v, 120 * (1 - v), 255 * (1 - v), 200],
+        enableGlyphs: true,
+        glyphSize: glyphSize,
+        glyph: 'public-transport',
+        glyphConfig: { timeIndex: timeIndex, showSparkline: false, cumulative: true },
+        normalizationFunction: document.getElementById('normalizationSelect').value,
+        normalizationContext: (document.getElementById('normalizationSelect').value === 'max-global' && currentGlobalMax) ? { globalMax: currentGlobalMax } : {},
+        showBackground: false,
+        onAggregate: (grid) => { /* reuse global max update via primary layer */ }
+      });
+    }
+
+    map.on('load', () => {
+      loadData();
+    });
+
+    timeSlider.addEventListener('input', () => {
+      const idx = Number(timeSlider.value);
+      minuteLabel.textContent = MINUTES[idx];
+      if (gridLayer) gridLayer.setConfig({ glyphConfig: { timeIndex: idx, showSparkline: sparkToggle.checked } });
+      if (cumulativeLayer) cumulativeLayer.setConfig({ glyphConfig: { timeIndex: idx, cumulative: true } });
+    });
+
+    sparkToggle.addEventListener('change', () => {
+      const idx = Number(timeSlider.value);
+      if (gridLayer) gridLayer.setConfig({ glyphConfig: { timeIndex: idx, showSparkline: sparkToggle.checked } });
+    });
+
+    glyphSizeInput.addEventListener('input', () => {
+      const v = Number(glyphSizeInput.value);
+      if (gridLayer) gridLayer.setConfig({ glyphSize: v });
+      if (cumulativeLayer) cumulativeLayer.setConfig({ glyphSize: v });
+    });
+
+    // normalization selector
+    const normSelect = document.getElementById('normalizationSelect');
+    normSelect.addEventListener('change', () => {
+      const val = normSelect.value;
+      if (gridLayer) gridLayer.setConfig({ normalizationFunction: val, normalizationContext: (val === 'max-global' && currentGlobalMax) ? { globalMax: currentGlobalMax } : {} });
+      if (cumulativeLayer) cumulativeLayer.setConfig({ normalizationFunction: val, normalizationContext: (val === 'max-global' && currentGlobalMax) ? { globalMax: currentGlobalMax } : {} });
+      // update legend text
+      const legendNorm = document.getElementById('legend-norm');
+      if (legendNorm) {
+        const mapping = { 'max-local': 'Max (local)', 'max-global': 'Max (global)', 'z-score': 'Z-score', 'percentile': 'Percentile' };
+        legendNorm.textContent = mapping[val] || val;
+      }
+    });
+
+    // cumulative toggle
+    const cumToggle = document.getElementById('cumulativeToggle');
+    cumToggle.addEventListener('change', () => {
+      if (cumToggle.checked) {
+        if (cumulativeLayer && !map.getLayer(cumulativeLayer.id)) map.addLayer(cumulativeLayer);
+        // highlight legend
+        const el = document.getElementById('legend-cumulative'); if (el) el.style.outline = '2px solid rgba(255,255,255,0.12)';
+      } else {
+        if (cumulativeLayer && map.getLayer(cumulativeLayer.id)) map.removeLayer(cumulativeLayer.id);
+        const el = document.getElementById('legend-cumulative'); if (el) el.style.outline = 'none';
+      }
+      // trigger repaint
+      if (gridLayer && map) map.triggerRepaint();
+    });
+
+    // Initialize legend text on load
+    const legendNormInit = document.getElementById('legend-norm'); if (legendNormInit) legendNormInit.textContent = document.getElementById('normalizationSelect').selectedOptions[0].textContent;
+  </script>
+</body>
+
+</html>

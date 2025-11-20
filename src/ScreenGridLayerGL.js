@@ -735,6 +735,7 @@ export class ScreenGridLayerGL {
         const glyphCfg = this.config.glyphConfig || {};
         onDrawCell = (ctxArg, x, y, normVal, cellInfo) => {
           try {
+              // Removed temporary debug log
               plugin.draw(ctxArg, x, y, normVal, cellInfo, glyphCfg);
             } catch (e) {
               Logger.error(`Glyph plugin "${this.config.glyph}" threw an error:`, e);

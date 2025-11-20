@@ -242,6 +242,7 @@ export class Renderer {
     ctx.save();
 
     try {
+      
       onDrawCell(ctx, cellCenterX, cellCenterY, normVal, {
         cellData: cellDataArray,
         cellSize,
