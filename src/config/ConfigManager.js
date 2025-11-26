@@ -27,6 +27,7 @@ export class ConfigManager {
     onAggregate: null,
     onHover: null,
     onClick: null,
+    onBrush: null,
     onDrawCell: null,
     enableGlyphs: false,
     glyphSize: 0.8,

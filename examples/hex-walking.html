@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Jakarta Walking Isochrones — Hex Glyph</title>
+    <link href="https://unpkg.com/maplibre-gl@^4/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/maplibre-gl@^4/dist/maplibre-gl.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        #map {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .control-panel {
+            position: absolute;
+            left: 10px;
+            top: 10px;
+            width: 300px;
+            z-index: 1000;
+            background: rgba(30, 30, 30, 0.9);
+            color: #eee;
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .control-panel h3 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            color: #fff;
+        }
+
+        .control-panel p {
+            margin: 8px 0;
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .legend-panel {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            width: 200px;
+            z-index: 1000;
+            background: rgba(30, 30, 30, 0.9);
+            color: #eee;
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .legend-item {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 6px;
+            font-size: 12px;
+        }
+
+        .legend-swatch {
+            width: 20px;
+            height: 10px;
+            border-radius: 2px;
+        }
+
+        .layer-toggle {
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .layer-toggle input {
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <div class="control-panel">
+        <h3>Jakarta Accessibility Map</h3>
+        <p>Visualising walking access using bar glyphs. Bars represent accessibility (taller = closer). Hover over a
+            cell to compare its values (dashed outline) with others.</p>
+
+        <div style="margin-bottom: 8px; font-weight: bold; font-size: 12px;">Layers</div>
+        <div id="layerControls"></div>
+
+        <div id="info" style="margin-top: 10px; font-size: 12px;"></div>
+    </div>
+
+    <div class="legend-panel">
+        <div style="margin-bottom:8px; font-weight: bold; font-size: 12px;">Legend</div>
+        <div id="legend"></div>
+    </div>
+
+    <script type="module">
+        import { ScreenGridLayerGL } from '../src/index.js';
+
+        // Detect WebGL availability and fail gracefully if not present
+        function isWebGLAvailable() {
+            try {
+                const canvas = document.createElement('canvas');
+                return !!(canvas.getContext('webgl2') || canvas.getContext('webgl') || canvas.getContext('experimental-webgl'));
+            } catch (e) {
+                return false;
+            }
+        }
+
+        const infoEl = document.getElementById('info');
+        const legendEl = document.getElementById('legend');
+        const layerControlsEl = document.getElementById('layerControls');
+
+        // State
+        const state = {
+            showNetwork: true,
+            showBackground: false,
+            showGlyphs: true,
+            showComparison: false
+        };
+
+        let map;
+        let backgroundLayer;
+        let glyphLayer;
+
+        if (!isWebGLAvailable()) {
+            infoEl.innerHTML = `<div style="color:#ff5555"><strong>WebGL not available</strong></div>`;
+        } else {
+            map = new maplibregl.Map({
+                container: 'map',
+                style: {
+                    version: 8,
+                    sources: {
+                        'dark': {
+                            type: 'raster',
+                            tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
+                            tileSize: 256,
+                            attribution: '© OpenStreetMap contributors © CARTO'
+                        }
+                    },
+                    layers: [
+                        { id: 'dark', type: 'raster', source: 'dark', paint: { 'raster-opacity': 1.0 } }
+                    ]
+                },
+                center: [106.829, -6.173],
+                zoom: 12
+            });
+
+            // Read CSV and parse into GeoJSON-like data array
+            async function loadCsvData(url) {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('Failed to fetch CSV');
+                const text = await res.text();
+                const lines = text.split(/\r?\n/).filter(Boolean);
+                const header = lines[0].split(',').map(h => h.trim());
+
+                // Indexes for lon/lat and minute columns
+                const lonIdx = header.indexOf('x');
+                const latIdx = header.indexOf('y');
+                // minute columns likely named '1'..'10' — map them to m1..m10
+                const minuteIdxs = header.map((h, i) => ({ name: h, idx: i })).filter(d => /^\d+$/.test(d.name));
+
+                const features = [];
+                const globalMaxPerMinute = new Array(10).fill(0);
+                for (let i = 1; i < lines.length; i++) {
+                    const parts = lines[i].split(',').map(p => p.trim());
+                    if (!parts[lonIdx] || !parts[latIdx]) continue;
+                    const f = { geometry: { type: 'Point', coordinates: [parseFloat(parts[lonIdx]), parseFloat(parts[latIdx])] }, properties: {} };
+                    const values = [];
+                    // minuteIdxs has indices where header is digits (strings) — order may already be 1..10
+                    minuteIdxs.forEach((m, idx) => {
+                        const num = parseFloat(parts[m.idx]) || 0;
+                        values.push(num);
+                        if (num > globalMaxPerMinute[idx]) globalMaxPerMinute[idx] = num;
+                        f.properties[`m${idx + 1}`] = num;
+                    });
+                    f.properties.total = values.reduce((s, v) => s + v, 0);
+                    features.push(f);
+                }
+
+                return { features, globalMaxPerMinute };
+            }
+
+            function colorForK(k) {
+                if (k === 1) return 'hsl(120, 70%, 40%)'; // green
+                if (k === 5) return 'hsl(40, 90%, 50%)'; // orange
+                if (k === 10) return 'hsl(0, 80%, 55%)'; // red
+                return '#888';
+            }
+
+            function createLegend() {
+                legendEl.innerHTML = '';
+                const keys = [1, 5, 10];
+                keys.forEach(k => {
+                    const sw = document.createElement('div');
+                    sw.className = 'legend-item';
+                    const color = document.createElement('div');
+                    color.className = 'legend-swatch';
+                    color.style.background = colorForK(k);
+                    const label = document.createElement('div');
+                    label.textContent = `${k === 1 ? '1st' : k === 5 ? '5th' : '10th'} nearest`;
+                    sw.appendChild(color);
+                    sw.appendChild(label);
+                    legendEl.appendChild(sw);
+                });
+            }
+
+            function createLayerControls() {
+                layerControlsEl.innerHTML = '';
+
+                const toggles = [
+                    {
+                        id: 'showNetwork', label: 'Road Network', onChange: (v) => {
+                            state.showNetwork = v;
+                            if (map.getLayer('jakarta-network')) {
+                                map.setLayoutProperty('jakarta-network', 'visibility', v ? 'visible' : 'none');
+                            }
+                        }
+                    },
+                    {
+                        id: 'showBackground', label: 'Background Heatmap', onChange: (v) => {
+                            state.showBackground = v;
+                            if (backgroundLayer) {
+                                if (v) {
+                                    if (!map.getLayer(backgroundLayer.id)) {
+                                        // Add before glyphs if glyphs exist
+                                        const beforeId = (glyphLayer && map.getLayer(glyphLayer.id)) ? glyphLayer.id : undefined;
+                                        map.addLayer(backgroundLayer, beforeId);
+                                    }
+                                } else {
+                                    if (map.getLayer(backgroundLayer.id)) map.removeLayer(backgroundLayer.id);
+                                }
+                            }
+                        }
+                    },
+                    {
+                        id: 'showGlyphs', label: 'Bar Glyphs', onChange: (v) => {
+                            state.showGlyphs = v;
+                            if (glyphLayer) {
+                                if (v) {
+                                    if (!map.getLayer(glyphLayer.id)) map.addLayer(glyphLayer);
+                                } else {
+                                    if (map.getLayer(glyphLayer.id)) map.removeLayer(glyphLayer.id);
+                                }
+                            }
+                        }
+                    },
+                    {
+                        id: 'showComparison', label: 'Show Comparison', onChange: (v) => {
+                            state.showComparison = v;
+                            if (glyphLayer) glyphLayer.render();
+                        }
+                    }
+                ];
+
+                toggles.forEach(t => {
+                    const div = document.createElement('div');
+                    div.className = 'layer-toggle';
+                    const input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.checked = state[t.id];
+                    input.addEventListener('change', (e) => t.onChange(e.target.checked));
+                    const label = document.createElement('label');
+                    label.textContent = t.label;
+                    div.appendChild(input);
+                    div.appendChild(label);
+                    layerControlsEl.appendChild(div);
+                });
+            }
+
+            function drawIsochroneGlyph(ctx, x, y, normVal, cellInfo) {
+                const { cellData, glyphRadius } = cellInfo;
+                if (!cellData || cellData.length === 0) return;
+
+                const counts = new Array(10).fill(0);
+                const sums = new Array(10).fill(0);
+                for (const item of cellData) {
+                    const d = item.data || item;
+                    for (let i = 0; i < 10; i++) {
+                        const val = d.properties ? (d.properties[`m${i + 1}`] || 0) : (d[`m${i + 1}`] || 0);
+                        sums[i] += val;
+                        counts[i]++;
+                    }
+                }
+                const avgs = sums.map((s, i) => (counts[i] ? s / counts[i] : 0));
+                const globalMaxPerMinute = drawIsochroneGlyph.globalMaxPerMinute || new Array(10).fill(1);
+
+                const indices = [0, 4, 9];
+                const barWidth = glyphRadius * 0.25;
+                const maxBarHeight = glyphRadius * 1.5;
+                const barSpacing = glyphRadius * 0.1;
+                const startX = x - (barWidth * 3 + barSpacing * 2) / 2;
+
+                for (let j = 0; j < indices.length; j++) {
+                    const idx = indices[j];
+                    const val = avgs[idx];
+                    const globalMax = globalMaxPerMinute[idx] || 1;
+
+                    // Invert logic: Short time (val small) -> High accessibility (tall bar)
+                    // val / globalMax is 0..1 (0 is good, 1 is bad)
+                    // We want 1..0 (1 is good, 0 is bad)
+                    const normalizedTime = Math.max(0, Math.min(1, val / globalMax));
+                    const accessibilityScore = 1 - normalizedTime;
+
+                    const barHeight = accessibilityScore * maxBarHeight;
+                    const barX = startX + j * (barWidth + barSpacing);
+                    const barY = y - barHeight / 2;
+
+                    ctx.save();
+                    ctx.globalAlpha = 0.9;
+                    ctx.fillStyle = colorForK(indices[j] === 0 ? 1 : indices[j] === 4 ? 5 : 10);
+                    ctx.fillRect(barX, barY, barWidth, barHeight);
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(barX, barY, barWidth, barHeight);
+                    ctx.restore();
+                }
+
+                // Comparison: Draw outline of hovered values
+                if (state.hoveredValues && state.showComparison) {
+                    ctx.save();
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 0.5;
+                    // ctx.setLineDash([3, 2]);
+
+                    for (let j = 0; j < indices.length; j++) {
+                        const idx = indices[j];
+                        const val = state.hoveredValues[j];
+                        const globalMax = globalMaxPerMinute[idx] || 1;
+
+                        const normalizedTime = Math.max(0, Math.min(1, val / globalMax));
+                        const accessibilityScore = 1 - normalizedTime;
+
+                        const barHeight = accessibilityScore * maxBarHeight;
+                        const barX = startX + j * (barWidth + barSpacing);
+                        const barY = y - barHeight / 2;
+
+                        ctx.strokeRect(barX, barY, barWidth, barHeight);
+                    }
+                    ctx.restore();
+                }
+            }
+
+            map.on('load', async () => {
+                try {
+                    infoEl.textContent = 'Loading data...';
+
+                    // Load Network
+                    try {
+                        const networkRes = await fetch('data/jakarta_network.geojson');
+                        if (networkRes.ok) {
+                            const networkData = await networkRes.json();
+                            map.addSource('jakarta-network', {
+                                type: 'geojson',
+                                data: networkData
+                            });
+                            map.addLayer({
+                                id: 'jakarta-network',
+                                type: 'line',
+                                source: 'jakarta-network',
+                                layout: {
+                                    'line-join': 'round',
+                                    'line-cap': 'round',
+                                    'visibility': state.showNetwork ? 'visible' : 'none'
+                                },
+                                paint: {
+                                    'line-color': '#555',
+                                    'line-width': 1,
+                                    'line-opacity': 0.6
+                                }
+                            });
+                        } else {
+                            console.warn('Network data not found');
+                        }
+                    } catch (e) {
+                        console.warn('Error loading network data', e);
+                    }
+
+                    // Load CSV
+                    const { features, globalMaxPerMinute } = await loadCsvData('data/jakarta_walk_access.csv');
+                    drawIsochroneGlyph.globalMaxPerMinute = globalMaxPerMinute.map(v => Math.max(v, 1));
+
+                    const onHoverHandler = ({ cell }) => {
+                        if (!cell) {
+                            infoEl.innerHTML = '';
+                            if (state.hoveredValues) {
+                                state.hoveredValues = null;
+                                if (glyphLayer && state.showComparison) glyphLayer.render();
+                            }
+                            return;
+                        }
+                        const counts = [0, 0, 0];
+                        const sums = [0, 0, 0];
+                        const idxs = [0, 4, 9];
+                        for (const it of cell.cellData || []) {
+                            const d = it.data || it;
+                            for (let j = 0; j < idxs.length; j++) {
+                                const idx = idxs[j];
+                                const val = (d.properties ? (d.properties[`m${idx + 1}`] || 0) : (d[`m${idx + 1}`] || 0));
+                                sums[j] += val;
+                                counts[j]++;
+                            }
+                        }
+                        const avgs = sums.map((s, i) => (counts[i] ? s / counts[i] : 0));
+
+                        state.hoveredValues = avgs;
+                        if (glyphLayer && state.showComparison) glyphLayer.render();
+
+                        infoEl.innerHTML = `<div>Avg time to 1st / 5th / 10th amenities: ${avgs.map(v => Math.round(v / 60)).join(' / ')} min </div>`;
+                    };
+
+                    // Background Layer (Heatmap)
+                    backgroundLayer = new ScreenGridLayerGL({
+                        id: 'jakarta-walking-bg',
+                        data: features,
+                        getPosition: (d) => d.geometry.coordinates,
+                        // Invert weight for heatmap: High accessibility (low time) -> High weight
+                        getWeight: (d) => {
+                            // Default to 1st nearest (m1)
+                            const k = 1;
+                            const val = d.properties ? (d.properties[`m${k}`] || 0) : 0;
+                            const max = globalMaxPerMinute[k - 1] || 1;
+                            // Return inverted normalized value (0..1)
+                            return Math.max(0, 1 - (val / max));
+                        },
+                        cellSizePixels: 60,
+                        // Color scale: 0 (bad) -> 1 (good)
+                        // 0 (bad/far): Dark/Transparent
+                        // 1 (good/close): Bright/Opaque
+                        colorScale: (v) => [
+                            255 * v,      // R: increases with accessibility
+                            150 * v,      // G: increases with accessibility
+                            255 * (1 - v),  // B: decreases (blue -> yellow/red)
+                            180 * v       // Alpha: increases with accessibility (more visible when good)
+                        ],
+                        aggregationMode: 'screen-hex',
+                        aggregationModeConfig: { hexSize: 60 },
+                        showBackground: false,
+                        enableGlyphs: false,
+                        onHover: onHoverHandler
+                    });
+
+                    // Glyph Layer (Bars)
+                    glyphLayer = new ScreenGridLayerGL({
+                        id: 'jakarta-walking-glyphs',
+                        data: features,
+                        getPosition: (d) => d.geometry.coordinates,
+                        getWeight: (d) => 1, // Non-zero weight to ensure cells are processed
+                        cellSizePixels: 60,
+                        aggregationMode: 'screen-hex',
+                        aggregationModeConfig: {
+                            hexSize: 60,
+                            showBackground: false
+                        },
+                        showBackground: false,
+                        enableGlyphs: true,
+                        glyphSize: 0.85,
+                        onDrawCell: drawIsochroneGlyph,
+                        onHover: onHoverHandler
+                    });
+
+                    if (state.showBackground) map.addLayer(backgroundLayer);
+                    if (state.showGlyphs) map.addLayer(glyphLayer);
+
+                    createLegend();
+                    createLayerControls();
+
+                    infoEl.textContent = '';
+
+                } catch (e) {
+                    infoEl.textContent = `Error: ${e.message}`;
+                    console.error(e);
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>

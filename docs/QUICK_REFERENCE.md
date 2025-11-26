@@ -62,12 +62,15 @@ aggregator.getStats(result)
 
 ### CellQueryEngine
 **What:** Spatial queries on grid  
-**When:** Find cells at point, in bounds, or above threshold  
+**When:** Find cells at point, in bounds, above threshold, by attributes, or time range  
 **API:**
 ```javascript
 CellQueryEngine.getCellAt(result, point)
 CellQueryEngine.getCellsInBounds(result, bounds)
 CellQueryEngine.getCellsAboveThreshold(result, threshold)
+CellQueryEngine.getCellsByAttribute(result, filterFn)
+CellQueryEngine.getCellsByTimeRange(result, timeExtractor, minTime, maxTime)
+CellQueryEngine.getCellsByMultipleFilters(result, filters)
 ```
 
 ### CanvasManager
@@ -110,8 +113,9 @@ eventBinder.unbindEvent(name)
 ```javascript
 EventHandlers.handleHover(event, engine, callback)
 EventHandlers.handleClick(event, engine, callback)
-EventHandlers.handleZoom(map, config, callback)
-EventHandlers.handleMove(callback)
+EventHandlers.handleZoom(map, config, callback, previousState)
+EventHandlers.handleMove(map, callback, previousState)
+EventHandlers.handleBrush(queryTarget, bounds, callback, event)
 ```
 
 ### GlyphUtilities

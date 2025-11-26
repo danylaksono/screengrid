@@ -51,6 +51,8 @@ export class ScreenGridLayerGL {
     this._placementCacheKey = null; // Cache key for view-dependent placement
     this._lastViewState = null; // Track view state for cache invalidation
     this._anchorsMaxWeight = 1; // Cached max weight for normalization
+    // Previous map state for enhanced callbacks
+    this._previousMapState = null; // { zoom, center, bounds }
   }
 
   // ============ MapLibre GL Interface ============
@@ -96,6 +98,9 @@ export class ScreenGridLayerGL {
 
       // Project initial data
       this._projectPoints();
+      
+      // Initialize map state tracking for enhanced callbacks
+      this._updateMapState();
 
       Logger.log('ScreenGridLayerGL added to map');
     } catch (error) {
@@ -799,6 +804,16 @@ export class ScreenGridLayerGL {
   }
 
   /**
+   * Handle brush selection
+   * Called by user's brush UI implementation
+   * @param {Object} bounds - Selection bounds: {minX, minY, maxX, maxY}
+   * @param {Object} event - Optional MapLibre event
+   */
+  handleBrush(bounds, event = null) {
+    EventHandlers.handleBrush(this, bounds, this.config.onBrush, event);
+  }
+
+  /**
    * Handle zoom event
    * @private
    */
@@ -813,6 +828,8 @@ export class ScreenGridLayerGL {
         if (this.map) {
           this.map.triggerRepaint();
         }
+        // Update state tracking for callbacks
+        this._updateMapState();
         return;
       }
     }
@@ -822,12 +839,28 @@ export class ScreenGridLayerGL {
       AggregationModeRegistry.get(this.config.aggregationMode || 'screen-grid');
     
     if (modePlugin && !modePlugin.needsUpdateOnZoom()) {
+      // Still update state tracking even if mode doesn't need update
+      this._updateMapState();
       return; // Mode doesn't need update on zoom
     }
 
-    EventHandlers.handleZoom(this.map, this.config, () => {
+    // Store previous state before handling zoom
+    const previousState = this._previousMapState;
+    
+    // Create callback that handles both user callback and projection
+    const zoomCallback = (callbackData) => {
+      // Call user's onZoom callback if provided (with enhanced data)
+      if (this.config.onZoom) {
+        this.config.onZoom(callbackData);
+      }
+      // Continue with projection
       this._projectPoints();
-    });
+    };
+    
+    EventHandlers.handleZoom(this.map, this.config, zoomCallback, previousState);
+    
+    // Update state tracking after handling
+    this._updateMapState();
   }
 
   /**
@@ -845,6 +878,8 @@ export class ScreenGridLayerGL {
         if (this.map) {
           this.map.triggerRepaint();
         }
+        // Update state tracking for callbacks
+        this._updateMapState();
         return;
       }
     }
@@ -854,12 +889,53 @@ export class ScreenGridLayerGL {
       AggregationModeRegistry.get(this.config.aggregationMode || 'screen-grid');
     
     if (modePlugin && !modePlugin.needsUpdateOnMove()) {
+      // Still update state tracking even if mode doesn't need update
+      this._updateMapState();
       return; // Mode doesn't need update on move
     }
 
-    EventHandlers.handleMove(() => {
+    // Store previous state before handling move
+    const previousState = this._previousMapState ? {
+      center: this._previousMapState.center,
+      bounds: this._previousMapState.bounds
+    } : null;
+
+    // Create callback that handles both user callback and projection
+    const moveCallback = (callbackData) => {
+      // Call user's onMove callback if provided (with enhanced data)
+      if (this.config.onMove) {
+        this.config.onMove(callbackData);
+      }
+      // Continue with projection
       this._projectPoints();
-    });
+    };
+
+    EventHandlers.handleMove(this.map, moveCallback, previousState);
+    
+    // Update state tracking after handling
+    this._updateMapState();
+  }
+
+  /**
+   * Update map state tracking for enhanced callbacks
+   * @private
+   */
+  _updateMapState() {
+    if (!this.map) return;
+    
+    const center = this.map.getCenter();
+    const bounds = this.map.getBounds();
+    
+    this._previousMapState = {
+      zoom: this.map.getZoom(),
+      center: { lng: center.lng, lat: center.lat },
+      bounds: {
+        north: bounds.getNorth(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        west: bounds.getWest()
+      }
+    };
   }
 
   /**

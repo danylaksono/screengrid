@@ -13,7 +13,7 @@ This library is inspired by Aidan Slingsby's [Gridded Glyphmaps](https://openacc
 - **Real-time Aggregation**: Efficiently aggregates point data into screen-space grids
 - **Multiple Aggregation Modes**: Support for rectangular grids (`screen-grid`) and hexagonal tessellation (`screen-hex`)
 - **Customizable Styling**: Flexible color scales and cell sizing
-- **Interactive Events**: Hover and click handlers for grid cells
+- **Interactive Events**: Hover, click, brush selection, and enhanced pan/zoom callbacks for grid cells
 - **Glyph Drawing**: Custom glyph rendering with Canvas 2D for advanced visualizations
 - **Plugin Ecosystem**: Reusable, named glyph plugins with registry system, lifecycle hooks, and legend integration
 - **Built-in Plugins**: Four ready-to-use plugins (`circle`, `bar`, `pie`, `heatmap`) plus utilities for custom plugins
@@ -175,6 +175,17 @@ const maplibregl = require('maplibre-gl');
   
   // Optional: hover/click handlers
   // layer.setConfig({ onHover: ({cell}) => console.log(cell) });
+  
+  // Enhanced pan/zoom callbacks
+  layer.setConfig({
+    onZoom: (zoomData) => {
+      console.log(`Zoom: ${zoomData.previousZoom} → ${zoomData.zoom}`);
+      console.log(`Center:`, zoomData.center);
+    },
+    onMove: (moveData) => {
+      console.log(`Map moved to:`, moveData.center);
+    }
+  });
 </script>
 ```
 
@@ -342,6 +353,101 @@ See [`examples/plugin-glyph.html`](./examples/plugin-glyph.html) for a complete 
 
 📖 **For detailed plugin API documentation**: See [docs/PLUGIN_GLYPH_ECOSYSTEM.md](./docs/PLUGIN_GLYPH_ECOSYSTEM.md)
 
+## 🖱️ Interactive Events
+
+ScreenGrid provides comprehensive event handling for interactive visualizations:
+
+### Basic Events
+
+**Hover and Click:**
+```javascript
+const layer = new ScreenGridLayerGL({
+  data: myData,
+  onHover: ({ cell, event }) => {
+    if (cell) {
+      console.log(`Hovering over cell [${cell.col}, ${cell.row}]`);
+      console.log(`Value: ${cell.value}`);
+    }
+  },
+  onClick: ({ cell, event }) => {
+    if (cell) {
+      console.log(`Clicked cell with ${cell.cellData.length} data points`);
+    }
+  }
+});
+```
+
+### Enhanced Pan/Zoom Callbacks
+
+**Zoom and Move Events:**
+```javascript
+const layer = new ScreenGridLayerGL({
+  data: myData,
+  onZoom: (zoomData) => {
+    // Enhanced callback with map state
+    console.log(`Zoom: ${zoomData.previousZoom} → ${zoomData.zoom}`);
+    console.log(`Center:`, zoomData.center);
+    console.log(`Bounds:`, zoomData.bounds);
+  },
+  onMove: (moveData) => {
+    // Enhanced callback with map state
+    console.log(`Moved to:`, moveData.center);
+    console.log(`Previous center:`, moveData.previousCenter);
+  }
+});
+```
+
+### Brush Selection
+
+**Rectangular Selection:**
+```javascript
+const layer = new ScreenGridLayerGL({
+  data: myData,
+  onBrush: ({ cells, bounds, event }) => {
+    console.log(`Selected ${cells.length} cells`);
+    console.log(`Selection bounds:`, bounds);
+    // Process selected cells...
+  }
+});
+
+// Implement brush UI (user's responsibility)
+let brushStart = null;
+let brushEnd = null;
+
+map.on('mousedown', (e) => {
+  if (e.originalEvent.shiftKey) { // Hold Shift to enable brush
+    brushStart = { x: e.point.x, y: e.point.y };
+  }
+});
+
+map.on('mousemove', (e) => {
+  if (brushStart) {
+    brushEnd = { x: e.point.x, y: e.point.y };
+    // Draw selection rectangle (user's responsibility)
+    drawBrushRect(brushStart, brushEnd);
+  }
+});
+
+map.on('mouseup', (e) => {
+  if (brushStart && brushEnd) {
+    const bounds = {
+      minX: Math.min(brushStart.x, brushEnd.x),
+      minY: Math.min(brushStart.y, brushEnd.y),
+      maxX: Math.max(brushStart.x, brushEnd.x),
+      maxY: Math.max(brushStart.y, brushEnd.y)
+    };
+    // Trigger brush callback
+    layer.handleBrush(bounds, e);
+    brushStart = null;
+    brushEnd = null;
+  }
+});
+```
+
+**Note:** Brush selection UI (drawing the rectangle, handling mouse events) must be implemented by the user. The library provides the callback mechanism and cell query functionality.
+
+📖 **For complete event API documentation**: See [docs/API_REFERENCE.md](./docs/API_REFERENCE.md#event-callbacks)
+
 ## 📚 Examples
 
 ### Running the Examples
@@ -367,6 +473,7 @@ npx http-server -p 8000
 10. **Hex Mode Simple** (`examples/hex-mode-simple.html`) - Simple hexagonal aggregation example
 11. **US States** (`examples/us-states.html`) - Geometry input example with polygon features
 12. **Creative Coding** (`examples/creative-coding.html`) - Artistic visualizations: mosaic tiles, tessellations, particles, and abstract patterns demonstrating the library's creative coding capabilities
+
 
 ### Example Features
 
@@ -395,6 +502,9 @@ npx http-server -p 8000
 | `onAggregate` | Function | `null` | Callback when grid is aggregated |
 | `onHover` | Function | `null` | Callback when hovering over cells |
 | `onClick` | Function | `null` | Callback when clicking cells |
+| `onBrush` | Function | `null` | Callback when brush selection completes (rectangular selection) |
+| `onZoom` | Function | `null` | Callback when map zoom changes (enhanced with map state) |
+| `onMove` | Function | `null` | Callback when map pan/move changes (enhanced with map state) |
 | `onDrawCell` | Function | `null` | Callback for custom glyph drawing (highest precedence) |
 | `enableGlyphs` | boolean | `false` | Enable glyph-based rendering (when `true` and a glyph is active, cell backgrounds are **off by default** unless `aggregationModeConfig.showBackground === true`) |
 | `glyph` | string | `null` | Registered plugin name to use (e.g., `'circle'`, `'bar'`, `'pie'`, `'heatmap'`) |
@@ -900,7 +1010,14 @@ MIT License - see LICENSE file for details.
 
 ## 📝 Changelog
 
-### v2.2.0 (Current)
+### v2.3.0 (Current)
+- **NEW**: Brush selection callback (`onBrush`) for rectangular cell selection
+- **NEW**: Enhanced pan/zoom callbacks (`onZoom`, `onMove`) with detailed map state information
+- **NEW**: Advanced filtering query methods (`getCellsByAttribute`, `getCellsByTimeRange`, `getCellsByMultipleFilters`) in `CellQueryEngine`
+- **IMPROVED**: Event system with enhanced callbacks providing previous and current map state
+- **IMPROVED**: Better integration between brush selection and cell querying
+
+### v2.2.0
 - **NEW**: Hexagonal aggregation mode (`screen-hex`) for organic, visually appealing grid patterns
 - **NEW**: Aggregation mode registry system (`AggregationModeRegistry`) for extensible aggregation strategies
 - **NEW**: Mode-specific configuration via `aggregationModeConfig` option
@@ -928,6 +1045,7 @@ MIT License - see LICENSE file for details.
 - **NEW**: Configuration management system (ConfigManager)
 - **NEW**: Glyph drawing system with `onDrawCell` callback
 - **NEW**: 7 built-in glyph utilities (circle, bar, pie, scatter, donut, heatmap, radial bar)
+ - **NEW**: 8 built-in glyph utilities (circle, bar, pie, scatter, donut, heatmap, radial bar, time series)
 - **NEW**: Enhanced aggregation storing raw data points per cell
 - **NEW**: Zoom-based cell size adjustment
 - **NEW**: Adaptive cell sizing options

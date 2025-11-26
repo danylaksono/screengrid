@@ -1088,6 +1088,7 @@ See the following example files for complete implementations:
 - **`examples/multivariate-timeseries.html`**: Complex multivariate time series with split-screen layout
 - **`examples/legend-example.html`**: Glyphs combined with legend system
 - **`examples/data-utilities.html`**: Demonstrates data utility functions (`groupBy`, `extractAttributes`, `computeStats`, `groupByTime`)
+ - **`examples/ptas.html`**: Public transport accessibility (PTAS) time-series and glyph examples
 
 ---
 

@@ -209,6 +209,56 @@ cells.forEach(cell => {
 
 ---
 
+#### `handleBrush(bounds, event)`
+
+Trigger brush selection callback. Call this method from your brush UI implementation when a selection is complete.
+
+**Parameters:**
+- `bounds` (Object) - Selection bounds: `{minX: number, minY: number, maxX: number, maxY: number}` (screen pixels)
+- `event` (Object, optional) - MapLibre event (optional)
+
+**Returns:** `void`
+
+**Note:** This method triggers the `onBrush` callback configured in the layer options. The brush selection UI (drawing the rectangle, handling mouse events) must be implemented by the user.
+
+**Example:**
+```javascript
+// In your brush UI implementation:
+let brushStart = null;
+let brushEnd = null;
+
+map.on('mousedown', (e) => {
+  if (e.originalEvent.shiftKey) { // Hold Shift to enable brush
+    brushStart = { x: e.point.x, y: e.point.y };
+  }
+});
+
+map.on('mousemove', (e) => {
+  if (brushStart) {
+    brushEnd = { x: e.point.x, y: e.point.y };
+    // Draw selection rectangle (user's responsibility)
+    drawBrushRect(brushStart, brushEnd);
+  }
+});
+
+map.on('mouseup', (e) => {
+  if (brushStart && brushEnd) {
+    const bounds = {
+      minX: Math.min(brushStart.x, brushEnd.x),
+      minY: Math.min(brushStart.y, brushEnd.y),
+      maxX: Math.max(brushStart.x, brushEnd.x),
+      maxY: Math.max(brushStart.y, brushEnd.y)
+    };
+    // Trigger brush callback
+    layer.handleBrush(bounds, e);
+    brushStart = null;
+    brushEnd = null;
+  }
+});
+```
+
+---
+
 #### `getGridStats()`
 
 Get statistics about the current grid aggregation.
@@ -461,6 +511,155 @@ onHover: ({ cell, event }) => {
 **Example:**
 ```javascript
 onClick: ({ cell, event }) => {
+  if (cell) {
+    console.log(`Clicked cell [${cell.col}, ${cell.row}]`);
+    console.log(`Value: ${cell.value}`);
+  }
+}
+```
+
+---
+
+#### `onBrush`
+- **Type:** `Function|null`
+- **Default:** `null`
+- **Description:** Callback when brush selection completes (rectangular selection)
+- **Parameters:** `({cells, bounds, event}) => void`
+  - `cells`: Array of cell information objects within the selection
+  - `bounds`: Selection bounds: `{minX: number, minY: number, maxX: number, maxY: number}`
+  - `event`: Optional MapLibre event
+
+**Note:** Brush selection UI must be implemented by the user. The library only provides the callback mechanism. Call `layer.handleBrush(bounds, event)` from your brush UI implementation.
+
+**Example:**
+```javascript
+// In your brush UI implementation:
+let brushStart = null;
+let brushEnd = null;
+
+map.on('mousedown', (e) => {
+  if (e.originalEvent.shiftKey) { // Hold Shift to enable brush
+    brushStart = { x: e.point.x, y: e.point.y };
+  }
+});
+
+map.on('mousemove', (e) => {
+  if (brushStart) {
+    brushEnd = { x: e.point.x, y: e.point.y };
+    // Draw selection rectangle (user's responsibility)
+    drawBrushRect(brushStart, brushEnd);
+  }
+});
+
+map.on('mouseup', (e) => {
+  if (brushStart && brushEnd) {
+    const bounds = {
+      minX: Math.min(brushStart.x, brushEnd.x),
+      minY: Math.min(brushStart.y, brushEnd.y),
+      maxX: Math.max(brushStart.x, brushEnd.x),
+      maxY: Math.max(brushStart.y, brushEnd.y)
+    };
+    // Trigger brush callback
+    layer.handleBrush(bounds, e);
+    brushStart = null;
+    brushEnd = null;
+  }
+});
+
+// Configure the callback
+const layer = new ScreenGridLayerGL({
+  data: myData,
+  onBrush: ({ cells, bounds, event }) => {
+    console.log(`Selected ${cells.length} cells`);
+    console.log(`Bounds:`, bounds);
+    // Process selected cells...
+  }
+});
+```
+
+---
+
+#### `onZoom`
+- **Type:** `Function|null`
+- **Default:** `null`
+- **Description:** Callback when map zoom changes
+- **Parameters:** `(zoomData) => void` (enhanced callback with map state)
+
+**Callback Data Object:**
+```javascript
+{
+  zoom: number,              // Current zoom level
+  center: {lng: number, lat: number}, // Current map center
+  bounds: {                  // Current map bounds
+    north: number,
+    south: number,
+    east: number,
+    west: number
+  },
+  previousZoom: number,       // Previous zoom level (if available)
+  previousCenter: {lng: number, lat: number}, // Previous center (if available)
+  previousBounds: {           // Previous bounds (if available)
+    north: number,
+    south: number,
+    east: number,
+    west: number
+  }
+}
+```
+
+**Example:**
+```javascript
+onZoom: (zoomData) => {
+  console.log(`Zoom changed from ${zoomData.previousZoom} to ${zoomData.zoom}`);
+  console.log(`Center:`, zoomData.center);
+  // Handle zoom change...
+}
+```
+
+**Note:** The callback is backward compatible. Old callbacks that don't expect parameters will still work (they'll receive the enhanced data but can ignore it).
+
+---
+
+#### `onMove`
+- **Type:** `Function|null`
+- **Default:** `null`
+- **Description:** Callback when map pan/move changes
+- **Parameters:** `(moveData) => void` (enhanced callback with map state)
+
+**Callback Data Object:**
+```javascript
+{
+  center: {lng: number, lat: number}, // Current map center
+  bounds: {                  // Current map bounds
+    north: number,
+    south: number,
+    east: number,
+    west: number
+  },
+  previousCenter: {lng: number, lat: number}, // Previous center (if available)
+  previousBounds: {           // Previous bounds (if available)
+    north: number,
+    south: number,
+    east: number,
+    west: number
+  }
+}
+```
+
+**Example:**
+```javascript
+onMove: (moveData) => {
+  console.log(`Map moved to:`, moveData.center);
+  console.log(`Previous center:`, moveData.previousCenter);
+  // Handle map movement...
+}
+```
+
+**Note:** The callback is backward compatible. Old callbacks that don't expect parameters will still work (they'll receive the enhanced data but can ignore it).
+
+---
+
+#### `onDrawCell`
   if (cell) {
     showDetailsModal(cell.cellData);
   }
@@ -1025,6 +1224,108 @@ Get all cells with values above a threshold.
 
 ---
 
+#### `getCellsByAttribute(aggregationResult, filterFn)`
+
+Get all cells that contain data points matching an attribute filter.
+
+**Parameters:**
+- `aggregationResult` (Object) - Aggregation result
+- `filterFn` (Function) - Filter function: `(dataPoint) => boolean`
+  - Receives the original data point object from `cellData[].data`
+
+**Returns:** `Array<Object>` - Array of cell information objects
+
+**Example:**
+```javascript
+// Filter cells containing restaurants with rating > 4
+const cells = CellQueryEngine.getCellsByAttribute(
+  aggregationResult,
+  (data) => data.rating > 4
+);
+
+// Filter cells containing points in a specific category
+const cells = CellQueryEngine.getCellsByAttribute(
+  aggregationResult,
+  (data) => data.category === 'restaurant'
+);
+```
+
+---
+
+#### `getCellsByTimeRange(aggregationResult, timeExtractor, minTime, maxTime)`
+
+Get all cells that contain data points within a time range.
+
+**Parameters:**
+- `aggregationResult` (Object) - Aggregation result
+- `timeExtractor` (Function|string) - Function to extract time from data point, or property name
+  - If function: `(dataPoint) => number|Date`
+  - If string: property name to access (e.g., `'year'`, `'timestamp'`)
+- `minTime` (number|Date) - Minimum time (inclusive)
+- `maxTime` (number|Date) - Maximum time (inclusive)
+
+**Returns:** `Array<Object>` - Array of cell information objects
+
+**Example:**
+```javascript
+// Filter cells with data from 2020-2022
+const cells = CellQueryEngine.getCellsByTimeRange(
+  aggregationResult,
+  (data) => data.year,
+  2020,
+  2022
+);
+
+// Using property name
+const cells = CellQueryEngine.getCellsByTimeRange(
+  aggregationResult,
+  'timestamp',
+  new Date('2020-01-01'),
+  new Date('2022-12-31')
+);
+```
+
+---
+
+#### `getCellsByMultipleFilters(aggregationResult, filters)`
+
+Get all cells that match multiple filter criteria. Combines multiple filter types (attribute, time, spatial, value threshold).
+
+**Parameters:**
+- `aggregationResult` (Object) - Aggregation result
+- `filters` (Object) - Filter configuration object
+  - `filters.attribute` (Function, optional) - Attribute filter function: `(dataPoint) => boolean`
+  - `filters.time` (Object, optional) - Time range filter: `{extractor: Function|string, min: number|Date, max: number|Date}`
+  - `filters.bounds` (Object, optional) - Spatial bounds filter: `{minX: number, minY: number, maxX: number, maxY: number}`
+  - `filters.threshold` (number, optional) - Value threshold filter (minimum aggregated value)
+  - `filters.matchMode` (string, optional) - How to combine filters: `'all'` (AND) or `'any'` (OR), default: `'all'`
+
+**Returns:** `Array<Object>` - Array of cell information objects
+
+**Example:**
+```javascript
+// Filter cells matching ALL criteria: high value, in bounds, from 2020-2022
+const cells = CellQueryEngine.getCellsByMultipleFilters(aggregationResult, {
+  threshold: 50,
+  bounds: { minX: 0, minY: 0, maxX: 400, maxY: 300 },
+  time: {
+    extractor: (data) => data.year,
+    min: 2020,
+    max: 2022
+  },
+  matchMode: 'all'
+});
+
+// Filter cells matching ANY criteria: high value OR in specific category
+const cells = CellQueryEngine.getCellsByMultipleFilters(aggregationResult, {
+  threshold: 100,
+  attribute: (data) => data.category === 'restaurant',
+  matchMode: 'any'
+});
+```
+
+---
+
 ### Instance Methods
 
 #### `constructor(aggregationResult)`
@@ -1067,6 +1368,41 @@ Query cells above threshold using stored result.
 - `threshold` (number) - Threshold value
 
 **Returns:** `Array<Object>` - Cells above threshold
+
+---
+
+#### `getCellsByAttribute(filterFn)`
+
+Query cells by attribute filter using stored result.
+
+**Parameters:**
+- `filterFn` (Function) - Filter function: `(dataPoint) => boolean`
+
+**Returns:** `Array<Object>` - Cells matching attribute filter
+
+---
+
+#### `getCellsByTimeRange(timeExtractor, minTime, maxTime)`
+
+Query cells by time range using stored result.
+
+**Parameters:**
+- `timeExtractor` (Function|string) - Time extractor function or property name
+- `minTime` (number|Date) - Minimum time (inclusive)
+- `maxTime` (number|Date) - Maximum time (inclusive)
+
+**Returns:** `Array<Object>` - Cells within time range
+
+---
+
+#### `getCellsByMultipleFilters(filters)`
+
+Query cells by multiple filters using stored result.
+
+**Parameters:**
+- `filters` (Object) - Filter configuration object (see static method documentation)
+
+**Returns:** `Array<Object>` - Cells matching filters
 
 ---
 
@@ -1373,25 +1709,46 @@ Handle click events.
 
 **Returns:** `void`
 
-#### `handleZoom(map, config, onZoom)`
+#### `handleZoom(map, config, onZoom, previousState)`
 
-Handle zoom events.
+Handle zoom events with enhanced callback data.
 
 **Parameters:**
 - `map` (Object) - MapLibre map instance
 - `config` (Object) - Layer configuration
-- `onZoom` (Function) - Callback after zoom handling
+- `onZoom` (Function) - Callback after zoom handling. Receives enhanced data: `{zoom, center, bounds, previousZoom, previousCenter, previousBounds}`
+- `previousState` (Object, optional) - Previous map state: `{zoom, center, bounds}`
 
 **Returns:** `void`
 
-#### `handleMove(onMove)`
+**Note:** The callback receives enhanced data with current and previous map state. Old callbacks that don't expect parameters are backward compatible.
 
-Handle move events.
+#### `handleMove(map, onMove, previousState)`
+
+Handle move events with enhanced callback data.
 
 **Parameters:**
-- `onMove` (Function) - Callback when map moves
+- `map` (Object) - MapLibre map instance
+- `onMove` (Function) - Callback when map moves. Receives enhanced data: `{center, bounds, previousCenter, previousBounds}`
+- `previousState` (Object, optional) - Previous map state: `{center, bounds}`
 
 **Returns:** `void`
+
+**Note:** The callback receives enhanced data with current and previous map state. Old callbacks that don't expect parameters are backward compatible.
+
+#### `handleBrush(queryTarget, bounds, onBrush, event)`
+
+Handle brush selection events.
+
+**Parameters:**
+- `queryTarget` (Object) - CellQueryEngine instance or ScreenGridLayerGL layer
+- `bounds` (Object) - Selection bounds: `{minX: number, minY: number, maxX: number, maxY: number}`
+- `onBrush` (Function) - Brush callback. Receives: `{cells, bounds, event}`
+- `event` (Object, optional) - MapLibre event
+
+**Returns:** `void`
+
+**Note:** Brush selection UI must be implemented by the user. This method is called from the user's brush implementation via `layer.handleBrush(bounds, event)`.
 
 ---
 

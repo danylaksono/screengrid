@@ -1,6 +1,6 @@
 ## Placement Configuration: Validation Shape and Rules
 
-This document defines the configuration shape for geometry placement (Option B) and the validation rules the layer should enforce.
+This document defines the configuration shape for geometry placement and the validation rules the layer should enforce.
 
 The goal is to keep defaults sensible, ensure errors are actionable, and make it clear when view-dependent recomputation will occur.
 

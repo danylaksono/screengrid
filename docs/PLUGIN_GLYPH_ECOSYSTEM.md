@@ -27,9 +27,6 @@ The plugin glyph system in ScreenGrid enables developers to create reusable, nam
 - **Legend Integration**: Optional legend generation support
 - **Backward Compatibility**: Existing `onDrawCell` callbacks continue to work with highest precedence
 
-### Status
-
-✅ **Implemented and Functional** — The plugin system is fully integrated into `ScreenGridLayerGL` and ready for production use.
 
 ### Ecosystem Components
 
