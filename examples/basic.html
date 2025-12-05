@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScreenGrid Library Example</title>
+    <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .controls {
+            width: 350px;
+            background: white;
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            overflow-y: auto;
+        }
+        
+        .control-group {
+            margin-bottom: 20px;
+        }
+        
+        .control-group h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 16px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .control-group input, .control-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .control-group input[type="range"] {
+            padding: 0;
+        }
+        
+        .color-preview {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            display: inline-block;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        
+        .info-panel {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .info-panel h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        .info-item {
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .info-item strong {
+            color: #555;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        
+        .success {
+            background: #efe;
+            color: #3c3;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        
+        .glyph-preview {
+            width: 60px;
+            height: 60px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 10px 0;
+            position: relative;
+            background: #f9f9f9;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .button-group button {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .button-group button.active {
+            background: #007cba;
+            color: white;
+            border-color: #007cba;
+        }
+        
+        .feature-badge {
+            display: inline-block;
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="map-container">
+            <div id="map"></div>
+            <div id="loading" class="loading">
+                <div>Loading map and data...</div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <h2>ScreenGrid Controls <span class="feature-badge">v2.0</span></h2>
+            
+            <div class="control-group">
+                <h3>Visualization Mode</h3>
+                <div class="button-group">
+                    <button id="colorMode" class="active">Color Grid</button>
+                    <button id="glyphMode">Glyph Grid</button>
+                </div>
+                <label for="enabled">Enable Grid:</label>
+                <input type="checkbox" id="enabled" checked>
+                <label for="showPoints" style="margin-top:10px; display:block;">Show Points:</label>
+                <input type="checkbox" id="showPoints">
+            </div>
+            
+            <div class="control-group">
+                <h3>Grid Settings</h3>
+                <label for="cellSize">Cell Size (pixels):</label>
+                <input type="range" id="cellSize" min="20" max="200" value="60" step="10">
+                <span id="cellSizeValue">60</span>
+                
+                <label for="zoomBasedSize">Zoom-based Sizing <span class="feature-badge">NEW</span>:</label>
+                <input type="checkbox" id="zoomBasedSize">
+                
+                <label for="minCellSize">Min Cell Size:</label>
+                <input type="range" id="minCellSize" min="10" max="50" value="20" step="5">
+                <span id="minCellSizeValue">20</span>
+                
+                <label for="maxCellSize">Max Cell Size:</label>
+                <input type="range" id="maxCellSize" min="50" max="300" value="100" step="10">
+                <span id="maxCellSizeValue">100</span>
+            </div>
+            
+            <div class="control-group" id="colorControls">
+                <h3>Color Scale</h3>
+                <label for="colorScheme">Color Scheme:</label>
+                <select id="colorScheme">
+                    <option value="heatmap">Heatmap (Red-Yellow)</option>
+                    <option value="blue">Blue Scale</option>
+                    <option value="green">Green Scale</option>
+                    <option value="purple">Purple Scale</option>
+                </select>
+                
+                <label for="opacity">Opacity:</label>
+                <input type="range" id="opacity" min="0" max="255" value="220" step="5">
+                <span id="opacityValue">220</span>
+            </div>
+            
+            <div class="control-group" id="basemapControls">
+                <h3>Basemap</h3>
+                <label for="basemapStyle">Basemap Style:</label>
+                <select id="basemapStyle">
+                    <option value="osm">OpenStreetMap (Raster)</option>
+                    <option value="positron">Carto Positron (Light)</option>
+                    <option value="dark">Carto Dark Matter</option>
+                </select>
+                <label for="basemapOpacity">Basemap Opacity:</label>
+                <input type="range" id="basemapOpacity" min="0" max="100" value="100" step="5">
+                <span id="basemapOpacityValue">100%</span>
+            </div>
+            
+            <div class="control-group" id="glyphControls" style="display: none;">
+                <h3>Glyph Settings <span class="feature-badge">NEW</span></h3>
+                <label for="glyphType">Glyph Type:</label>
+                <select id="glyphType">
+                    <option value="bike">Bike Parking Icons</option>
+                    <option value="bar">Bar Chart</option>
+                    <option value="pie">Pie Chart</option>
+                    <option value="scatter">Scatter Plot</option>
+                    <option value="custom">Custom</option>
+                </select>
+                
+                <label for="glyphSize">Glyph Size:</label>
+                <input type="range" id="glyphSize" min="0.3" max="1.0" value="0.8" step="0.1">
+                <span id="glyphSizeValue">0.8</span>
+                
+                <div class="glyph-preview" id="glyphPreview">
+                    <canvas id="previewCanvas" width="60" height="60"></canvas>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>Data Source</h3>
+                <label for="dataSource">Data Source:</label>
+                <select id="dataSource">
+                    <option value="sf-bike">San Francisco Bike Parking</option>
+                    <option value="sf-restaurants">San Francisco Restaurants</option>
+                    <option value="nyc-taxis">NYC Taxi Pickups</option>
+                </select>
+            </div>
+            
+            <div class="info-panel">
+                <h4>Grid Information</h4>
+                <div class="info-item">
+                    <strong>Total Points:</strong> <span id="pointCount">-</span>
+                </div>
+                <div class="info-item">
+                    <strong>Grid Cells:</strong> <span id="gridCells">-</span>
+                </div>
+                <div class="info-item">
+                    <strong>Max Value:</strong> <span id="maxValue">-</span>
+                </div>
+                <div class="info-item">
+                    <strong>Current Zoom:</strong> <span id="currentZoom">-</span>
+                </div>
+                <div class="info-item">
+                    <strong>Cell Size:</strong> <span id="currentCellSize">-</span>
+                </div>
+                <div class="info-item">
+                    <strong>Hovered Cell:</strong> <span id="hoveredCell">None</span>
+                </div>
+                <div class="info-item" id="cellDetails" style="display: none;">
+                    <strong>Cell Details:</strong> <span id="cellDetailsText">-</span>
+                </div>
+            </div>
+            
+            <div id="status"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { ScreenGridLayerGL } from '../src/index.js';
+        
+        // Data sources
+        const dataSources = {
+            'sf-bike': 'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/sf-bike-parking.json',
+            'sf-restaurants': 'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/sf-restaurants.json',
+            'nyc-taxis': 'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/nyc-taxi-rides.json'
+        };
+        
+        // Color schemes
+        const colorSchemes = {
+            heatmap: (v) => [255 * v, 200 * (1 - v), 50, 220],
+            blue: (v) => [50, 100, 255 * v, 220],
+            green: (v) => [50, 255 * v, 100, 220],
+            purple: (v) => [255 * v, 50, 255 * v, 220]
+        };
+        
+        // Initialize map with OpenStreetMap raster basemap
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                version: 8,
+                sources: {
+                    'osm': {
+                        type: 'raster',
+                        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                        tileSize: 256,
+                        attribution: '© OpenStreetMap contributors'
+                    }
+                },
+                layers: [
+                    { id: 'osm', type: 'raster', source: 'osm', paint: { 'raster-opacity': 1.0 } }
+                ]
+            },
+            center: [-122.4, 37.74],
+            zoom: 11
+        });
+
+        // Set background color via CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            .maplibregl-canvas {
+                background: #f0f0f0 !important;
+            }
+        `;
+        document.head.appendChild(style);
+        
+        let gridLayer = null;
+        let currentData = null;
+        let currentMode = 'color';
+        let currentGlyphType = 'bike';
+        
+        // UI elements
+        const cellSizeSlider = document.getElementById('cellSize');
+        const cellSizeValue = document.getElementById('cellSizeValue');
+        const enabledCheckbox = document.getElementById('enabled');
+        const colorSchemeSelect = document.getElementById('colorScheme');
+        const opacitySlider = document.getElementById('opacity');
+        const opacityValue = document.getElementById('opacityValue');
+        const dataSourceSelect = document.getElementById('dataSource');
+        const statusDiv = document.getElementById('status');
+        const loadingDiv = document.getElementById('loading');
+        const colorModeBtn = document.getElementById('colorMode');
+        const glyphModeBtn = document.getElementById('glyphMode');
+        const colorControls = document.getElementById('colorControls');
+        const glyphControls = document.getElementById('glyphControls');
+        const glyphTypeSelect = document.getElementById('glyphType');
+        const glyphSizeSlider = document.getElementById('glyphSize');
+        const glyphSizeValue = document.getElementById('glyphSizeValue');
+        const zoomBasedSizeCheckbox = document.getElementById('zoomBasedSize');
+        const minCellSizeSlider = document.getElementById('minCellSize');
+        const minCellSizeValue = document.getElementById('minCellSizeValue');
+        const maxCellSizeSlider = document.getElementById('maxCellSize');
+        const maxCellSizeValue = document.getElementById('maxCellSizeValue');
+        const previewCanvas = document.getElementById('previewCanvas');
+        const basemapOpacitySlider = document.getElementById('basemapOpacity');
+        const basemapOpacityValue = document.getElementById('basemapOpacityValue');
+        const showPointsCheckbox = document.getElementById('showPoints');
+        const basemapStyleSelect = document.getElementById('basemapStyle');
+
+        const POINTS_SOURCE_ID = 'points-source';
+        const POINTS_LAYER_ID = 'points-layer';
+        
+        // Info display elements
+        const pointCountSpan = document.getElementById('pointCount');
+        const gridCellsSpan = document.getElementById('gridCells');
+        const maxValueSpan = document.getElementById('maxValue');
+        const hoveredCellSpan = document.getElementById('hoveredCell');
+        const currentZoomSpan = document.getElementById('currentZoom');
+        const currentCellSizeSpan = document.getElementById('currentCellSize');
+        const cellDetailsDiv = document.getElementById('cellDetails');
+        const cellDetailsText = document.getElementById('cellDetailsText');
+        
+        // Glyph drawing functions
+        function drawBikeParkingGlyph(ctx, x, y, normVal, cellInfo) {
+            const { cellData, glyphRadius, cellSize } = cellInfo;
+            
+            if (cellData.length === 0) return;
+            
+            const totalRacks = cellData.reduce((sum, item) => sum + item.data.RACKS, 0);
+            const totalSpaces = cellData.reduce((sum, item) => sum + item.data.SPACES, 0);
+            
+            // Draw background circle
+            const alpha = Math.min(0.8, normVal * 0.8 + 0.2);
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = `hsl(${200 + normVal * 60}, 70%, 50%)`;
+            ctx.beginPath();
+            ctx.arc(x, y, glyphRadius, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Draw inner circle
+            ctx.globalAlpha = 0.9;
+            ctx.fillStyle = '#2c3e50';
+            const innerRadius = glyphRadius * 0.6;
+            ctx.beginPath();
+            ctx.arc(x, y, innerRadius, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Draw rack indicators
+            const rackCount = Math.min(totalRacks, 8);
+            const angleStep = (2 * Math.PI) / rackCount;
+            const rackRadius = innerRadius * 0.7;
+            
+            ctx.fillStyle = '#ecf0f1';
+            for (let i = 0; i < rackCount; i++) {
+                const angle = i * angleStep;
+                const rackX = x + Math.cos(angle) * rackRadius;
+                const rackY = y + Math.sin(angle) * rackRadius;
+                
+                ctx.save();
+                ctx.translate(rackX, rackY);
+                ctx.rotate(angle);
+                ctx.fillRect(-2, -4, 4, 8);
+                ctx.restore();
+            }
+            
+            // Draw space count
+            if (totalSpaces > 0) {
+                ctx.fillStyle = '#ffffff';
+                ctx.font = `bold ${Math.max(8, glyphRadius * 0.4)}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(totalSpaces.toString(), x, y);
+            }
+        }
+        
+        function drawBarChartGlyph(ctx, x, y, normVal, cellInfo) {
+            const { cellData, cellSize } = cellInfo;
+            
+            if (cellData.length === 0) return;
+            
+            const totalRacks = cellData.reduce((sum, item) => sum + item.data.RACKS, 0);
+            const totalSpaces = cellData.reduce((sum, item) => sum + item.data.SPACES, 0);
+            const maxValue = Math.max(totalRacks, totalSpaces, 1);
+            
+            const barWidth = cellSize * 0.3;
+            const maxHeight = cellSize * 0.6;
+            
+            // Racks bar (blue)
+            const racksHeight = (totalRacks / maxValue) * maxHeight;
+            ctx.fillStyle = '#3498db';
+            ctx.fillRect(x - barWidth/2, y + maxHeight/2 - racksHeight, barWidth, racksHeight);
+            
+            // Spaces bar (green)
+            const spacesHeight = (totalSpaces / maxValue) * maxHeight;
+            ctx.fillStyle = '#2ecc71';
+            ctx.fillRect(x + barWidth/2, y + maxHeight/2 - spacesHeight, barWidth, spacesHeight);
+            
+            // Labels
+            ctx.fillStyle = '#2c3e50';
+            ctx.font = `${Math.max(6, cellSize * 0.15)}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.fillText('R', x - barWidth/2, y + maxHeight/2 + 10);
+            ctx.fillText('S', x + barWidth/2, y + maxHeight/2 + 10);
+        }
+        
+        function drawPieChartGlyph(ctx, x, y, normVal, cellInfo) {
+            const { cellData, glyphRadius } = cellInfo;
+            
+            if (cellData.length === 0) return;
+            
+            const totalRacks = cellData.reduce((sum, item) => sum + item.data.RACKS, 0);
+            const totalSpaces = cellData.reduce((sum, item) => sum + item.data.SPACES, 0);
+            
+            ScreenGridLayerGL.drawPieGlyph(ctx, x, y, [totalRacks, totalSpaces], glyphRadius, ['#3498db', '#2ecc71']);
+        }
+        
+        function drawScatterGlyph(ctx, x, y, normVal, cellInfo) {
+            const { cellData, cellSize } = cellInfo;
+            
+            if (cellData.length === 0) return;
+            
+            ScreenGridLayerGL.drawScatterGlyph(ctx, x, y, cellData, cellSize, '#e74c3c');
+        }
+        
+        function drawCustomGlyph(ctx, x, y, normVal, cellInfo) {
+            const { cellData, glyphRadius, cellSize } = cellInfo;
+            
+            if (cellData.length === 0) return;
+            
+            // Custom visualization: concentric circles with different data
+            const totalRacks = cellData.reduce((sum, item) => sum + item.data.RACKS, 0);
+            const totalSpaces = cellData.reduce((sum, item) => sum + item.data.SPACES, 0);
+            
+            // Outer ring for spaces
+            ctx.strokeStyle = '#e74c3c';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(x, y, glyphRadius, 0, 2 * Math.PI);
+            ctx.stroke();
+            
+            // Inner ring for racks
+            ctx.strokeStyle = '#3498db';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, y, glyphRadius * 0.6, 0, 2 * Math.PI);
+            ctx.stroke();
+            
+            // Center dot for data points
+            ctx.fillStyle = '#2c3e50';
+            ctx.beginPath();
+            ctx.arc(x, y, 3, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+        
+        // Update glyph preview
+        function updateGlyphPreview() {
+            const ctx = previewCanvas.getContext('2d');
+            ctx.clearRect(0, 0, 60, 60);
+            
+            const mockCellInfo = {
+                cellData: [
+                    { data: { RACKS: 3, SPACES: 6 }, weight: 1 },
+                    { data: { RACKS: 2, SPACES: 4 }, weight: 1 }
+                ],
+                glyphRadius: 20,
+                cellSize: 60
+            };
+            
+            const glyphFunctions = {
+                bike: drawBikeParkingGlyph,
+                bar: drawBarChartGlyph,
+                pie: drawPieChartGlyph,
+                scatter: drawScatterGlyph,
+                custom: drawCustomGlyph
+            };
+            
+            const drawFunction = glyphFunctions[currentGlyphType];
+            if (drawFunction) {
+                drawFunction(ctx, 30, 30, 0.7, mockCellInfo);
+            }
+        }
+        
+        // Event listeners
+        cellSizeSlider.addEventListener('input', (e) => {
+            cellSizeValue.textContent = e.target.value;
+            updateGridLayer();
+        });
+        
+        opacitySlider.addEventListener('input', (e) => {
+            opacityValue.textContent = e.target.value;
+            updateGridLayer();
+        });
+        
+        glyphSizeSlider.addEventListener('input', (e) => {
+            glyphSizeValue.textContent = e.target.value;
+            updateGlyphPreview();
+            updateGridLayer();
+        });
+        
+        minCellSizeSlider.addEventListener('input', (e) => {
+            minCellSizeValue.textContent = e.target.value;
+            updateGridLayer();
+        });
+        
+        maxCellSizeSlider.addEventListener('input', (e) => {
+            maxCellSizeValue.textContent = e.target.value;
+            updateGridLayer();
+        });
+        
+        enabledCheckbox.addEventListener('change', (e) => {
+            updateGridLayer();
+        });
+        
+        colorSchemeSelect.addEventListener('change', (e) => {
+            updateGridLayer();
+        });
+
+        basemapOpacitySlider.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value, 10);
+            basemapOpacityValue.textContent = `${val}%`;
+            const opacity = val / 100;
+            setBasemapOpacity(opacity);
+        });
+        
+        dataSourceSelect.addEventListener('change', (e) => {
+            loadData();
+        });
+
+        showPointsCheckbox.addEventListener('change', () => {
+            updatePointsLayer();
+        });
+
+        basemapStyleSelect.addEventListener('change', () => {
+            switchBasemap(basemapStyleSelect.value);
+        });
+        
+        colorModeBtn.addEventListener('click', () => {
+            currentMode = 'color';
+            colorModeBtn.classList.add('active');
+            glyphModeBtn.classList.remove('active');
+            colorControls.style.display = 'block';
+            glyphControls.style.display = 'none';
+            updateGridLayer();
+        });
+        
+        glyphModeBtn.addEventListener('click', () => {
+            currentMode = 'glyph';
+            glyphModeBtn.classList.add('active');
+            colorModeBtn.classList.remove('active');
+            colorControls.style.display = 'none';
+            glyphControls.style.display = 'block';
+            updateGridLayer();
+        });
+        
+        glyphTypeSelect.addEventListener('change', (e) => {
+            currentGlyphType = e.target.value;
+            updateGlyphPreview();
+            updateGridLayer();
+        });
+        
+        zoomBasedSizeCheckbox.addEventListener('change', (e) => {
+            updateGridLayer();
+        });
+        
+        // Update zoom display
+        map.on('zoom', () => {
+            currentZoomSpan.textContent = map.getZoom().toFixed(2);
+        });
+        
+        function showStatus(message, type = 'info') {
+            statusDiv.innerHTML = `<div class="${type}">${message}</div>`;
+        }
+        
+        function hideLoading() {
+            loadingDiv.style.display = 'none';
+        }
+        
+        function showLoading() {
+            loadingDiv.style.display = 'block';
+        }
+        
+        async function loadData() {
+            showLoading();
+            showStatus('Loading data...', 'info');
+            
+            try {
+                const dataUrl = dataSources[dataSourceSelect.value];
+                const response = await fetch(dataUrl);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                currentData = await response.json();
+                console.log('Data loaded:', {
+                  length: currentData.length,
+                  sample: currentData.slice(0, 2),
+                  dataSource: dataSourceSelect.value
+                });
+                showStatus(`Loaded ${currentData.length} data points`, 'success');
+
+                pointCountSpan.textContent = currentData.length;
+                createGridLayer();
+                updatePointsLayer();
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
+                showStatus(`Error loading data: ${error.message}`, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        function createGridLayer() {
+            if (!currentData) {
+                console.log('No current data available');
+                return;
+            }
+            
+            console.log('Creating grid layer with', currentData.length, 'data points');
+            
+            if (gridLayer && map.getLayer(gridLayer.id)) {
+                console.log('Removing existing layer:', gridLayer.id);
+                map.removeLayer(gridLayer.id);
+            }
+            
+            const cellSize = parseInt(cellSizeSlider.value);
+            const opacity = parseInt(opacitySlider.value);
+            const colorScheme = colorSchemeSelect.value;
+            const enabled = enabledCheckbox.checked;
+            const zoomBasedSize = zoomBasedSizeCheckbox.checked;
+            const minCellSize = parseInt(minCellSizeSlider.value);
+            const maxCellSize = parseInt(maxCellSizeSlider.value);
+            const glyphSize = parseFloat(glyphSizeSlider.value);
+            
+            const baseColorScale = colorSchemes[colorScheme];
+            const colorScale = (v) => {
+                const [r, g, b, a] = baseColorScale(v);
+                return [r, g, b, opacity];
+            };
+            
+            let getPosition, getWeight;
+            switch (dataSourceSelect.value) {
+                case 'sf-bike':
+                    getPosition = (d) => d.COORDINATES;
+                    getWeight = (d) => d.SPACES;
+                    break;
+                case 'sf-restaurants':
+                    getPosition = (d) => d.COORDINATES;
+                    getWeight = (d) => 1;
+                    break;
+                case 'nyc-taxis':
+                    getPosition = (d) => [d.pickup_longitude, d.pickup_latitude];
+                    getWeight = (d) => 1;
+                    break;
+            }
+            
+            const glyphFunctions = {
+                bike: drawBikeParkingGlyph,
+                bar: drawBarChartGlyph,
+                pie: drawPieChartGlyph,
+                scatter: drawScatterGlyph,
+                custom: drawCustomGlyph
+            };
+            
+            const onDrawCell = currentMode === 'glyph' ? glyphFunctions[currentGlyphType] : null;
+            
+            console.log('Grid layer config:', {
+                cellSize,
+                enabled,
+                mode: currentMode,
+                glyphType: currentGlyphType,
+                zoomBasedSize
+            });
+            
+            gridLayer = new ScreenGridLayerGL({
+                id: 'screen-grid-layer',
+                data: currentData,
+                getPosition: getPosition,
+                getWeight: getWeight,
+                cellSizePixels: cellSize,
+                colorScale: colorScale,
+                enabled: enabled,
+                enableGlyphs: currentMode === 'glyph',
+                onDrawCell: onDrawCell,
+                glyphSize: glyphSize,
+                zoomBasedSize: zoomBasedSize,
+                minCellSize: minCellSize,
+                maxCellSize: maxCellSize,
+                onAggregate: (grid) => {
+                    console.log('Grid aggregated:', grid);
+                    gridCellsSpan.textContent = `${grid.cols} × ${grid.rows}`;
+                    maxValueSpan.textContent = Math.max(...grid.grid).toFixed(2);
+                    currentCellSizeSpan.textContent = `${grid.cellSizePixels.toFixed(1)}px`;
+                },
+                onHover: ({ cell }) => {
+                    hoveredCellSpan.textContent = `Cell (${cell.col}, ${cell.row}): ${cell.value.toFixed(2)}`;
+                    
+                    if (cell.cellData && cell.cellData.length > 0) {
+                        const totalRacks = cell.cellData.reduce((sum, item) => sum + item.data.RACKS, 0);
+                        const totalSpaces = cell.cellData.reduce((sum, item) => sum + item.data.SPACES, 0);
+                        cellDetailsText.textContent = `${totalRacks} racks, ${totalSpaces} spaces, ${cell.cellData.length} points`;
+                        cellDetailsDiv.style.display = 'block';
+                    } else {
+                        cellDetailsDiv.style.display = 'none';
+                    }
+                },
+                onClick: ({ cell }) => {
+                    if (cell.cellData && cell.cellData.length > 0) {
+                        const totalRacks = cell.cellData.reduce((sum, item) => sum + item.data.RACKS, 0);
+                        const totalSpaces = cell.cellData.reduce((sum, item) => sum + item.data.SPACES, 0);
+                        alert(`Cell Details:\nRacks: ${totalRacks}\nSpaces: ${totalSpaces}\nData Points: ${cell.cellData.length}\nValue: ${cell.value.toFixed(2)}`);
+                    } else {
+                        alert(`Clicked cell (${cell.col}, ${cell.row})\nValue: ${cell.value.toFixed(2)}`);
+                    }
+                }
+            });
+            
+            console.log('Adding layer to map:', gridLayer.id);
+            map.addLayer(gridLayer);
+            console.log('Layer added successfully');
+
+            // Ensure points layer (if present) is rendered below the grid
+            if (map.getLayer(POINTS_LAYER_ID)) {
+                map.moveLayer(POINTS_LAYER_ID, gridLayer.id);
+            }
+        }
+        
+        function updateGridLayer() {
+            if (gridLayer) {
+                createGridLayer();
+            }
+        }
+        
+        // Initialize when map loads
+        map.on('load', () => {
+            currentZoomSpan.textContent = map.getZoom().toFixed(2);
+            updateGlyphPreview();
+            // Initialize basemap opacity from slider
+            const initialOpacity = parseInt(basemapOpacitySlider.value, 10) / 100;
+            setBasemapOpacity(initialOpacity);
+            loadData();
+        });
+        
+        map.on('error', (e) => {
+            console.error('Map error:', e);
+            showStatus('Map error occurred', 'error');
+            hideLoading();
+        });
+
+        // Helper: convert current data to GeoJSON FeatureCollection
+        function buildGeoJSONFromData() {
+            if (!currentData) return null;
+
+            let getPosition;
+            switch (dataSourceSelect.value) {
+                case 'sf-bike':
+                case 'sf-restaurants':
+                    getPosition = (d) => d.COORDINATES;
+                    break;
+                case 'nyc-taxis':
+                    getPosition = (d) => [d.pickup_longitude, d.pickup_latitude];
+                    break;
+                default:
+                    getPosition = () => null;
+            }
+
+            return {
+                type: 'FeatureCollection',
+                features: currentData.map((d) => {
+                    const p = getPosition(d);
+                    return {
+                        type: 'Feature',
+                        geometry: { type: 'Point', coordinates: p },
+                        properties: d
+                    };
+                }).filter(f => Array.isArray(f.geometry.coordinates) && f.geometry.coordinates.length === 2)
+            };
+        }
+
+        // Points layer management
+        function updatePointsLayer() {
+            const shouldShow = showPointsCheckbox.checked;
+
+            if (!shouldShow) {
+                removePointsLayer();
+                return;
+            }
+
+            if (!currentData) return;
+
+            const geojson = buildGeoJSONFromData();
+            if (!geojson) return;
+
+            if (!map.getSource(POINTS_SOURCE_ID)) {
+                map.addSource(POINTS_SOURCE_ID, {
+                    type: 'geojson',
+                    data: geojson
+                });
+            } else {
+                const src = map.getSource(POINTS_SOURCE_ID);
+                src.setData(geojson);
+            }
+
+            if (!map.getLayer(POINTS_LAYER_ID)) {
+                const beforeId = gridLayer && map.getLayer(gridLayer.id) ? gridLayer.id : undefined;
+                map.addLayer({
+                    id: POINTS_LAYER_ID,
+                    type: 'circle',
+                    source: POINTS_SOURCE_ID,
+                    paint: {
+                        'circle-radius': 4,
+                        'circle-color': '#e74c3c',
+                        'circle-opacity': 0.7,
+                        'circle-stroke-color': '#ffffff',
+                        'circle-stroke-width': 1
+                    }
+                }, beforeId);
+            }
+        }
+
+        function removePointsLayer() {
+            if (map.getLayer(POINTS_LAYER_ID)) {
+                map.removeLayer(POINTS_LAYER_ID);
+            }
+            if (map.getSource(POINTS_SOURCE_ID)) {
+                map.removeSource(POINTS_SOURCE_ID);
+            }
+        }
+
+        // Basemap helpers
+        function getBasemapStyle(styleKey) {
+            const attributions = {
+                osm: '© OpenStreetMap contributors',
+                carto: '© OpenStreetMap contributors © CARTO'
+            };
+
+            if (styleKey === 'positron') {
+                return {
+                    version: 8,
+                    sources: {
+                        'positron': {
+                            type: 'raster',
+                            tiles: ['https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'],
+                            tileSize: 256,
+                            attribution: attributions.carto
+                        }
+                    },
+                    layers: [
+                        { id: 'positron', type: 'raster', source: 'positron', paint: { 'raster-opacity': 1.0 } }
+                    ]
+                };
+            }
+
+            if (styleKey === 'dark') {
+                return {
+                    version: 8,
+                    sources: {
+                        'dark': {
+                            type: 'raster',
+                            tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
+                            tileSize: 256,
+                            attribution: attributions.carto
+                        }
+                    },
+                    layers: [
+                        { id: 'dark', type: 'raster', source: 'dark', paint: { 'raster-opacity': 1.0 } }
+                    ]
+                };
+            }
+
+            // default: OSM
+            return {
+                version: 8,
+                sources: {
+                    'osm': {
+                        type: 'raster',
+                        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                        tileSize: 256,
+                        attribution: attributions.osm
+                    }
+                },
+                layers: [
+                    { id: 'osm', type: 'raster', source: 'osm', paint: { 'raster-opacity': 1.0 } }
+                ]
+            };
+        }
+
+        function setBasemapOpacity(opacity) {
+            const style = map.getStyle();
+            if (!style || !style.layers) return;
+            style.layers.forEach((layer) => {
+                if (layer.type === 'raster' && map.getLayer(layer.id)) {
+                    map.setPaintProperty(layer.id, 'raster-opacity', opacity);
+                }
+            });
+        }
+
+        function switchBasemap(styleKey) {
+            showLoading();
+            const newStyle = getBasemapStyle(styleKey);
+            map.setStyle(newStyle);
+            map.once('style.load', () => {
+                const opacity = parseInt(basemapOpacitySlider.value, 10) / 100;
+                setBasemapOpacity(opacity);
+
+                // Re-add overlays
+                // Reset gridLayer reference; a fresh instance will be created
+                if (gridLayer) {
+                    gridLayer = null;
+                }
+                if (enabledCheckbox.checked) {
+                    createGridLayer();
+                }
+                updatePointsLayer();
+                hideLoading();
+            });
+        }
+    </script>
+</body>
+</html>
