@@ -505,6 +505,148 @@ onClick: ({ cell, event }) => {
 
 ---
 
+### Geometry Input Options (v2.1.0+)
+
+These options allow you to use non-point geometries (Polygon, LineString, etc.) instead of point data.
+
+#### `source`
+- **Type:** `GeoJSON.FeatureCollection | GeoJSON.Feature[] | null`
+- **Default:** `null`
+- **Description:** GeoJSON source data with non-point geometries. Mutually exclusive with `data` option.
+- **Supported Geometry Types:** Point, MultiPoint, LineString, MultiLineString, Polygon, MultiPolygon
+
+**Example:**
+```javascript
+const layer = new ScreenGridLayerGL({
+  source: geojsonData,  // GeoJSON FeatureCollection
+  placement: { strategy: 'centroid' },
+  renderMode: 'feature-anchors'
+});
+```
+
+#### `placement`
+- **Type:** `Object | null`
+- **Default:** `null`
+- **Description:** Configuration for converting geometries to anchor points. Required when using `source`.
+
+**Placement Config Structure:**
+```javascript
+{
+  strategy: 'centroid' | 'polylabel' | 'line-sample' | 'grid-geo' | 'grid-screen' | 'point',
+  spacing?: { meters: number } | { pixels: number },
+  partition?: 'union' | 'per-part',
+  maxPerFeature?: number,
+  minArea?: number,
+  minLength?: number,
+  jitterPixels?: number,
+  zoomAdaptive?: boolean
+}
+```
+
+**Example:**
+```javascript
+placement: {
+  strategy: 'line-sample',
+  spacing: { meters: 200 },
+  zoomAdaptive: true
+}
+```
+
+#### `renderMode`
+- **Type:** `'screen-grid' | 'feature-anchors'`
+- **Default:** `'screen-grid'`
+- **Description:** Rendering mode for geometry input.
+  - `'screen-grid'`: Aggregate anchors into screen-space grid cells (default)
+  - `'feature-anchors'`: Draw glyphs directly at anchor positions (one glyph per anchor)
+
+**Example:**
+```javascript
+renderMode: 'feature-anchors'  // Draw one glyph per feature
+```
+
+#### `anchorSizePixels`
+- **Type:** `number`
+- **Default:** `auto` (calculated from `cellSizePixels * glyphSize * 0.9`)
+- **Description:** Size of glyphs in pixels when using `renderMode: 'feature-anchors'`.
+
+**Example:**
+```javascript
+anchorSizePixels: 18  // Fixed glyph size in pixels
+```
+
+---
+
+### Geometry Input Options (v2.1.0+)
+
+These options allow you to use non-point geometries (Polygon, LineString, etc.) instead of point data.
+
+#### `source`
+- **Type:** `GeoJSON.FeatureCollection | GeoJSON.Feature[] | null`
+- **Default:** `null`
+- **Description:** GeoJSON source data with non-point geometries. Mutually exclusive with `data` option.
+- **Supported Geometry Types:** Point, MultiPoint, LineString, MultiLineString, Polygon, MultiPolygon
+
+**Example:**
+```javascript
+const layer = new ScreenGridLayerGL({
+  source: geojsonData,  // GeoJSON FeatureCollection
+  placement: { strategy: 'centroid' },
+  renderMode: 'feature-anchors'
+});
+```
+
+#### `placement`
+- **Type:** `Object | null`
+- **Default:** `null`
+- **Description:** Configuration for converting geometries to anchor points. Required when using `source`.
+
+**Placement Config Structure:**
+```javascript
+{
+  strategy: 'centroid' | 'polylabel' | 'line-sample' | 'grid-geo' | 'grid-screen' | 'point',
+  spacing?: { meters: number } | { pixels: number },
+  partition?: 'union' | 'per-part',
+  maxPerFeature?: number,
+  minArea?: number,
+  minLength?: number,
+  jitterPixels?: number,
+  zoomAdaptive?: boolean
+}
+```
+
+**Example:**
+```javascript
+placement: {
+  strategy: 'line-sample',
+  spacing: { meters: 200 },
+  zoomAdaptive: true
+}
+```
+
+#### `renderMode`
+- **Type:** `'screen-grid' | 'feature-anchors'`
+- **Default:** `'screen-grid'`
+- **Description:** Rendering mode for geometry input.
+  - `'screen-grid'`: Aggregate anchors into screen-space grid cells (default)
+  - `'feature-anchors'`: Draw glyphs directly at anchor positions (one glyph per anchor)
+
+**Example:**
+```javascript
+renderMode: 'feature-anchors'  // Draw one glyph per feature
+```
+
+#### `anchorSizePixels`
+- **Type:** `number`
+- **Default:** `auto` (calculated from `cellSizePixels * glyphSize * 0.9`)
+- **Description:** Size of glyphs in pixels when using `renderMode: 'feature-anchors'`.
+
+**Example:**
+```javascript
+anchorSizePixels: 18  // Fixed glyph size in pixels
+```
+
+---
+
 ## GlyphUtilities
 
 Static utility class for drawing common glyph types. Can be imported directly or accessed via `ScreenGridLayerGL` static methods.
@@ -1094,6 +1236,69 @@ Query cells above threshold using stored result.
 - `threshold` (number) - Threshold value
 
 **Returns:** `Array<Object>` - Cells above threshold
+
+---
+
+## Geometry Placement Modules (v2.1.0+)
+
+Modules for handling non-point geometries (Polygon, LineString, etc.) and converting them to anchor points.
+
+### PlacementEngine
+
+Converts GeoJSON geometries to anchor points based on placement strategy.
+
+**Import:**
+```javascript
+import { PlacementEngine } from 'screengrid';
+```
+
+**Usage:**
+```javascript
+const engine = new PlacementEngine(map);
+const anchors = engine.processFeatures(features, placementConfig);
+```
+
+### PlacementValidator
+
+Validates placement configuration objects.
+
+**Import:**
+```javascript
+import { PlacementValidator } from 'screengrid';
+```
+
+**Usage:**
+```javascript
+const isValid = PlacementValidator.validate(placementConfig);
+```
+
+### PlacementStrategyRegistry
+
+Registry for placement strategies (centroid, line-sample, grid-geo, etc.).
+
+**Import:**
+```javascript
+import { PlacementStrategyRegistry } from 'screengrid';
+```
+
+**Usage:**
+```javascript
+const strategy = PlacementStrategyRegistry.get('centroid');
+```
+
+### GeometryUtils
+
+Utility functions for geometry operations.
+
+**Import:**
+```javascript
+import { GeometryUtils } from 'screengrid';
+```
+
+**Methods:**
+- `getCentroid(geometry)` - Get centroid of geometry
+- `sampleLine(geometry, spacing)` - Sample points along line
+- `gridPolygon(geometry, spacing)` - Create grid within polygon
 
 ---
 
@@ -1779,10 +1984,15 @@ onDrawCell: (ctx, x, y, normVal, cellInfo) => {
 - [Glyph Drawing Guide](./GLYPH_DRAWING_GUIDE.md) - Comprehensive glyph visualization guide
 - [Usage Guide](./USAGE.md) - Development and troubleshooting
 - [Spatio-Temporal Guide](./SPATIO_TEMPORAL_GUIDE.md) - Time series visualization patterns
+- [Geometry Input & Placement Guide](./GEOMETRY_INPUT_AND_PLACEMENT.md) - Non-point geometry workflows
+- [Placement Config Reference](./PLACEMENT_CONFIG.md) - Formal placement configuration schema
+- [Plugin Glyph Ecosystem](./PLUGIN_GLYPH_ECOSYSTEM.md) - Plugin system documentation
+- [Data Utilities Guide](./DATA_UTILITIES.md) - Utility functions for data processing
+- [Cartography & Multivariate Design](./CARTOGRAPHY_AND_MULTIVARIATE_DESIGN.md) - Design patterns
 
 ---
 
 ## Version
 
-This API reference is for ScreenGrid Library v2.0.1+
+This API reference is for ScreenGrid Library v2.2.0+
 

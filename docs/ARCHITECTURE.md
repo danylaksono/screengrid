@@ -17,7 +17,18 @@ src/
 ├── core/
 │   ├── Aggregator.js                     # Grid aggregation (pure logic)
 │   ├── Projector.js                      # Coordinate projection
-│   └── CellQueryEngine.js                # Cell queries & spatial analysis
+│   ├── CellQueryEngine.js                # Cell queries & spatial analysis
+│   └── geometry/                         # Geometry placement (v2.1.0+)
+│       ├── PlacementEngine.js            # Geometry to anchor conversion
+│       ├── PlacementValidator.js         # Config validation
+│       ├── GeometryUtils.js              # Geometry utilities
+│       └── strategies/                   # Placement strategies
+│           ├── CentroidStrategy.js
+│           ├── PolylabelStrategy.js
+│           ├── LineSampleStrategy.js
+│           ├── GridGeoStrategy.js
+│           ├── GridScreenStrategy.js
+│           └── PointStrategy.js
 │
 ├── canvas/
 │   ├── CanvasManager.js                  # Canvas lifecycle & sizing
@@ -27,8 +38,42 @@ src/
 │   ├── EventBinder.js                    # Event attachment/detachment
 │   └── EventHandlers.js                  # Event handler implementations
 │
-└── glyphs/
-    └── GlyphUtilities.js                 # Reusable glyph drawing functions
+├── glyphs/
+│   ├── GlyphUtilities.js                 # Reusable glyph drawing functions
+│   └── GlyphRegistry.js                  # Plugin registry (v2.0.0+)
+│
+├── aggregation/                          # Aggregation system (v2.1.0+)
+│   ├── AggregationModeRegistry.js        # Mode registry
+│   ├── modes/                            # Aggregation modes
+│   │   ├── ScreenGridMode.js             # Rectangular grid mode
+│   │   ├── ScreenHexMode.js              # Hexagonal mode (v2.2.0+)
+│   │   └── index.js                      # Mode registration
+│   └── functions/                        # Aggregation functions
+│       ├── AggregationFunctionRegistry.js
+│       ├── SumAggregation.js
+│       ├── MeanAggregation.js
+│       ├── CountAggregation.js
+│       ├── MaxAggregation.js
+│       ├── MinAggregation.js
+│       └── index.js
+│
+├── normalization/                        # Normalization system (v2.1.0+)
+│   └── functions/
+│       ├── NormalizationFunctionRegistry.js
+│       ├── MaxLocalNormalization.js
+│       ├── MaxGlobalNormalization.js
+│       ├── ZScoreNormalization.js
+│       ├── PercentileNormalization.js
+│       └── index.js
+│
+├── utils/                                # Utility modules (v2.1.0+)
+│   ├── Logger.js                         # Debug logging
+│   └── DataUtilities.js                  # Data processing utilities
+│
+└── legend/                               # Legend system (v2.0.0+)
+    ├── Legend.js                         # Main legend class
+    ├── LegendDataExtractor.js            # Data extraction
+    └── LegendRenderers.js                # Rendering utilities
 ```
 
 ## Module Descriptions
@@ -328,6 +373,7 @@ binder.unbind();
 - `drawDonutGlyph(ctx, x, y, values, outerRadius, innerRadius, colors)` ✨ NEW
 - `drawHeatmapGlyph(ctx, x, y, radius, normalizedValue, colorScale)` ✨ NEW
 - `drawRadialBarGlyph(ctx, x, y, values, maxValue, maxRadius, color)` ✨ NEW
+- `drawTimeSeriesGlyph(ctx, x, y, timeSeriesData, cellSize, options)` ✨ NEW
 
 **Usage:**
 ```javascript
@@ -347,6 +393,215 @@ GlyphUtilities.drawPieGlyph(ctx, 100, 100, [30, 20, 10], 20, ['red', 'green', 'b
 - Consistent glyph styling
 - Highly reusable
 - Easy to extend with new glyph types
+
+---
+
+### `glyphs/GlyphRegistry.js` (v2.0.0+)
+
+**Purpose:** Registry for glyph plugins
+
+**Key Methods:**
+- `GlyphRegistry.register(name, plugin, { overwrite })`
+- `GlyphRegistry.get(name)`
+- `GlyphRegistry.has(name)`
+- `GlyphRegistry.list()`
+- `GlyphRegistry.unregister(name)`
+
+**Usage:**
+```javascript
+import { GlyphRegistry } from 'screengrid';
+
+// Register custom plugin
+GlyphRegistry.register('myGlyph', {
+  draw(ctx, x, y, normVal, cellInfo, config) {
+    // Drawing logic
+  }
+});
+
+// Use by name
+const layer = new ScreenGridLayerGL({
+  glyph: 'myGlyph',
+  enableGlyphs: true
+});
+```
+
+**Benefits:**
+- Reusable named plugins
+- Lifecycle hooks support
+- Legend integration
+- Backward compatible
+
+---
+
+### `aggregation/` (v2.1.0+)
+
+**Purpose:** Aggregation modes and functions system
+
+**Components:**
+- **AggregationModeRegistry**: Registry for aggregation modes
+- **ScreenGridMode**: Rectangular grid mode (default)
+- **ScreenHexMode**: Hexagonal tessellation mode (v2.2.0+)
+- **AggregationFunctionRegistry**: Registry for aggregation functions
+- **Built-in Functions**: sum, mean, count, max, min
+
+**Usage:**
+```javascript
+import { AggregationModeRegistry, AggregationFunctions } from 'screengrid';
+
+// Use hex mode
+const layer = new ScreenGridLayerGL({
+  aggregationMode: 'screen-hex',
+  aggregationModeConfig: { hexSize: 50 }
+});
+
+// Use custom aggregation function
+const layer = new ScreenGridLayerGL({
+  aggregationFunction: AggregationFunctions.mean
+});
+```
+
+**Benefits:**
+- Extensible aggregation strategies
+- Multiple aggregation functions
+- Mode-specific configuration
+- Plugin architecture
+
+---
+
+### `normalization/` (v2.1.0+)
+
+**Purpose:** Normalization functions system
+
+**Components:**
+- **NormalizationFunctionRegistry**: Registry for normalization functions
+- **Built-in Functions**: max-local, max-global, z-score, percentile
+
+**Usage:**
+```javascript
+import { NormalizationFunctions } from 'screengrid';
+
+// Use z-score normalization
+const layer = new ScreenGridLayerGL({
+  normalizationFunction: NormalizationFunctions.zScore
+});
+
+// Use global normalization with context
+const layer = new ScreenGridLayerGL({
+  normalizationFunction: NormalizationFunctions.maxGlobal,
+  normalizationContext: { globalMax: 1000 }
+});
+```
+
+**Benefits:**
+- Flexible normalization strategies
+- Custom normalization support
+- Context-aware normalization
+
+---
+
+### `utils/` (v2.1.0+)
+
+**Purpose:** Utility modules
+
+**Components:**
+
+#### Logger.js
+Controlled debug logging:
+```javascript
+import { Logger, setDebug } from 'screengrid';
+setDebug(true);
+Logger.log('Debug message');
+```
+
+#### DataUtilities.js
+Data processing utilities:
+```javascript
+import { groupBy, extractAttributes, computeStats, groupByTime } from 'screengrid';
+
+// Group by category
+const categories = groupBy(cellData, 'category');
+
+// Extract multiple attributes
+const attrs = extractAttributes(cellData, { total: w => w.weight });
+
+// Compute statistics
+const stats = computeStats(cellData);
+
+// Group by time
+const timeSeries = groupByTime(cellData, 'year', 'value');
+```
+
+**Benefits:**
+- Controlled debug logging
+- Common data processing patterns
+- Reduces boilerplate code
+
+---
+
+### `legend/` (v2.0.0+)
+
+**Purpose:** Legend generation system
+
+**Components:**
+- **Legend**: Main legend class
+- **LegendDataExtractor**: Extract legend data from grid
+- **LegendRenderers**: Render legend to DOM
+
+**Usage:**
+```javascript
+import { Legend } from 'screengrid';
+
+const legend = new Legend({
+  layer: gridLayer,
+  type: 'auto',
+  position: 'bottom-right',
+  title: 'Data Legend'
+});
+```
+
+**Legend Types:**
+- `color-scale`: Continuous color scale
+- `categorical`: Discrete categories
+- `temporal`: Time-based
+- `size-scale`: Size-based
+- `auto`: Auto-detect
+- `multi`: Multi-attribute
+
+**Benefits:**
+- Automatic legend generation
+- Plugin integration
+- Multiple legend types
+- Auto-updates on aggregation
+
+---
+
+### `core/geometry/` (v2.1.0+)
+
+**Purpose:** Geometry placement for non-point inputs
+
+**Components:**
+- **PlacementEngine**: Convert geometries to anchors
+- **PlacementValidator**: Validate placement config
+- **GeometryUtils**: Geometry utilities
+- **Strategies**: Centroid, polylabel, line-sample, grid-geo, grid-screen, point
+
+**Usage:**
+```javascript
+import { PlacementEngine, PlacementValidator } from 'screengrid';
+
+// Validate config
+const isValid = PlacementValidator.validate(placementConfig);
+
+// Process features
+const engine = new PlacementEngine(map);
+const anchors = engine.processFeatures(features, placementConfig);
+```
+
+**Benefits:**
+- Support for non-point geometries
+- Multiple placement strategies
+- Configurable sampling
+- View-dependent recomputation
 
 ---
 
@@ -533,12 +788,16 @@ describe('ScreenGridLayerGL', () => {
 
 The modular structure enables:
 
-1. **Plugin System** - Load custom renderers/glyphs
+1. **Plugin System** ✅ - Glyph plugin registry implemented (v2.0.0+)
 2. **Server-side Aggregation** - Use `Aggregator` on backend
 3. **Alternative Renderers** - WebGL renderer via separate module
-4. **Extended Glyphs** - Community glyph library
+4. **Extended Glyphs** ✅ - Community plugin library (v2.0.0+)
 5. **Performance Optimizations** - Optimize individual modules
 6. **Framework Adapters** - React, Vue bindings
+7. **Hexagonal Mode** ✅ - Hex tessellation (v2.2.0+)
+8. **Geometry Input** ✅ - Non-point geometries (v2.1.0+)
+9. **Legend System** ✅ - Auto-generated legends (v2.0.0+)
+10. **Data Utilities** ✅ - Helper functions (v2.1.0+)
 
 ---
 
