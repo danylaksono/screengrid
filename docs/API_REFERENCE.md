@@ -356,8 +356,13 @@ colorScale: (v) => {
   normalizedValue: number, // Same as normVal
   col: number,           // Grid column index
   row: number,           // Grid row index
-  value: number          // Raw aggregated value
+  value: number,         // Raw aggregated value
+  customData: any,       // Result returned from onAfterAggregate for this cell
+  zoomLevel: number,     // Current map zoom level
+  isHovered: boolean,    // True if cell is currently hovered by mouse
+  grid: Array<number>    // Full grid array for context
 }
+```
 ```
 
 **Example:**
@@ -377,6 +382,28 @@ onDrawCell: (ctx, x, y, normVal, cellInfo) => {
 - **Type:** `number`
 - **Default:** `0.8`
 - **Description:** Size of glyphs relative to cell size (0-1). Multiplied by cell size to get glyph radius.
+
+#### `onAfterAggregate`
+- **Type:** `Function|null`
+- **Default:** `null`
+- **Description:** Callback for post-aggregation calculations. Executed once per cell with data. Result is passed to `onDrawCell` as `cellInfo.customData`.
+- **Parameters:** `(cellData, aggregatedValue, index, grid) => any`
+  - `cellData`: Array of points in the cell
+  - `aggregatedValue`: The result of the primary aggregation (e.g., sum)
+  - `index`: Linear index of the cell in the grid
+  - `grid`: The full array of aggregated values
+
+**Example (Multivariate Averages):**
+```javascript
+onAfterAggregate: (cellData) => {
+  const sumVal1 = cellData.reduce((s, p) => s + p.data.val1, 0);
+  const sumVal2 = cellData.reduce((s, p) => s + p.data.val2, 0);
+  return { 
+    avgVal1: sumVal1 / cellData.length,
+    avgVal2: sumVal2 / cellData.length 
+  };
+}
+```
 
 ---
 

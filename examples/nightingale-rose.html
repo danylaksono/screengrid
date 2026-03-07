@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nightingale Rose Multivariate Visualization</title>
+    <link href="https://unpkg.com/maplibre-gl@^4/dist/maplibre-gl.css" rel="stylesheet" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: sans-serif;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+            background: #0f172a;
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(15, 23, 42, 0.9);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            max-width: 300px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        h1 {
+            font-size: 18px;
+            margin: 0 0 10px 0;
+            color: #38bdf8;
+        }
+
+        p {
+            font-size: 13px;
+            opacity: 0.8;
+            line-height: 1.5;
+            margin: 0 0 15px 0;
+        }
+
+        .slider-container {
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .slider-container label {
+            font-size: 12px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        .color-box {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            margin-right: 8px;
+        }
+
+        #info {
+            position: absolute;
+            bottom: 30px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(15, 23, 42, 0.9);
+            color: white;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            display: none;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <div class="controls">
+        <h1>Nightingale Rose Grid</h1>
+        <p>Demonstrating multivariate aggregation using the new <code>onAfterAggregate</code> hook and reactive
+            <code>isHovered</code> state.
+        </p>
+
+        <div class="slider-container">
+            <label>
+                <span>Glyph Size</span>
+                <span id="glyph-size-val">0.8</span>
+            </label>
+            <input type="range" id="glyph-size-slider" min="0.1" max="1.5" step="0.1" value="0.8">
+        </div>
+
+        <div id="legend"></div>
+    </div>
+    <div id="info"></div>
+
+    <script src="https://unpkg.com/maplibre-gl@^4/dist/maplibre-gl.js"></script>
+    <script type="module">
+        import { ScreenGridLayerGL, GlyphUtilities } from '../src/index.js';
+
+        const PARAMETERS = [
+            { key: 'pv', label: 'Solar PV', color: '#fbbf24' },
+            { key: 'ashp', label: 'Heat Pump', color: '#38bdf8' },
+            { key: 'insulation', label: 'Insulation', color: '#34d399' },
+            { key: 'ev', label: 'Electric Vehicle', color: '#f472b6' },
+            { key: 'smart', label: 'Smart Meter', color: '#a78bfa' },
+            { key: 'storage', label: 'Battery', color: '#f87171' }
+        ];
+
+        // Create legend
+        const legendContainer = document.getElementById('legend');
+        PARAMETERS.forEach(p => {
+            const item = document.createElement('div');
+            item.className = 'legend-item';
+            item.innerHTML = `<div class="color-box" style="background: ${p.color}"></div><span>${p.label}</span>`;
+            legendContainer.appendChild(item);
+        });
+
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                version: 8,
+                sources: {
+                    'carto-dark': {
+                        type: 'raster',
+                        tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
+                        tileSize: 256,
+                        attribution: '© CARTO'
+                    }
+                },
+                layers: [{ id: 'background', type: 'raster', source: 'carto-dark' }]
+            },
+            center: [0.12, 52.20],
+            zoom: 12
+        });
+
+        // Generate synthetic multivariate data
+        function generateData() {
+            const data = [];
+            const center = [0.12, 52.20];
+            for (let i = 0; i < 2000; i++) {
+                const lng = center[0] + (Math.random() - 0.5) * 0.15;
+                const lat = center[1] + (Math.random() - 0.5) * 0.08;
+
+                // Randomly assign values to different retrofitting parameters
+                data.push({
+                    coordinates: [lng, lat],
+                    pv: Math.random() > 0.7 ? Math.random() * 100 : 0,
+                    ashp: Math.random() > 0.8 ? Math.random() * 100 : 0,
+                    insulation: Math.random() > 0.6 ? Math.random() * 100 : 0,
+                    ev: Math.random() > 0.85 ? Math.random() * 100 : 0,
+                    smart: Math.random() > 0.5 ? Math.random() * 100 : 0,
+                    storage: Math.random() > 0.9 ? Math.random() * 100 : 0,
+                    score: Math.random() * 10 // Global score
+                });
+            }
+            return data;
+        }
+
+        map.on('load', () => {
+            const layer = new ScreenGridLayerGL({
+                id: 'nightingale-grid',
+                data: generateData(),
+                cellSizePixels: 60,
+                enableGlyphs: true,
+
+                // 1. COMPLEX AGGREGATION: Calculate averages for all parameters once
+                onAfterAggregate: (cellData) => {
+                    const stats = {};
+                    PARAMETERS.forEach(p => {
+                        const values = cellData.map(d => d.data[p.key] || 0);
+                        stats[p.key] = values.reduce((a, b) => a + b, 0) / cellData.length;
+                    });
+                    return stats;
+                },
+
+                // 2. ENHANCED DRAWING: Use calculated stats and interactive state
+                onDrawCell: (ctx, x, y, normVal, cellInfo) => {
+                    const stats = cellInfo.customData;
+                    const { isHovered, glyphRadius } = cellInfo;
+
+                    if (!stats) return;
+
+                    // Draw a subtle background for the cell
+                    ctx.fillStyle = isHovered ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)';
+                    ctx.beginPath();
+                    ctx.arc(x, y, glyphRadius * 1.1, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Configuration for the rose chart
+                    const numSegments = PARAMETERS.length;
+                    const segmentAngle = (2 * Math.PI) / numSegments;
+                    const radius = glyphRadius * (isHovered ? 1.2 : 1.0); // Scale up on hover!
+
+                    // Draw each segment (petal) of the rose
+                    PARAMETERS.forEach((p, i) => {
+                        const val = stats[p.key];
+                        if (val <= 0) return;
+
+                        const startAngle = i * segmentAngle - Math.PI / 2;
+                        const endAngle = startAngle + segmentAngle;
+
+                        // Radii: value scales the length of the petal
+                        const outerRadius = (val / 100) * radius;
+
+                        ctx.fillStyle = p.color;
+                        ctx.globalAlpha = isHovered ? 0.9 : 0.7;
+
+                        ctx.beginPath();
+                        ctx.moveTo(x, y);
+                        ctx.arc(x, y, outerRadius, startAngle, endAngle);
+                        ctx.closePath();
+                        ctx.fill();
+
+                        // Add a subtle stroke on hover
+                        if (isHovered) {
+                            ctx.strokeStyle = 'white';
+                            ctx.lineWidth = 1;
+                            ctx.stroke();
+                        }
+                    });
+                },
+
+                onHover: ({ cell }) => {
+                    const info = document.getElementById('info');
+                    if (cell && cell.customData) {
+                        info.style.display = 'block';
+                        let html = `<strong>Cell [${cell.col}, ${cell.row}]</strong><br/>`;
+                        PARAMETERS.forEach(p => {
+                            html += `${p.label}: ${cell.customData[p.key].toFixed(1)}%<br/>`;
+                        });
+                        info.innerHTML = html;
+                    } else {
+                        info.style.display = 'none';
+                    }
+                }
+            });
+
+            map.addLayer(layer);
+
+            // Slider control logic
+            const slider = document.getElementById('glyph-size-slider');
+            const sliderVal = document.getElementById('glyph-size-val');
+
+            slider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                sliderVal.textContent = val.toFixed(1);
+
+                // Update layer configuration
+                layer.setConfig({
+                    glyphSize: val
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>

@@ -46,7 +46,8 @@ export const ScreenGridMode = {
       width,
       height,
       config.cellSizePixels,
-      config.aggregationFunction // Pass aggregation function
+      config.aggregationFunction, // Pass aggregation function
+      config.onAfterAggregate // Pass post-aggregation hook
     );
   },
 
@@ -58,6 +59,13 @@ export const ScreenGridMode = {
    * @param {Object} map - MapLibre map instance (not used for screen-space)
    */
   render(aggregationResult, ctx, config, map) {
+    // Current zoom level for context
+    const zoomLevel = map ? map.getZoom() : 0;
+    
+    // Check if a cell is currently hovered (assuming we can track this)
+    // For now, we'll pass it if it's available in the config/state
+    const hoveredIndex = config._hoveredIndex !== undefined ? config._hoveredIndex : -1;
+
     // Use existing renderer
     Renderer.render(aggregationResult, ctx, {
       colorScale: config.colorScale,
@@ -67,6 +75,8 @@ export const ScreenGridMode = {
       showBackground: config.showBackground, // Pass showBackground to renderer
       normalizationFunction: config.normalizationFunction, // Pass normalization function
       normalizationContext: config.normalizationContext, // Pass normalization context
+      zoomLevel,
+      hoveredIndex
     });
   },
 

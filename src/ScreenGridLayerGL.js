@@ -51,6 +51,7 @@ export class ScreenGridLayerGL {
     this._placementCacheKey = null; // Cache key for view-dependent placement
     this._lastViewState = null; // Track view state for cache invalidation
     this._anchorsMaxWeight = 1; // Cached max weight for normalization
+    this._hoveredIndex = -1; // Track currently hovered cell index
   }
 
   // ============ MapLibre GL Interface ============
@@ -628,6 +629,7 @@ export class ScreenGridLayerGL {
       cellSizePixels: this.config.cellSizePixels,
       displaySize: { width, height },
       aggregationFunction: this.config.aggregationFunction, // Pass aggregation function
+      onAfterAggregate: this.config.onAfterAggregate, // Pass post-aggregation hook
     };
 
     // Aggregate using mode plugin
@@ -755,6 +757,7 @@ export class ScreenGridLayerGL {
       showBackground: this.config.aggregationModeConfig?.showBackground, // Extract showBackground from mode config
       normalizationFunction: this.config.normalizationFunction, // Pass normalization function
       normalizationContext: this.config.normalizationContext, // Pass normalization context
+      _hoveredIndex: this._hoveredIndex, // Pass tracked hover state
     };
 
     // Merge mode config (showBackground is already extracted above, so it won't conflict)
@@ -785,8 +788,20 @@ export class ScreenGridLayerGL {
    * @private
    */
   _handleHover(e) {
-    // Pass layer instance so it can use mode-aware getCellAt() for both grid and hex modes
-    EventHandlers.handleHover(e, this, this.config.onHover);
+    const cell = this.getCellAt({ x: e.point.x, y: e.point.y });
+    const newHoveredIndex = (cell && cell.index !== undefined) ? cell.index : -1;
+    
+    if (this._hoveredIndex !== newHoveredIndex) {
+      this._hoveredIndex = newHoveredIndex;
+      // Trigger repaint to update highlight if needed
+      if (this.map) {
+        this.map.triggerRepaint();
+      }
+    }
+
+    if (this.config.onHover && typeof this.config.onHover === 'function') {
+      this.config.onHover({ cell, event: e });
+    }
   }
 
   /**
