@@ -13,8 +13,10 @@ This library is inspired by Aidan Slingsby's [Gridded Glyphmaps](https://openacc
 - **Real-time Aggregation**: Efficiently aggregates point data into screen-space grids
 - **Multiple Aggregation Modes**: Support for rectangular grids (`screen-grid`) and hexagonal tessellation (`screen-hex`)
 - **Customizable Styling**: Flexible color scales and cell sizing
-- **Interactive Events**: Hover and click handlers for grid cells
+- **Interactive Events**: Hover and click handlers for grid cells with reactive state
 - **Glyph Drawing**: Custom glyph rendering with Canvas 2D for advanced visualizations
+- **Post-Aggregation Hooks**: Perform complex multivariate calculations (e.g., averages) once per aggregation cycle
+- **Enriched Context**: Access zoom level, hover state, and custom data directly in your drawing callbacks
 - **Plugin Ecosystem**: Reusable, named glyph plugins with registry system, lifecycle hooks, and legend integration
 - **Built-in Plugins**: Four ready-to-use plugins (`circle`, `bar`, `pie`, `heatmap`) plus utilities for custom plugins
 - **Flexible Aggregation Functions**: Built-in functions (sum, mean, count, max, min) with registry system for custom functions

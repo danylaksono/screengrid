@@ -56,9 +56,35 @@ projector.project(data, getPos, getWeight)
 **When:** Aggregate points into grid cells  
 **API:**
 ```javascript
-Aggregator.aggregate(points, data, width, height, cellSize)
+Aggregator.aggregate(points, data, width, height, cellSize, aggFn, onAfterAggregate)
 aggregator.getStats(result)
 ```
+
+---
+
+## 🛠️ Advanced Hooks Reference
+
+### `onAfterAggregate` (Multivariate)
+**What:** Calculate complex stats per cell once per render.  
+**Use case:** Averages, medians, or multi-attribute scores.
+```javascript
+onAfterAggregate: (cellPoints, aggVal, idx, grid) => ({
+  avg: cellPoints.reduce((s, p) => s + p.data.v, 0) / cellPoints.length,
+  maxScore: Math.max(...cellPoints.map(p => p.data.score))
+})
+```
+
+### `onDrawCell` (Context)
+**What:** Draw to canvas with enriched context.
+```javascript
+onDrawCell: (ctx, x, y, normVal, cellInfo) => {
+  const { customData, isHovered, zoomLevel } = cellInfo;
+  // Use customData from onAfterAggregate
+  if (isHovered) { /* Highlight effect */ }
+}
+```
+
+---
 
 ### CellQueryEngine
 **What:** Spatial queries on grid  

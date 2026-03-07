@@ -85,7 +85,7 @@ export class Renderer {
       return;
     }
 
-    const { grid, cellData, cols, rows, cellSizePixels } = aggregationResult;
+    const { grid, cellData, customData = [], cols, rows, cellSizePixels } = aggregationResult;
     const { 
       colorScale, 
       enableGlyphs, 
@@ -93,7 +93,10 @@ export class Renderer {
       glyphSize, 
       showBackground,
       normalizationFunction,
-      normalizationContext = {}
+      normalizationContext = {},
+      zoomLevel = 0, // Passed from Layer
+      isHovered = false, // Current cell hovered state
+      hoveredIndex = -1 // Global hovered index
     } = config;
 
     // Compute stats for normalization
@@ -198,7 +201,13 @@ export class Renderer {
               cellData[idx],
               c,
               r,
-              idx
+              idx,
+              customData[idx],
+              {
+                zoomLevel,
+                isHovered: (idx === hoveredIndex),
+                grid
+              }
             );
           }
         }
@@ -233,7 +242,9 @@ export class Renderer {
     cellDataArray,
     col,
     row,
-    index
+    index,
+    customData = null,
+    context = {}
   ) {
     const cellCenterX = x + cellSize / 2;
     const cellCenterY = y + cellSize / 2;
@@ -245,13 +256,13 @@ export class Renderer {
       
       onDrawCell(ctx, cellCenterX, cellCenterY, normVal, {
         cellData: cellDataArray,
-        cellSize,
-        glyphRadius,
-        normalizedValue: normVal,
         col,
         row,
         index,
-        center: { x: cellCenterX, y: cellCenterY },
+        glyphRadius,
+        cellSize,
+        customData,
+        ...context
       });
     } catch (e) {
       Logger.error('Error in onDrawCell callback:', e);

@@ -25,6 +25,7 @@ export class ConfigManager {
     cellSizePixels: 50,
     colorScale: (v) => [255 * v, 100, 200, 200],
     onAggregate: null,
+    onAfterAggregate: null, // Hook for post-aggregation (multivariate calculations)
     onHover: null,
     onClick: null,
     onDrawCell: null,

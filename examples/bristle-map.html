@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bristle Map Example - ScreenGrid</title>
+    <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .controls {
+            width: 350px;
+            background: white;
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            overflow-y: auto;
+        }
+        
+        .control-group {
+            margin-bottom: 20px;
+        }
+        
+        .control-group h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 16px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .control-group input, .control-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .control-group input[type="range"] {
+            padding: 0;
+        }
+        
+        .info-panel {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .info-panel h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        .info-item {
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .info-item strong {
+            color: #555;
+        }
+        
+        .description {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #1565c0;
+        }
+        
+        .description h3 {
+            margin: 0 0 10px 0;
+            color: #0d47a1;
+        }
+        
+        .description ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        
+        .description li {
+            margin-bottom: 5px;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+        }
+        
+        button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        
+        button:hover {
+            background: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="map-container">
+            <div id="map"></div>
+            <div id="loading" class="loading" style="display: none;">
+                <div>Loading roads and data...</div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <h2>Bristle Map Visualization</h2>
+            
+            <div class="description">
+                <h3>About Bristle Maps</h3>
+                <p>Bristle maps project data points to the nearest road segment, aggregate data along each road, and draw bristles perpendicular to the road line.</p>
+                <ul>
+                    <li><strong>Length:</strong> Magnitude/intensity</li>
+                    <li><strong>Color:</strong> Category/type</li>
+                    <li><strong>Orientation:</strong> Perpendicular to road</li>
+                    <li><strong>Density:</strong> Number of bristles</li>
+                </ul>
+            </div>
+            
+            <div class="control-group">
+                <h3>Bristle Configuration</h3>
+                <label for="bristleCount">Bristles per Sample Point:</label>
+                <input type="range" id="bristleCount" min="1" max="12" value="6" step="1">
+                <span id="bristleCountValue">6</span>
+                
+                <label for="maxLength">Max Bristle Length (meters):</label>
+                <input type="range" id="maxLength" min="5" max="100" value="30" step="5">
+                <span id="maxLengthValue">30m</span>
+                
+                <label for="bristleWidth">Bristle Width:</label>
+                <input type="range" id="bristleWidth" min="1" max="4" value="2" step="0.5">
+                <span id="bristleWidthValue">2</span>
+                
+                <label for="sampleSpacing">Road Sample Spacing (meters):</label>
+                <input type="range" id="sampleSpacing" min="20" max="200" value="50" step="10">
+                <span id="sampleSpacingValue">50m</span>
+            </div>
+            
+            <div class="control-group">
+                <h3>Encoding Mappings</h3>
+                <label for="lengthMapping">Length Encodes:</label>
+                <select id="lengthMapping">
+                    <option value="spaces">Total Spaces</option>
+                    <option value="racks">Total Racks</option>
+                    <option value="points">Number of Points</option>
+                    <option value="ratio">Racks/Spaces Ratio</option>
+                </select>
+                
+                <label for="colorMapping">Color Encodes:</label>
+                <select id="colorMapping">
+                    <option value="spaces">Total Spaces</option>
+                    <option value="racks">Total Racks</option>
+                    <option value="points">Number of Points</option>
+                    <option value="ratio">Racks/Spaces Ratio</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <h3>Data Source</h3>
+                <button id="loadOSMRoads">Load Roads from OSM</button>
+                <p style="font-size: 12px; color: #666; margin-top: 10px;">
+                    Fetches real road data from OpenStreetMap
+                </p>
+                <label for="roadTypes">Road Types:</label>
+                <select id="roadTypes" multiple style="height: 80px;">
+                    <option value="primary" selected>Primary</option>
+                    <option value="secondary" selected>Secondary</option>
+                    <option value="tertiary">Tertiary</option>
+                    <option value="residential">Residential</option>
+                    <option value="service">Service</option>
+                    <option value="unclassified">Unclassified</option>
+                </select>
+                <p style="font-size: 11px; color: #999; margin-top: 5px;">
+                    Select only main roads (Primary/Secondary) to avoid timeouts
+                </p>
+            </div>
+            
+            <div class="info-panel">
+                <h4>Statistics</h4>
+                <div class="info-item">
+                    <strong>Data Points:</strong> <span id="pointCount">-</span>
+                </div>
+                <div class="info-item">
+                    <strong>Road Segments:</strong> <span id="roadCount">-</span>
+                </div>
+                <div class="info-item">
+                    <strong>Sample Points:</strong> <span id="sampleCount">-</span>
+                </div>
+                <div class="info-item">
+                    <strong>Hovered:</strong> <span id="hoveredInfo">None</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { ScreenGridLayerGL } from '../src/index.js';
+        
+        // Initialize map
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                version: 8,
+                sources: {
+                    'osm': {
+                        type: 'raster',
+                        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                        tileSize: 256,
+                        attribution: '© OpenStreetMap contributors'
+                    }
+                },
+                layers: [
+                    { id: 'osm', type: 'raster', source: 'osm', paint: { 'raster-opacity': 0.6 } }
+                ]
+            },
+            center: [-122.4, 37.74],
+            zoom: 13
+        });
+        
+        let gridLayer = null;
+        let roadData = null;
+        let dataPoints = null;
+        let roadSegmentData = new Map(); // Map road segment ID to aggregated data
+        
+        // UI elements
+        const bristleCountSlider = document.getElementById('bristleCount');
+        const bristleCountValue = document.getElementById('bristleCountValue');
+        const maxLengthSlider = document.getElementById('maxLength');
+        const maxLengthValue = document.getElementById('maxLengthValue');
+        const bristleWidthSlider = document.getElementById('bristleWidth');
+        const bristleWidthValue = document.getElementById('bristleWidthValue');
+        const sampleSpacingSlider = document.getElementById('sampleSpacing');
+        const sampleSpacingValue = document.getElementById('sampleSpacingValue');
+        const lengthMappingSelect = document.getElementById('lengthMapping');
+        const colorMappingSelect = document.getElementById('colorMapping');
+        const loadOSMRoadsBtn = document.getElementById('loadOSMRoads');
+        const loadingDiv = document.getElementById('loading');
+        
+        // Info display elements
+        const pointCountSpan = document.getElementById('pointCount');
+        const roadCountSpan = document.getElementById('roadCount');
+        const sampleCountSpan = document.getElementById('sampleCount');
+        const hoveredInfoSpan = document.getElementById('hoveredInfo');
+        
+        // Utility functions
+        function distanceMeters(coord1, coord2) {
+            const R = 6371000; // Earth radius in meters
+            const lat1 = coord1[1] * Math.PI / 180;
+            const lat2 = coord2[1] * Math.PI / 180;
+            const dLat = (coord2[1] - coord1[1]) * Math.PI / 180;
+            const dLon = (coord2[0] - coord1[0]) * Math.PI / 180;
+            
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1) * Math.cos(lat2) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            
+            return R * c;
+        }
+        
+        function pointToLineDistance(point, lineStart, lineEnd) {
+            const A = point[0] - lineStart[0];
+            const B = point[1] - lineStart[1];
+            const C = lineEnd[0] - lineStart[0];
+            const D = lineEnd[1] - lineStart[1];
+            
+            const dot = A * C + B * D;
+            const lenSq = C * C + D * D;
+            let param = -1;
+            
+            if (lenSq !== 0) param = dot / lenSq;
+            
+            let xx, yy;
+            
+            if (param < 0) {
+                xx = lineStart[0];
+                yy = lineStart[1];
+            } else if (param > 1) {
+                xx = lineEnd[0];
+                yy = lineEnd[1];
+            } else {
+                xx = lineStart[0] + param * C;
+                yy = lineStart[1] + param * D;
+            }
+            
+            const dx = point[0] - xx;
+            const dy = point[1] - yy;
+            return Math.sqrt(dx * dx + dy * dy); // Return distance in degrees (for comparison)
+        }
+        
+        function pointToLineDistanceMeters(point, lineStart, lineEnd) {
+            const distDegrees = pointToLineDistance(point, lineStart, lineEnd);
+            // Approximate conversion: 1 degree ≈ 111km at equator
+            return distDegrees * 111000;
+        }
+        
+        function findNearestRoadSegment(point, roads) {
+            let minDist = Infinity;
+            let nearestRoad = null;
+            let nearestSegmentIndex = -1;
+            
+            for (const road of roads) {
+                const coords = road.geometry.coordinates;
+                for (let i = 0; i < coords.length - 1; i++) {
+                    const dist = pointToLineDistance(point, coords[i], coords[i + 1]);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nearestRoad = road;
+                        nearestSegmentIndex = i;
+                    }
+                }
+            }
+            
+            return { 
+                road: nearestRoad, 
+                segmentIndex: nearestSegmentIndex, 
+                distance: minDist 
+            };
+        }
+        
+        function getSegmentAngle(road, segmentIndex) {
+            const coords = road.geometry.coordinates;
+            if (segmentIndex < 0 || segmentIndex >= coords.length - 1) return 0;
+            
+            const p1 = coords[segmentIndex];
+            const p2 = coords[segmentIndex + 1];
+            
+            // Calculate angle in radians (0 = east, PI/2 = north)
+            const dx = p2[0] - p1[0];
+            const dy = p2[1] - p1[1];
+            return Math.atan2(dy, dx);
+        }
+        
+        function projectDataToRoads(dataPoints, roads) {
+            roadSegmentData.clear();
+            
+            // Initialize road segment data
+            roads.forEach((road, roadIdx) => {
+                const coords = road.geometry.coordinates;
+                for (let i = 0; i < coords.length - 1; i++) {
+                    const segmentId = `${roadIdx}-${i}`;
+                    roadSegmentData.set(segmentId, {
+                        roadIdx,
+                        segmentIndex: i,
+                        totalRacks: 0,
+                        totalSpaces: 0,
+                        pointCount: 0,
+                        road: road,
+                        segmentLength: distanceMeters(coords[i], coords[i + 1])
+                    });
+                }
+            });
+            
+            // Project each data point to nearest road segment
+            const maxProjectionDistance = 0.001; // ~100m in degrees
+            let projectedCount = 0;
+            
+            dataPoints.forEach(point => {
+                const pos = point.COORDINATES || point.coordinates;
+                if (!pos) return;
+                
+                const nearest = findNearestRoadSegment(pos, roads);
+                if (nearest.road && nearest.distance < maxProjectionDistance) {
+                    const roadIdx = roads.indexOf(nearest.road);
+                    const segmentId = `${roadIdx}-${nearest.segmentIndex}`;
+                    const segmentData = roadSegmentData.get(segmentId);
+                    
+                    if (segmentData) {
+                        segmentData.totalRacks += point.RACKS || 0;
+                        segmentData.totalSpaces += point.SPACES || 0;
+                        segmentData.pointCount += 1;
+                        projectedCount++;
+                    }
+                }
+            });
+            
+            // Calculate density (points per km) for each segment
+            roadSegmentData.forEach((segData, segmentId) => {
+                const lengthKm = segData.segmentLength / 1000;
+                segData.density = lengthKm > 0 ? segData.pointCount / lengthKm : 0;
+                segData.spacesPerKm = lengthKm > 0 ? segData.totalSpaces / lengthKm : 0;
+            });
+            
+            // Store road index in properties for anchor lookup
+            roads.forEach((road, roadIdx) => {
+                road.properties.roadIdx = roadIdx;
+            });
+            
+            console.log(`Projected ${projectedCount} of ${dataPoints.length} points to ${roadSegmentData.size} road segments`);
+        }
+        
+        // Bristle drawing function for feature-anchors mode
+        function drawBristleGlyph(ctx, x, y, normVal, cellInfo) {
+            // In feature-anchors mode, cellInfo contains anchor info
+            const anchor = cellInfo.anchor || cellInfo;
+            const props = anchor.props || {};
+            const anchorPos = anchor.position || [anchor.geo?.lng, anchor.geo?.lat];
+            
+            // Find the road feature and determine which segment this anchor is on
+            const roadIdx = props.roadIdx;
+            if (roadIdx === undefined || !roadData || !roadData.features[roadIdx]) return;
+            
+            const road = roadData.features[roadIdx];
+            const coords = road.geometry.coordinates;
+            
+            // Find the segment this anchor point is closest to
+            let minDist = Infinity;
+            let segmentIndex = 0;
+            let segmentAngle = 0;
+            
+            for (let i = 0; i < coords.length - 1; i++) {
+                const dist = pointToLineDistance(anchorPos, coords[i], coords[i + 1]);
+                if (dist < minDist) {
+                    minDist = dist;
+                    segmentIndex = i;
+                    // Calculate road segment angle
+                    const dx = coords[i + 1][0] - coords[i][0];
+                    const dy = coords[i + 1][1] - coords[i][1];
+                    segmentAngle = Math.atan2(dy, dx);
+                }
+            }
+            
+            // Get aggregated data for this segment
+            const segmentId = `${roadIdx}-${segmentIndex}`;
+            const segmentData = roadSegmentData.get(segmentId);
+            
+            if (!segmentData || segmentData.pointCount === 0) return;
+            
+            const totalRacks = segmentData.totalRacks || 0;
+            const totalSpaces = segmentData.totalSpaces || 0;
+            const pointCount = segmentData.pointCount || 0;
+            const density = segmentData.density || 0;
+            const spacesPerKm = segmentData.spacesPerKm || 0;
+            const ratio = totalSpaces > 0 ? totalRacks / totalSpaces : 0;
+            const roadAngle = segmentAngle;
+            
+            // Perpendicular angle (road angle + PI/2)
+            const perpAngle = roadAngle + Math.PI / 2;
+            
+            // Get configuration
+            const bristleCount = parseInt(bristleCountSlider.value);
+            const maxLengthMeters = parseInt(maxLengthSlider.value);
+            const bristleWidth = parseFloat(bristleWidthSlider.value);
+            const opacity = 0.85;
+            
+            // Find max values across all segments for normalization
+            let maxRacks = 0, maxSpaces = 0, maxPoints = 0, maxDensity = 0, maxSpacesPerKm = 0;
+            roadSegmentData.forEach(segData => {
+                maxRacks = Math.max(maxRacks, segData.totalRacks);
+                maxSpaces = Math.max(maxSpaces, segData.totalSpaces);
+                maxPoints = Math.max(maxPoints, segData.pointCount);
+                maxDensity = Math.max(maxDensity, segData.density);
+                maxSpacesPerKm = Math.max(maxSpacesPerKm, segData.spacesPerKm);
+            });
+            maxRacks = Math.max(maxRacks, 1);
+            maxSpaces = Math.max(maxSpaces, 1);
+            maxPoints = Math.max(maxPoints, 1);
+            maxDensity = Math.max(maxDensity, 0.1);
+            maxSpacesPerKm = Math.max(maxSpacesPerKm, 0.1);
+            const maxRatio = Math.max(0.1, ratio);
+            
+            const lengthMapping = lengthMappingSelect.value;
+            const colorMapping = colorMappingSelect.value;
+            
+            // Calculate normalized values for length encoding
+            const lengthValue = Math.min(1, Math.max(0, {
+                spaces: totalSpaces / maxSpaces,
+                racks: totalRacks / maxRacks,
+                points: pointCount / maxPoints,
+                ratio: ratio / maxRatio
+            }[lengthMapping] || 0));
+            
+            // Calculate normalized values for color encoding (density-based graduated colors)
+            const colorValue = Math.min(1, Math.max(0, {
+                spaces: totalSpaces / maxSpaces,
+                racks: totalRacks / maxRacks,
+                points: pointCount / maxPoints,
+                ratio: ratio / maxRatio
+            }[colorMapping] || 0));
+            
+            // Convert meters to pixels (approximate)
+            const zoom = map.getZoom();
+            const lat = map.getCenter().lat;
+            const metersPerPixel = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, zoom);
+            const maxBristleLengthPixels = maxLengthMeters / metersPerPixel;
+            
+            ctx.save();
+            ctx.globalAlpha = opacity;
+            ctx.lineWidth = bristleWidth;
+            ctx.lineCap = 'round';
+            
+            // Graduated color scheme: blue (low) -> green -> yellow -> orange -> red (high)
+            // Using a smooth color gradient based on density/value
+            let hue, saturation, lightness;
+            if (colorValue < 0.25) {
+                // Blue to cyan (low values)
+                hue = 210 + (colorValue / 0.25) * 30; // 210-240
+                saturation = 60 + (colorValue / 0.25) * 20; // 60-80
+                lightness = 50;
+            } else if (colorValue < 0.5) {
+                // Cyan to green (medium-low)
+                hue = 150 + ((colorValue - 0.25) / 0.25) * 30; // 150-180
+                saturation = 70;
+                lightness = 45 + ((colorValue - 0.25) / 0.25) * 5; // 45-50
+            } else if (colorValue < 0.75) {
+                // Green to yellow (medium-high)
+                hue = 90 + ((colorValue - 0.5) / 0.25) * 30; // 90-120
+                saturation = 80;
+                lightness = 50;
+            } else {
+                // Yellow to red (high values)
+                hue = 30 + ((colorValue - 0.75) / 0.25) * 30; // 30-60
+                saturation = 85 + ((colorValue - 0.75) / 0.25) * 10; // 85-95
+                lightness = 50;
+            }
+            
+            // Draw bristles perpendicular to road
+            for (let i = 0; i < bristleCount; i++) {
+                // Spread bristles around perpendicular angle (smaller spread for cleaner look)
+                const spread = (i / Math.max(1, bristleCount - 1) - 0.5) * 0.2; // ±10 degrees spread
+                const angle = perpAngle + spread;
+                
+                // Bristle length based on aggregated data
+                // Add slight variation for visual interest, but keep it subtle
+                const baseLength = maxBristleLengthPixels * lengthValue;
+                const variation = baseLength * 0.05 * (Math.random() - 0.5); // ±5% variation
+                const bristleLength = Math.max(3, baseLength + variation);
+                
+                // Use graduated color based on density/value
+                ctx.strokeStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+                
+                // Draw bristle (extend on both sides of road)
+                const endX1 = x + Math.cos(angle) * bristleLength;
+                const endY1 = y + Math.sin(angle) * bristleLength;
+                const endX2 = x - Math.cos(angle) * bristleLength;
+                const endY2 = y - Math.sin(angle) * bristleLength;
+                
+                ctx.beginPath();
+                ctx.moveTo(endX1, endY1);
+                ctx.lineTo(endX2, endY2);
+                ctx.stroke();
+            }
+            
+            // Draw subtle road center line indicator
+            ctx.strokeStyle = `rgba(100, 100, 100, ${opacity * 0.3})`;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            const indicatorLength = 4;
+            ctx.moveTo(x - Math.cos(roadAngle) * indicatorLength, y - Math.sin(roadAngle) * indicatorLength);
+            ctx.lineTo(x + Math.cos(roadAngle) * indicatorLength, y + Math.sin(roadAngle) * indicatorLength);
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+        
+        // Create sample road data (simplified road network)
+        function createSampleRoads(bounds) {
+            const roads = [];
+            const [minLng, minLat, maxLng, maxLat] = bounds;
+            
+            // Create a grid-like road network
+            const numRoads = 8;
+            for (let i = 0; i < numRoads; i++) {
+                // Horizontal roads
+                const lat = minLat + (maxLat - minLat) * (i / (numRoads - 1));
+                roads.push({
+                    type: 'Feature',
+                    id: `road-h-${i}`,
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: [
+                            [minLng, lat],
+                            [maxLng, lat]
+                        ]
+                    },
+                    properties: { name: `Road H${i}`, type: 'street' }
+                });
+                
+                // Vertical roads
+                const lng = minLng + (maxLng - minLng) * (i / (numRoads - 1));
+                roads.push({
+                    type: 'Feature',
+                    id: `road-v-${i}`,
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: [
+                            [lng, minLat],
+                            [lng, maxLat]
+                        ]
+                    },
+                    properties: { name: `Road V${i}`, type: 'street' }
+                });
+            }
+            
+            return {
+                type: 'FeatureCollection',
+                features: roads
+            };
+        }
+        
+        // Load OSM roads using Overpass API
+        async function loadOSMRoads() {
+            loadingDiv.style.display = 'block';
+            loadingDiv.innerHTML = '<div>Loading roads from OSM...</div>';
+            
+            try {
+                const bounds = map.getBounds();
+                const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
+                
+                // Get selected road types
+                const roadTypesSelect = document.getElementById('roadTypes');
+                const selectedRoadTypes = Array.from(roadTypesSelect.selectedOptions).map(opt => opt.value);
+                
+                // Default to main roads only if nothing selected
+                if (selectedRoadTypes.length === 0) {
+                    selectedRoadTypes.push('primary', 'secondary');
+                }
+                
+                const roadTypesRegex = selectedRoadTypes.join('|');
+                
+                // Overpass API query - limit to main roads only
+                // Simplified query for better performance
+                const query = `
+                    [out:json][timeout:15];
+                    way["highway"~"^(${roadTypesRegex})$"](${bbox});
+                    out geom;
+                `;
+                
+                loadingDiv.innerHTML = '<div>Querying Overpass API (main roads only)...</div>';
+                
+                // Try multiple Overpass endpoints for better reliability
+                const endpoints = [
+                    'https://overpass-api.de/api/interpreter',
+                    'https://overpass.kumi.systems/api/interpreter',
+                    'https://lz4.overpass-api.de/api/interpreter'
+                ];
+                
+                let response;
+                let lastError;
+                const timeoutMs = 20000; // 20 second timeout
+                
+                for (const endpoint of endpoints) {
+                    try {
+                        loadingDiv.innerHTML = `<div>Querying ${endpoint.split('//')[1].split('/')[0]}...</div>`;
+                        
+                        // Create timeout promise
+                        const timeoutPromise = new Promise((_, reject) => {
+                            setTimeout(() => reject(new Error('Request timeout')), timeoutMs);
+                        });
+                        
+                        // Race between fetch and timeout
+                        response = await Promise.race([
+                            fetch(endpoint, {
+                                method: 'POST',
+                                body: query,
+                                headers: {
+                                    'Content-Type': 'text/plain'
+                                }
+                            }),
+                            timeoutPromise
+                        ]);
+                        
+                        if (response.ok) {
+                            break; // Success, exit loop
+                        } else {
+                            lastError = new Error(`HTTP error! status: ${response.status}`);
+                        }
+                    } catch (error) {
+                        lastError = error;
+                        console.warn(`Failed to fetch from ${endpoint}:`, error);
+                        continue; // Try next endpoint
+                    }
+                }
+                
+                if (!response || !response.ok) {
+                    throw lastError || new Error('All Overpass endpoints failed');
+                }
+                
+                const data = await response.json();
+                
+                loadingDiv.innerHTML = '<div>Processing road data...</div>';
+                
+                // Convert Overpass result to GeoJSON
+                const features = [];
+                const ways = data.elements.filter(el => el.type === 'way' && el.geometry);
+                
+                // Build node lookup for coordinates
+                const nodeMap = new Map();
+                data.elements.forEach(el => {
+                    if (el.type === 'node') {
+                        nodeMap.set(el.id, [el.lon, el.lat]);
+                    }
+                });
+                
+                ways.forEach((way, idx) => {
+                    // Use geometry if available, otherwise use node references
+                    let coordinates;
+                    if (way.geometry && way.geometry.length > 0) {
+                        coordinates = way.geometry.map(node => [node.lon, node.lat]);
+                    } else if (way.nodes) {
+                        coordinates = way.nodes.map(nodeId => nodeMap.get(nodeId)).filter(c => c);
+                    } else {
+                        return; // Skip if no geometry
+                    }
+                    
+                    if (coordinates.length < 2) return; // Skip invalid lines
+                    
+                    // Filter: only include main road types to reduce data
+                    const highwayType = way.tags?.highway || '';
+                    if (!selectedRoadTypes.includes(highwayType)) {
+                        return; // Skip if not in selected types
+                    }
+                    
+                    features.push({
+                        type: 'Feature',
+                        id: way.id || `way-${idx}`,
+                        geometry: {
+                            type: 'LineString',
+                            coordinates: coordinates
+                        },
+                        properties: {
+                            highway: highwayType,
+                            name: way.tags?.name || '',
+                            roadIdx: idx
+                        }
+                    });
+                });
+                
+                // Limit to reasonable number of features to prevent overload
+                if (features.length > 5000) {
+                    console.warn(`Too many roads (${features.length}), limiting to 5000`);
+                    features = features.slice(0, 5000);
+                }
+                
+                roadData = {
+                    type: 'FeatureCollection',
+                    features: features
+                };
+                
+                roadCountSpan.textContent = roadData.features.length;
+                
+                loadingDiv.innerHTML = '<div>Aggregating data to roads...</div>';
+                
+                // Project data to roads
+                projectDataToRoads(dataPoints, roadData.features);
+                
+                loadingDiv.innerHTML = '<div>Rendering bristle map...</div>';
+                
+                createGridLayer();
+                loadingDiv.style.display = 'none';
+                
+            } catch (error) {
+                console.error('Error loading roads:', error);
+                let errorMsg = error.message;
+                
+                if (error.name === 'TimeoutError' || error.message.includes('504')) {
+                    errorMsg = 'Request timed out. Try selecting only Primary roads or zooming in to a smaller area.';
+                } else if (error.message.includes('504')) {
+                    errorMsg = 'Server timeout. The area may be too large. Try selecting only Primary/Secondary roads.';
+                } else if (error.message.includes('429')) {
+                    errorMsg = 'Too many requests. Please wait a moment and try again.';
+                }
+                
+                loadingDiv.innerHTML = `
+                    <div style="color: red; max-width: 300px;">
+                        <strong>Error loading roads:</strong><br/>
+                        ${errorMsg}<br/><br/>
+                        <button onclick="loadOSMRoads()" style="padding: 5px 10px; margin-top: 10px;">Retry</button>
+                    </div>
+                `;
+                
+                // Don't auto-hide on error, let user retry
+            }
+        }
+        
+        function createGridLayer() {
+            if (!roadData || !dataPoints) return;
+            
+            if (gridLayer && map.getLayer(gridLayer.id)) {
+                map.removeLayer(gridLayer.id);
+            }
+            
+            const sampleSpacing = parseInt(sampleSpacingSlider.value);
+            
+            gridLayer = new ScreenGridLayerGL({
+                id: 'bristle-map-layer',
+                source: roadData,
+                placement: {
+                    strategy: 'line-sample',
+                    spacing: { meters: sampleSpacing },
+                    zoomAdaptive: true
+                },
+                renderMode: 'feature-anchors',
+                anchorSizePixels: 1,
+                enableGlyphs: true,
+                onDrawCell: drawBristleGlyph,
+                onAggregate: (anchors) => {
+                    sampleCountSpan.textContent = anchors ? anchors.length : 0;
+                },
+                onHover: ({ cell, anchor }) => {
+                    if (anchor) {
+                        const anchorPos = anchor.position || [anchor.geo?.lng, anchor.geo?.lat];
+                        const props = anchor.props || {};
+                        const roadIdx = props.roadIdx;
+                        
+                        if (roadIdx !== undefined && roadData && roadData.features[roadIdx]) {
+                            const road = roadData.features[roadIdx];
+                            const coords = road.geometry.coordinates;
+                            
+                            // Find closest segment
+                            let minDist = Infinity;
+                            let segmentIndex = 0;
+                            for (let i = 0; i < coords.length - 1; i++) {
+                                const dist = pointToLineDistance(anchorPos, coords[i], coords[i + 1]);
+                                if (dist < minDist) {
+                                    minDist = dist;
+                                    segmentIndex = i;
+                                }
+                            }
+                            
+                            const segmentId = `${roadIdx}-${segmentIndex}`;
+                            const segData = roadSegmentData.get(segmentId);
+                            if (segData) {
+                                const density = segData.density ? segData.density.toFixed(1) : '0';
+                                const spacesPerKm = segData.spacesPerKm ? segData.spacesPerKm.toFixed(1) : '0';
+                                hoveredInfoSpan.textContent = 
+                                    `${segData.totalRacks} racks, ${segData.totalSpaces} spaces, ${segData.pointCount} points (${density} pts/km, ${spacesPerKm} spaces/km)`;
+                            }
+                        }
+                    }
+                }
+            });
+            
+            map.addLayer(gridLayer);
+        }
+        
+        function updateGridLayer() {
+            if (!gridLayer || !roadData) return;
+            
+            // Since onDrawCell reads slider values directly at draw time,
+            // we need to force the layer to redraw
+            // Use setConfig to trigger internal update and redraw
+            // Even though we're not changing config, this forces a redraw
+            const sampleSpacing = parseInt(sampleSpacingSlider.value);
+            gridLayer.setConfig({
+                placement: {
+                    strategy: 'line-sample',
+                    spacing: { meters: sampleSpacing },
+                    zoomAdaptive: true
+                }
+            });
+            
+            // Also clear canvas and trigger repaint for immediate visual update
+            if (gridLayer.canvasManager) {
+                gridLayer.canvasManager.clear();
+            }
+            map.triggerRepaint();
+        }
+        
+        // Event listeners
+        bristleCountSlider.addEventListener('input', (e) => {
+            bristleCountValue.textContent = e.target.value;
+            updateGridLayer();
+        });
+        
+        maxLengthSlider.addEventListener('input', (e) => {
+            maxLengthValue.textContent = e.target.value + 'm';
+            updateGridLayer();
+        });
+        
+        bristleWidthSlider.addEventListener('input', (e) => {
+            bristleWidthValue.textContent = e.target.value;
+            updateGridLayer();
+        });
+        
+        sampleSpacingSlider.addEventListener('input', (e) => {
+            sampleSpacingValue.textContent = e.target.value + 'm';
+            updateGridLayer();
+        });
+        
+        lengthMappingSelect.addEventListener('change', updateGridLayer);
+        colorMappingSelect.addEventListener('change', updateGridLayer);
+        loadOSMRoadsBtn.addEventListener('click', loadOSMRoads);
+        
+        // Initialize
+        map.on('load', async () => {
+            // Load bike parking data
+            try {
+                loadingDiv.style.display = 'block';
+                loadingDiv.innerHTML = '<div>Loading bike parking data...</div>';
+                
+                const response = await fetch(
+                    'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/sf-bike-parking.json'
+                );
+                dataPoints = await response.json();
+                pointCountSpan.textContent = dataPoints.length;
+                
+                // Load OSM roads automatically (only main roads to avoid timeout)
+                // Set default selection to primary and secondary only
+                const roadTypesSelect = document.getElementById('roadTypes');
+                Array.from(roadTypesSelect.options).forEach(opt => {
+                    opt.selected = (opt.value === 'primary' || opt.value === 'secondary');
+                });
+                
+                await loadOSMRoads();
+            } catch (error) {
+                console.error('Error loading data:', error);
+                loadingDiv.innerHTML = `<div style="color: red;">Error: ${error.message}</div>`;
+                setTimeout(() => {
+                    loadingDiv.style.display = 'none';
+                }, 3000);
+            }
+        });
+    </script>
+</body>
+</html>

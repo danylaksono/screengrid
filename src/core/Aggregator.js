@@ -14,13 +14,15 @@ export class Aggregator {
    * @param {number} height - Canvas height in pixels
    * @param {number} cellSizePixels - Size of each grid cell
    * @param {Function|string} aggregationFunction - Aggregation function or name (default: sum)
-   * @returns {Object} Aggregation result: {grid, cellData, cols, rows, width, height, cellSizePixels}
+   * @param {Function} onAfterAggregate - Hook for post-aggregation calculations (optional)
+   * @returns {Object} Aggregation result: {grid, cellData, cols, rows, width, height, cellSizePixels, customData}
    */
-  static aggregate(projectedPoints, originalData, width, height, cellSizePixels, aggregationFunction = null) {
+  static aggregate(projectedPoints, originalData, width, height, cellSizePixels, aggregationFunction = null, onAfterAggregate = null) {
     const cols = Math.ceil(width / cellSizePixels);
     const rows = Math.ceil(height / cellSizePixels);
     const grid = new Array(rows * cols).fill(0);
     const cellData = new Array(rows * cols).fill(null).map(() => []);
+    const customData = new Array(rows * cols).fill(null);
 
     // Get aggregation function (default to sum for backward compatibility)
     const aggFn = aggregationFunction 
@@ -61,6 +63,17 @@ export class Aggregator {
       }
     }
 
+    // Third pass: Run post-aggregation hook if provided
+    if (onAfterAggregate && typeof onAfterAggregate === 'function') {
+      for (let idx = 0; idx < grid.length; idx++) {
+        if (cellData[idx].length > 0) {
+          // Pass (cellData, aggregatedValue, index, grid)
+          // User can return custom data to be stored for this cell
+          customData[idx] = onAfterAggregate(cellData[idx], grid[idx], idx, grid);
+        }
+      }
+    }
+
     const cellsWithData = grid.filter((v) => v > 0).length;
     // console.log('Grid aggregation complete:', {
     //   cellsWithData,
@@ -71,6 +84,7 @@ export class Aggregator {
     return {
       grid,
       cellData,
+      customData,
       cols,
       rows,
       width,
@@ -92,10 +106,11 @@ export class Aggregator {
    * @param {number} height - Canvas height
    * @param {number} cellSizePixels - Cell size
    * @param {Function|string} aggregationFunction - Aggregation function or name
+   * @param {Function} onAfterAggregate - Post-aggregation hook
    * @returns {Object} Aggregation result
    */
-  aggregate(projectedPoints, originalData, width, height, cellSizePixels, aggregationFunction = null) {
-    return Aggregator.aggregate(projectedPoints, originalData, width, height, cellSizePixels, aggregationFunction);
+  aggregate(projectedPoints, originalData, width, height, cellSizePixels, aggregationFunction = null, onAfterAggregate = null) {
+    return Aggregator.aggregate(projectedPoints, originalData, width, height, cellSizePixels, aggregationFunction, onAfterAggregate);
   }
 
   /**
