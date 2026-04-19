@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -19,21 +20,21 @@
             container: 'map',
             // style: 'https://demotiles.maplibre.org/style.json',
             style: {
-                    version: 8,
-                    sources: {
-                        'dark': {
-                            type: 'raster',
-                            tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
-                            tileSize: 256,
-                            attribution: '© OpenStreetMap contributors © CARTO'
-                        }
-                    },
-                    layers: [
-                        { id: 'dark', type: 'raster', source: 'dark', paint: { 'raster-opacity': 1.0 } }
-                    ]
+                version: 8,
+                sources: {
+                    'dark': {
+                        type: 'raster',
+                        tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
+                        tileSize: 256,
+                        attribution: '© OpenStreetMap contributors © CARTO'
+                    }
                 },
+                layers: [
+                    { id: 'dark', type: 'raster', source: 'dark', paint: { 'raster-opacity': 1.0 } }
+                ]
+            },
             // center shows cambridge, uk
-            center: [0.1278, 52.2053], 
+            center: [0.1278, 52.2053],
             zoom: 12
         });
 
@@ -44,16 +45,16 @@
          */
         function drawMultivariateTimeSeriesGlyph(ctx, x, y, normVal, cellInfo) {
             const { cellData, cellSize } = cellInfo;
-            
+
             if (!cellData || cellData.length === 0) return;
 
             // Group data by year and aggregate all variables
             const yearData = {};
-            
+
             cellData.forEach(item => {
                 const year = item.data.year;
                 if (year == null) return;
-                
+
                 if (!yearData[year]) {
                     yearData[year] = {
                         year: year,
@@ -74,9 +75,9 @@
                         }
                     };
                 }
-                
+
                 const yd = yearData[year];
-                
+
                 // Aggregate carbon saved variables
                 if (item.data.ashp_carbonsaved != null && !isNaN(item.data.ashp_carbonsaved)) {
                     yd.ashp_carbonsaved += item.data.ashp_carbonsaved;
@@ -90,7 +91,7 @@
                     yd.pv_carbonsaved += item.data.pv_carbonsaved;
                     yd.counts.pv += 1;
                 }
-                
+
                 // Aggregate cost variables
                 if (item.data.labour_cost != null && !isNaN(item.data.labour_cost)) {
                     yd.labour_cost += item.data.labour_cost;
@@ -172,7 +173,7 @@
                 // Collect all years and values from all series
                 const allYears = new Set();
                 const allValues = [];
-                
+
                 seriesArray.forEach(series => {
                     if (series.data && series.data.length > 0) {
                         series.data.forEach(d => {
@@ -209,7 +210,7 @@
                         const px = chartX + ((d.year - minYear) / yearRange) * chartWidth;
                         // For mirrored (bottom), values start at areaY and go down
                         // For normal (top), values start at bottom and go up
-                        const py = mirrored 
+                        const py = mirrored
                             ? areaY + ((d.value - minValue) / valueRange) * areaHeight
                             : areaY + areaHeight - ((d.value - minValue) / valueRange) * areaHeight;
                         return { px, py, value: d.value, year: d.year };
@@ -257,7 +258,7 @@
             // Determine layout
             const hasTop = carbonSeries.length > 0;
             const hasBottom = costSeries.length > 0;
-            
+
             if (!hasTop && !hasBottom) return;
 
             let topAreaY, topAreaHeight, bottomAreaY, bottomAreaHeight;
@@ -300,10 +301,10 @@
             // Draw reference line for hovered year if it exists in this cell's data
             if (hoveredYear !== null && hoveredYear >= minYear && hoveredYear <= maxYear) {
                 const yearRange = maxYear - minYear || 1;
-                
+
                 // Calculate x position for the hovered year
                 const yearX = chartX + ((hoveredYear - minYear) / yearRange) * chartWidth;
-                
+
                 // Draw vertical reference line across entire chart
                 ctx.strokeStyle = 'rgba(150, 150, 150, 0.7)';
                 ctx.lineWidth = 1.5;
@@ -313,7 +314,7 @@
                 ctx.lineTo(yearX, chartY + chartHeight);
                 ctx.stroke();
                 ctx.setLineDash([]); // Reset dash
-                
+
                 // Draw year label at the bottom of the chart
                 ctx.fillStyle = 'rgba(150, 150, 150, 0.9)';
                 ctx.font = 'bold 9px Arial';
@@ -324,20 +325,27 @@
         }
 
         map.on('load', async () => {
-            // Load cambridge data
-            const data = await fetch('./data/cambridge.json').then(r => r.json());
-            
+            // Load cambridge data via a URL relative to this module's location.
+            // This example must be served through HTTP, e.g. `npm start` and open
+            // http://localhost:8000/examples/multivariate-timeseries.html
+            const dataUrl = new URL('./data/cambridge.json', import.meta.url);
+            const response = await fetch(dataUrl);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch ${dataUrl} (status ${response.status})`);
+            }
+            const data = await response.json();
+
             console.log(`Loaded ${data.length} data points`);
             console.log('Sample data:', data[0]);
 
             // Filter to include entries with valid coordinates and at least one variable
-            const validData = data.filter(d => 
-                d.lat != null && 
-                d.lon != null && 
+            const validData = data.filter(d =>
+                d.lat != null &&
+                d.lon != null &&
                 d.year != null &&
                 // Include if has at least one carbon saved variable or one cost variable
                 (d.ashp_carbonsaved != null || d.ev_carbonsaved != null || d.pv_carbonsaved != null ||
-                 d.labour_cost != null || d.material_cost != null)
+                    d.labour_cost != null || d.material_cost != null)
             );
 
             console.log(`Using ${validData.length} valid data points`);
@@ -393,35 +401,35 @@
                         if (item.data.material_cost != null) yg.material_cost += item.data.material_cost;
                         yg.count += 1;
                     });
-                    
+
                     // Calculate which year the mouse is over based on x position within cell
                     const cellSize = gridLayer.config.cellSizePixels;
                     const mouseX = event.point.x;
-                    
+
                     // Calculate relative position within the cell (0 to 1)
                     // cell.x is the left edge of the cell in canvas coordinates
                     const relativeX = (mouseX - cell.x) / cellSize;
-                    
+
                     // Get year range for this cell
                     const years = Object.keys(yearGroups).map(y => parseInt(y)).sort((a, b) => a - b);
                     if (years.length > 0) {
                         const minYear = Math.min(...years);
                         const maxYear = Math.max(...years);
                         const yearRange = maxYear - minYear || 1;
-                        
+
                         // Calculate year based on mouse x position within the chart area
                         // Account for padding: chart starts at padding, ends at (1 - padding)
                         const padding = 0.12; // Match the padding used in glyph drawing
                         const chartStart = padding;
                         const chartEnd = 1 - padding;
                         const chartWidth = chartEnd - chartStart;
-                        
+
                         // Normalize relativeX to chart area
                         const normalizedX = (relativeX - chartStart) / chartWidth;
                         const clampedX = Math.max(0, Math.min(1, normalizedX));
-                        
+
                         const calculatedYear = Math.round(minYear + clampedX * yearRange);
-                        
+
                         // Only update if year is valid and in range
                         if (calculatedYear >= minYear && calculatedYear <= maxYear) {
                             hoveredYear = calculatedYear;
@@ -462,7 +470,7 @@
                             if (item.data.material_cost != null) yg.material_cost += item.data.material_cost;
                             yg.count += 1;
                         });
-                        
+
                         const yearSummary = Object.keys(yearGroups)
                             .sort()
                             .map(year => {
@@ -476,7 +484,7 @@
                                 return `${year} (${yg.count} points):\n  ${parts.join('\n  ')}`;
                             })
                             .join('\n\n');
-                        
+
                         alert(`Cell Details:\n\n${yearSummary}\n\nTotal data points: ${cell.cellData.length}`);
                     }
                 }
@@ -716,14 +724,16 @@
             padding: 0;
             font-family: Arial, sans-serif;
         }
+
         #map {
             width: 100vw;
             height: 100vh;
         }
     </style>
 </head>
+
 <body>
     <div id="map"></div>
 </body>
-</html>
 
+</html>
