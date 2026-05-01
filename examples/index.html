@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScreenGrid Examples</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --text: #17202a;
+      --muted: #607080;
+      --line: #d9e0e7;
+      --panel: #ffffff;
+      --accent: #176b87;
+      --accent-soft: #e5f3f6;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.5;
+    }
+
+    header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      padding: 32px 24px 24px;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 24px 48px;
+    }
+
+    .intro {
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 34px;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    .lede {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    h2 {
+      margin: 34px 0 12px;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+    }
+
+    a.card {
+      display: block;
+      min-height: 142px;
+      padding: 16px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: inherit;
+      text-decoration: none;
+    }
+
+    a.card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 6px 20px rgba(23, 107, 135, 0.12);
+    }
+
+    .eyebrow {
+      display: inline-block;
+      margin-bottom: 10px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .title {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .desc {
+      display: block;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .note {
+      margin-top: 28px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="intro">
+      <h1>ScreenGrid Examples</h1>
+      <p class="lede">A curated tour of density grids, hex aggregation, glyph maps, temporal glyphs, geometry anchors, and domain-specific visual analytics.</p>
+    </div>
+  </header>
+
+  <main>
+    <h2>Start Here</h2>
+    <section class="grid">
+      <a class="card" href="getting-started/basic-density.html">
+        <span class="eyebrow">Getting Started</span>
+        <span class="title">Basic Density Grid</span>
+        <span class="desc">A small, readable example using the `density()` preset and a simple point dataset.</span>
+      </a>
+      <a class="card" href="getting-started/interactive-controls.html">
+        <span class="eyebrow">Getting Started</span>
+        <span class="title">Interactive Controls</span>
+        <span class="desc">A fuller control panel for switching data, colour, cell size, glyphs, and basemap options.</span>
+      </a>
+    </section>
+
+    <h2>Core Capabilities</h2>
+    <section class="grid">
+      <a class="card" href="aggregation/hex-density.html">
+        <span class="eyebrow">Aggregation</span>
+        <span class="title">Hex Density</span>
+        <span class="desc">Hexagonal screen-space aggregation with glyph rendering and adjustable mode options.</span>
+      </a>
+      <a class="card" href="glyphs/plugin-glyph.html">
+        <span class="eyebrow">Glyphs</span>
+        <span class="title">Plugin Glyph</span>
+        <span class="desc">Registers and uses a reusable grouped-bar glyph plugin with legend-ready structure.</span>
+      </a>
+      <a class="card" href="glyphs/legend.html">
+        <span class="eyebrow">Legend</span>
+        <span class="title">Legend Patterns</span>
+        <span class="desc">Colour, categorical, and temporal legend examples connected to grid aggregation.</span>
+      </a>
+      <a class="card" href="geometry/feature-anchors-us-states.html">
+        <span class="eyebrow">Geometry</span>
+        <span class="title">Feature Anchors</span>
+        <span class="desc">Places glyphs on polygon features using centroid, polylabel, and screen-grid placement.</span>
+      </a>
+    </section>
+
+    <h2>Temporal And Domain Examples</h2>
+    <section class="grid">
+      <a class="card" href="temporal/time-series.html">
+        <span class="eyebrow">Temporal</span>
+        <span class="title">Time-Series Glyphs</span>
+        <span class="desc">Draws compact time-series summaries inside grid cells using local Cambridge data.</span>
+      </a>
+      <a class="card" href="temporal/multivariate-time-series.html">
+        <span class="eyebrow">Temporal</span>
+        <span class="title">Multivariate Time Series</span>
+        <span class="desc">A richer temporal glyph example with multiple measures and coordinated legends.</span>
+      </a>
+      <a class="card" href="domain/public-transport-accessibility.html">
+        <span class="eyebrow">Domain</span>
+        <span class="title">Public Transport Accessibility</span>
+        <span class="desc">A domain-specific glyph map for public transport accessibility and cumulative access.</span>
+      </a>
+      <a class="card" href="utilities/data-utilities.html">
+        <span class="eyebrow">Utilities</span>
+        <span class="title">Data Utilities</span>
+        <span class="desc">Shows grouping, attribute extraction, statistics, and temporal preparation helpers.</span>
+      </a>
+    </section>
+
+    <h2>Showcases</h2>
+    <section class="grid">
+      <a class="card" href="glyphs/nightingale-rose.html">
+        <span class="eyebrow">Glyph Design</span>
+        <span class="title">Nightingale Rose Grid</span>
+        <span class="desc">A compact multivariate radial glyph pattern for comparing profiles across cells.</span>
+      </a>
+      <a class="card" href="showcases/bristle-map.html">
+        <span class="eyebrow">Showcase</span>
+        <span class="title">Bristle Map</span>
+        <span class="desc">An expressive glyph rendering experiment for dense point distributions.</span>
+      </a>
+      <a class="card" href="showcases/creative-coding.html">
+        <span class="eyebrow">Showcase</span>
+        <span class="title">Creative Coding</span>
+        <span class="desc">Artistic rendering patterns built on the ScreenGrid aggregation pipeline.</span>
+      </a>
+    </section>
+
+    <p class="note">Internal smoke tests live in <code>internal/</code>; they are useful for development checks but are not part of the public demo tour.</p>
+  </main>
+</body>
+</html>

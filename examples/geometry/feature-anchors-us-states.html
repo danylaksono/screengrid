@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ScreenGrid — US States (Geometry Placement)</title>
+    <title>ScreenGrid Feature Anchors - US States</title>
     <link href="https://unpkg.com/maplibre-gl@^4/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
       html, body, #map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; margin: 0; }
@@ -56,7 +56,7 @@
 
     <script src="https://unpkg.com/maplibre-gl@^4/dist/maplibre-gl.js"></script>
     <script type="module">
-      import { ScreenGridLayerGL } from '../dist/screengrid.mjs';
+      import { ScreenGridLayerGL } from '../../src/index.js';
 
       // US States GeoJSON (public, CORS-enabled)
       const STATES_URL = 'https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json';
@@ -143,11 +143,9 @@
         await loadStates();
 
         // Initial layer
-        layer = new ScreenGridLayerGL(buildLayerConfig());
+        layer = ScreenGridLayerGL.featureGlyphs(buildLayerConfig());
         map.addLayer(layer);
       });
     </script>
   </body>
 </html>
-
-

@@ -27,12 +27,13 @@ npm start
 
 ### 3. Open in Browser
 
-- **Main Demo**: http://localhost:8000/examples/index.html
-- **Simple Test**: http://localhost:8000/examples/simple-test.html
-- **Hex Mode**: http://localhost:8000/examples/hex-mode.html
-- **Plugin Glyph**: http://localhost:8000/examples/plugin-glyph.html
-- **Time Series**: http://localhost:8000/examples/timeseries.html
-- **Geometry Input**: http://localhost:8000/examples/us-states.html
+- **Example Gallery**: http://localhost:8000/examples/
+- **Basic Density**: http://localhost:8000/examples/getting-started/basic-density.html
+- **Interactive Controls**: http://localhost:8000/examples/getting-started/interactive-controls.html
+- **Hex Density**: http://localhost:8000/examples/aggregation/hex-density.html
+- **Plugin Glyph**: http://localhost:8000/examples/glyphs/plugin-glyph.html
+- **Time Series**: http://localhost:8000/examples/temporal/time-series.html
+- **Geometry Input**: http://localhost:8000/examples/geometry/feature-anchors-us-states.html
 
 ## Preset Constructors
 
@@ -105,7 +106,8 @@ const layer = ScreenGridLayerGL.featureGlyphs({
 screengrid/
 ├── src/                    # Source code (modular architecture)
 │   ├── index.js            # Main entry point
-│   ├── ScreenGridLayerGL.js # Main orchestrator
+│   ├── ScreenGridLayerGL.js # MapLibre layer facade
+│   ├── controllers/        # Layer lifecycle controllers
 │   ├── core/               # Core business logic
 │   ├── canvas/             # Canvas rendering
 │   ├── events/             # Event system
@@ -116,43 +118,46 @@ screengrid/
 │   └── legend/             # Legend system
 ├── dist/                   # Built distribution files
 ├── docs/                   # Documentation
-├── examples/               # Example HTML files
+├── examples/               # Curated demo gallery and examples
 ├── package.json            # NPM package configuration
 └── README.md               # Main documentation
 ```
 
 ## Examples Overview
 
-### Index.html - Full Demo
-- Interactive controls for cell size, color schemes, opacity
-- Multiple data sources (SF bike parking, restaurants, NYC taxis)
-- Real-time grid information display
-- Hover and click interactions
-- Glyph and color mode switching
+### Example Gallery
+- `examples/index.html`: Curated entry point for ready-to-show demos
 
-### Hex Mode Examples
-- `hex-mode.html`: Complete hexagonal aggregation with controls
-- `hex-mode-simple.html`: Simple hex mode demonstration
+### Getting Started
+- `getting-started/basic-density.html`: Minimal density grid using the `density()` preset
+- `getting-started/interactive-controls.html`: Full demo with controls for data, colours, cell size, glyphs, and basemap options
 
-### Plugin Glyph Example
-- Custom plugin registration (`grouped-bar` plugin)
-- Lifecycle hooks and legend integration
-- Interactive hover effects
+### Aggregation
+- `aggregation/hex-density.html`: Complete hexagonal aggregation with controls
+- `aggregation/hex-density-minimal.html`: Smaller hex mode demonstration
 
-### Time Series Examples
-- `timeseries.html`: Single-variable temporal visualization
-- `multivariate-timeseries.html`: Multi-attribute temporal data
+### Glyphs And Legends
+- `glyphs/plugin-glyph.html`: Custom plugin registration (`grouped-bar` plugin)
+- `glyphs/legend.html`: Colour, categorical, and temporal legend examples
+- `glyphs/nightingale-rose.html`: Multivariate radial glyph design
+
+### Temporal Examples
+- `temporal/time-series.html`: Single-variable temporal visualization
+- `temporal/multivariate-time-series.html`: Multi-attribute temporal data
 
 ### Geometry Input Examples
-- `us-states.html`: Polygon features with centroid anchors
-- Demonstrates `source`, `placement`, and `renderMode` options
+- `geometry/feature-anchors-us-states.html`: Polygon features with centroid, polylabel, and grid-screen anchors
 
-### Data Utilities Example
-- Demonstrates utility functions: `groupBy`, `extractAttributes`, `computeStats`, `groupByTime`
+### Domain And Utility Examples
+- `domain/public-transport-accessibility.html`: Public transport accessibility glyph map
+- `utilities/data-utilities.html`: Utility functions: `groupBy`, `extractAttributes`, `computeStats`, `groupByTime`
 
-### Creative Coding Examples
-- Artistic visualizations: mosaic tiles, tessellations, particles
-- Abstract patterns demonstrating creative coding capabilities
+### Showcases
+- `showcases/bristle-map.html`: Expressive bristle glyph map
+- `showcases/creative-coding.html`: Artistic visualizations and creative coding patterns
+
+### Internal
+- `internal/`: Smoke tests and legacy scratch examples that are not part of the public demo gallery
 
 ## Development
 

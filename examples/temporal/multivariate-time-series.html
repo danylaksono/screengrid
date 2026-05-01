@@ -4,11 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cambridge Multivariate Spatio-Temporal Data Visualization</title>
+    <title>Cambridge Multivariate Time-Series Glyph Example</title>
     <link href="https://unpkg.com/maplibre-gl@^4/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@^4/dist/maplibre-gl.js"></script>
     <script type="module">
-        import { ScreenGridLayerGL, GlyphUtilities, Legend } from '../src/index.js';
+        import { ScreenGridLayerGL, GlyphUtilities, Legend } from '../../src/index.js';
 
         // Global state for hovered year reference
         let hoveredYear = null;
@@ -327,8 +327,8 @@
         map.on('load', async () => {
             // Load cambridge data via a URL relative to this module's location.
             // This example must be served through HTTP, e.g. `npm start` and open
-            // http://localhost:8000/examples/multivariate-timeseries.html
-            const dataUrl = new URL('./data/cambridge.json', import.meta.url);
+            // http://localhost:8000/examples/temporal/multivariate-time-series.html
+            const dataUrl = new URL('../data/cambridge.json', import.meta.url);
             const response = await fetch(dataUrl);
             if (!response.ok) {
                 throw new Error(`Failed to fetch ${dataUrl} (status ${response.status})`);

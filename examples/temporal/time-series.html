@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>cambridge Spatio-Temporal Data Visualization</title>
+    <title>Cambridge Time-Series Glyph Example</title>
     <link href="https://unpkg.com/maplibre-gl@^4/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@^4/dist/maplibre-gl.js"></script>
     <script type="module">
-        import { ScreenGridLayerGL, GlyphUtilities, Legend } from '../src/index.js';
+        import { ScreenGridLayerGL, GlyphUtilities, Legend } from '../../src/index.js';
 
         // Global state for hovered year reference
         let hoveredYear = null;
@@ -155,7 +155,7 @@
 
         map.on('load', async () => {
             // Load cambridge data
-            const data = await fetch('./data/cambridge.json').then(r => r.json());
+            const data = await fetch('../data/cambridge.json').then(r => r.json());
             
             console.log(`Loaded ${data.length} data points`);
             console.log('Sample data:', data[0]);
@@ -170,14 +170,13 @@
 
             console.log(`Using ${validData.length} valid data points`);
 
-            gridLayer = new ScreenGridLayerGL({
+            gridLayer = ScreenGridLayerGL.glyphMap({
                 id: 'cambridge-timeseries',
                 data: validData,
                 getPosition: (d) => [d.lon, d.lat],
                 getWeight: (d) => d.ashp_carbonsaved || 0,
                 cellSizePixels: 80,
                 colorScale: (v) => [255 * v, 200 * (1 - v), 50, 180],
-                enableGlyphs: true,
                 glyphSize: 0.9,
                 onDrawCell: drawTimeSeriesGlyph,
                 onAggregate: (grid) => {
@@ -330,4 +329,3 @@
     <div id="map"></div>
 </body>
 </html>
-

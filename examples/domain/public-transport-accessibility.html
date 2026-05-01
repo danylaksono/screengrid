@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Public Transport Accessibility — Glyph Example</title>
+  <title>Public Transport Accessibility Glyph Example</title>
   <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
   <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
   <style>
@@ -102,8 +102,8 @@
   </div>
 
   <script type="module">
-    import { ScreenGridLayerGL } from '../src/index.js';
-    import '../src/glyphs/PublicTransportGlyph.js';
+    import { ScreenGridLayerGL } from '../../src/index.js';
+    import '../../src/glyphs/PublicTransportGlyph.js';
 
     const MINUTES = [15, 30, 45, 60, 75, 90, 105, 120];
 
@@ -141,7 +141,7 @@
     let currentGlobalMax = null;
 
     async function loadData() {
-      const url = 'data/public_transport_accessibility.json';
+      const url = '../data/public_transport_accessibility.json';
       try {
         const res = await fetch(url);
         data = await res.json();
@@ -163,7 +163,7 @@
       const normalization = document.getElementById('normalizationSelect').value;
       const cumulativeOn = false; // primary layer is per-time by default
 
-      gridLayer = new ScreenGridLayerGL({
+      gridLayer = ScreenGridLayerGL.glyphMap({
         id: 'pta-glyph-layer',
         data,
         // data is expected to be features with a coordinate property named `centroid` or `COORDINATES`
@@ -185,7 +185,6 @@
         getWeight: () => 1,
         cellSizePixels: cellSize,
         colorScale: (v) => [255 * v, 200 * (1 - v), 50, 200],
-        enableGlyphs: true,
         glyphSize: glyphSize,
         glyph: 'public-transport',
         glyphConfig: { timeIndex: timeIndex, showSparkline: showSpark, debug: true },
@@ -214,14 +213,13 @@
       map.addLayer(gridLayer);
 
       // prepare cumulative layer but do not add to map by default
-      cumulativeLayer = new ScreenGridLayerGL({
+      cumulativeLayer = ScreenGridLayerGL.glyphMap({
         id: 'pta-cumulative-layer',
         data,
         getPosition: gridLayer.config.getPosition,
         getWeight: () => 1,
         cellSizePixels: cellSize,
         colorScale: (v) => [200 * v, 120 * (1 - v), 255 * (1 - v), 200],
-        enableGlyphs: true,
         glyphSize: glyphSize,
         glyph: 'public-transport',
         glyphConfig: { timeIndex: timeIndex, showSparkline: false, cumulative: true },

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ScreenGrid Simple Test</title>
+    <title>ScreenGrid Basic Density Example</title>
     <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
@@ -15,13 +15,13 @@
 <body>
     <div id="map"></div>
     <div class="info">
-        <h3>ScreenGrid Test</h3>
+        <h3>Basic Density Grid</h3>
         <div id="status">Loading...</div>
         <div id="info">-</div>
     </div>
 
     <script type="module">
-        import { ScreenGridLayerGL } from '../src/index.js';
+        import { ScreenGridLayerGL } from '../../src/index.js';
         
         // Simple test data
         const testData = [
@@ -63,7 +63,7 @@
             try {
                 statusEl.textContent = 'Creating grid layer...';
                 
-                const gridLayer = new ScreenGridLayerGL({
+                const gridLayer = ScreenGridLayerGL.density({
                     id: 'test-grid',
                     data: testData,
                     getPosition: (d) => d.COORDINATES,

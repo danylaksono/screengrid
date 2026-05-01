@@ -244,7 +244,7 @@ Custom plugins can be created by implementing the plugin interface. The ecosyste
 
 ### `grouped-bar` — Grouped Bar Chart Plugin
 
-**Location**: `examples/plugin-glyph.html` (lines 203-391)
+**Location**: `examples/glyphs/plugin-glyph.html`
 
 **Description**: A sophisticated custom plugin that visualizes parking capacity data comparing bike racks vs. parking spaces using grouped bars. This plugin demonstrates advanced plugin features including global state management, cross-cell normalization, and interactive hover effects.
 
@@ -834,11 +834,10 @@ const layer2 = new ScreenGridLayerGL({
 
 - **Design Doc**: `docs/PLUGIN_GLYPHS.md`
 - **Usage Guide**: `docs/GLYPH_DRAWING_GUIDE.md`
-- **Example**: `examples/plugin-glyph.html`
+- **Example**: `examples/glyphs/plugin-glyph.html`
 - **Registry Code**: `src/glyphs/GlyphRegistry.js`
 - **Utilities Code**: `src/glyphs/GlyphUtilities.js`
 
 ---
 
 *Last Updated: Based on codebase evaluation as of current state*
-

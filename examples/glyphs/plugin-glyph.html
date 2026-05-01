@@ -198,7 +198,7 @@
   </div>
 
   <script type="module">
-    import { ScreenGridLayerGL, GlyphRegistry } from '../src/index.js';
+    import { ScreenGridLayerGL, GlyphRegistry } from '../../src/index.js';
 
     // Grouped Bar Chart Glyph
     // Visualizes parking data: Racks vs Spaces using grouped bars
@@ -616,7 +616,7 @@
         });
       }
 
-      const layer = new ScreenGridLayerGL({
+      const layer = ScreenGridLayerGL.glyphMap({
         id: 'parking-capacity-layer',
         data: validData,
         getPosition: (d) => {
@@ -637,7 +637,6 @@
         },
         cellSizePixels: 60,
         colorScale: (v) => [255 * v, 200 * (1 - v), 50, 220],
-        enableGlyphs: true,
         // Use the registered plugin by name. onDrawCell still supported and would override this.
         glyph: 'grouped-bar',
         glyphConfig: { glyphSize: null }, // Use default sizing
@@ -1091,4 +1090,3 @@
   </script>
 </body>
 </html>
-

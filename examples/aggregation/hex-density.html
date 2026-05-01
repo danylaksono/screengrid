@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hexagonal Aggregation Mode - Phase 2</title>
+    <title>ScreenGrid Hex Density Example</title>
     <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
@@ -117,7 +117,7 @@
     </div>
 
     <script type="module">
-        import { ScreenGridLayerGL, AggregationModeRegistry } from '../src/index.js';
+        import { ScreenGridLayerGL, AggregationModeRegistry } from '../../src/index.js';
         
         // Load SF bike parking data
         let testData = [];
@@ -250,8 +250,8 @@
 
                 statusEl.textContent = 'Creating layer...';
                 
-                // Create layer with hex mode
-                gridLayer = new ScreenGridLayerGL({
+                // Create layer with the hex density preset
+                gridLayer = ScreenGridLayerGL.hexDensity({
                     id: 'hex-grid-layer',
                     data: testData,
                     getPosition: (d) => {
@@ -274,8 +274,6 @@
                     glyphSize: 0.8,
                     showHexBackground: true, // Custom option for hex backgrounds
                     
-                    // Use hex aggregation mode
-                    aggregationMode: 'screen-hex',
                     aggregationModeConfig: {
                         hexSize: 60,
                         showBackground: true // Pass to hex mode config
@@ -459,4 +457,3 @@
     </script>
 </body>
 </html>
-

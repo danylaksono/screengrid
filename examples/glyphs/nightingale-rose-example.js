@@ -1,4 +1,4 @@
-import { ScreenGridLayerGL } from "../src/index.js";
+import { ScreenGridLayerGL } from "../../src/index.js";
 import { drawNightingaleRoseChart } from "./nightingale-rose-glyph.js";
 
 const map = new maplibregl.Map({

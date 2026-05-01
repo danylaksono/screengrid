@@ -1084,10 +1084,10 @@ const myGlyph = createTimeSeriesGlyph({
 See the following example files for complete implementations:
 
 - **`examples/index.html`**: Basic glyph examples (bike parking, bar charts, pie charts)
-- **`examples/timeseries.html`**: Single-variable time series visualization
-- **`examples/multivariate-timeseries.html`**: Complex multivariate time series with split-screen layout
-- **`examples/legend-example.html`**: Glyphs combined with legend system
-- **`examples/data-utilities.html`**: Demonstrates data utility functions (`groupBy`, `extractAttributes`, `computeStats`, `groupByTime`)
+- **`examples/temporal/time-series.html`**: Single-variable time series visualization
+- **`examples/temporal/multivariate-time-series.html`**: Complex multivariate time series with split-screen layout
+- **`examples/glyphs/legend.html`**: Glyphs combined with legend system
+- **`examples/utilities/data-utilities.html`**: Demonstrates data utility functions (`groupBy`, `extractAttributes`, `computeStats`, `groupByTime`)
 
 ---
 
@@ -1106,4 +1106,3 @@ Glyph drawing opens up powerful possibilities for multivariate geospatial visual
 Start simple with built-in utilities, then gradually add custom logic as your needs become more specific. Remember to test edge cases, optimize for performance, and document your glyphs for future reference.
 
 Happy visualizing! 🎨
-

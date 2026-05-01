@@ -6,7 +6,7 @@ A GPU/Canvas hybrid Screen-Space Grid Aggregation library for MapLibre GL JS. Th
 
 This library is inspired by Aidan Slingsby's [Gridded Glyphmaps](https://openaccess.city.ac.uk/id/eprint/31115/) and borrows some basic concepts from deck.gl's [`ScreenGridLayer`](https://deck.gl/docs/api-reference/aggregation-layers/screen-grid-layer), but is built from the ground up with a modular architecture.
 
-![https://danylaksono.is-a.dev/screengrid/examples/multivariate-timeseries](./screengrid.png)
+![ScreenGrid multivariate glyph map example](./screengrid.png)
 
 ## Documentation
 
@@ -106,7 +106,7 @@ See the [documentation](docs/) for detailed guides on each feature.
 screengrid/
 ├── src/
 │   ├── index.js                    # Main entry point
-│   ├── ScreenGridLayerGL.js        # Main orchestrator
+│   ├── ScreenGridLayerGL.js        # MapLibre layer facade
 │   ├── controllers/                # Layer lifecycle controllers
 │   ├── core/                       # Core business logic
 │   ├── canvas/                     # Canvas rendering
@@ -134,13 +134,16 @@ npx http-server -p 8000
 ```
 
 Available examples:
-- **index.html** - Full demo with all features
-- **hex-mode.html** - Hexagonal aggregation
-- **plugin-glyph.html** - Custom plugin example
-- **timeseries.html** - Time series visualization
-- **us-states.html** - Geometry input (polygons)
-- **data-utilities.html** - Data processing utilities
-- **creative-coding.html** - Artistic visualizations
+- **examples/index.html** - Curated example gallery
+- **getting-started/basic-density.html** - Minimal density grid
+- **getting-started/interactive-controls.html** - Full interactive control demo
+- **aggregation/hex-density.html** - Hexagonal aggregation
+- **glyphs/plugin-glyph.html** - Custom plugin glyph
+- **glyphs/legend.html** - Legend patterns
+- **temporal/time-series.html** - Time-series glyphs
+- **geometry/feature-anchors-us-states.html** - Geometry input and feature anchors
+- **domain/public-transport-accessibility.html** - Domain-specific glyph map
+- **utilities/data-utilities.html** - Data processing utilities
 
 See [USAGE.md](docs/USAGE.md) for complete example descriptions.
 
@@ -267,7 +270,4 @@ MIT License - see LICENSE file for details.
 - [Spatio-Temporal Guide](docs/SPATIO_TEMPORAL_GUIDE.md)
 - [Data Utilities](docs/DATA_UTILITIES.md)
 - [Cartography & Design](docs/CARTOGRAPHY_AND_MULTIVARIATE_DESIGN.md)
-
-
-
 
