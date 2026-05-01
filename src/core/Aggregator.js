@@ -118,7 +118,7 @@ export class Aggregator {
    * @param {Object} aggregationResult - Result from aggregate()
    * @returns {Object} Statistics: {totalCells, cellsWithData, maxValue, minValue, avgValue}
    */
-  getStats(aggregationResult) {
+  static getStats(aggregationResult) {
     const { grid } = aggregationResult;
     const cellsWithData = grid.filter((v) => v > 0);
 
@@ -130,5 +130,9 @@ export class Aggregator {
       avgValue: cellsWithData.length > 0 ? cellsWithData.reduce((a, b) => a + b) / cellsWithData.length : 0,
       totalValue: grid.reduce((sum, v) => sum + v, 0),
     };
+  }
+
+  getStats(aggregationResult) {
+    return Aggregator.getStats(aggregationResult);
   }
 }

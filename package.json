@@ -12,7 +12,7 @@
     "dev": "npx http-server -p 8000",
     "build": "rollup -c",
     "prepublishOnly": "npm run build",
-    "test": "echo 'Open examples/simple-test.html in your browser'"
+    "test": "node tests/run-unit-tests.js"
   },
   "keywords": [
     "maplibre",

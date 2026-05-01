@@ -65,6 +65,14 @@ export class Renderer {
   }
 
   /**
+   * Public stats helper for aggregation modes that need renderer-compatible
+   * normalization context.
+   */
+  static computeStats(grid) {
+    return Renderer._computeStats(grid);
+  }
+
+  /**
    * Render grid cells to canvas
    * @param {Object} aggregationResult - Result from Aggregator.aggregate()
    * @param {CanvasRenderingContext2D} ctx - Canvas 2D context

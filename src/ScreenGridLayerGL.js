@@ -12,11 +12,9 @@ import { Renderer } from './canvas/Renderer.js';
 import { EventBinder } from './events/EventBinder.js';
 import { EventHandlers } from './events/EventHandlers.js';
 import { GlyphUtilities } from './glyphs/GlyphUtilities.js';
-import { GlyphRegistry } from './glyphs/GlyphRegistry.js';
-import { AggregationModeRegistry } from './aggregation/AggregationModeRegistry.js';
-import { PlacementEngine } from './core/geometry/PlacementEngine.js';
-// Ensure built-in modes are registered
-import './aggregation/modes/index.js';
+import { GlyphController } from './controllers/GlyphController.js';
+import { AggregationController } from './controllers/AggregationController.js';
+import { PlacementController } from './controllers/PlacementController.js';
 import { Logger } from './utils/Logger.js';
 
 export class ScreenGridLayerGL {
@@ -35,22 +33,15 @@ export class ScreenGridLayerGL {
     this.canvasManager = new CanvasManager();
     this.renderer = new Renderer();
     this.eventBinder = new EventBinder();
+    this.glyphController = new GlyphController(this);
+    this.aggregationController = new AggregationController();
+    this.placementController = new PlacementController();
 
     // Internal state
     this.map = null;
     this.gl = null;
     this.pointsProjected = [];
     this.gridData = null;
-    // Plugin instance returned by plugin.init (if any)
-    this._glyphInstance = null;
-    // Aggregation mode state
-    this._aggregationModeInstance = null;
-    this._aggregationModePlugin = null;
-    // Placement state (for geometry input)
-    this._anchors = []; // Cached anchors from placement
-    this._placementCacheKey = null; // Cache key for view-dependent placement
-    this._lastViewState = null; // Track view state for cache invalidation
-    this._anchorsMaxWeight = 1; // Cached max weight for normalization
     this._hoveredIndex = -1; // Track currently hovered cell index
   }
 
@@ -82,10 +73,10 @@ export class ScreenGridLayerGL {
       this.canvasManager.init(map);
 
       // Initialize aggregation mode
-      this._initAggregationMode();
+      this.aggregationController.init(this.config, this.map);
 
       // Initialize glyph plugin for this layer (if configured)
-      this._initGlyphPlugin();
+      this.glyphController.init(this.config);
 
       // Bind events
       this.eventBinder.bind(map, {
@@ -118,16 +109,13 @@ export class ScreenGridLayerGL {
   onRemove() {
     this.eventBinder.unbind();
     this.canvasManager.cleanup();
-    this._destroyAggregationMode();
-    this._destroyGlyphPlugin();
+    this.aggregationController.destroy();
+    this.glyphController.destroy(this.config);
 
     this.map = null;
     this.pointsProjected = [];
     this.gridData = null;
-    this._anchors = [];
-    this._placementCacheKey = null;
-    this._lastViewState = null;
-    this._anchorsMaxWeight = 1;
+    this.placementController.reset();
 
     Logger.log('ScreenGridLayerGL removed from map');
   }
@@ -201,15 +189,15 @@ export class ScreenGridLayerGL {
     // If glyph name changed, re-initialize/destroy plugin lifecycle
     const newGlyph = this.config ? this.config.glyph : null;
     if (previousGlyph !== newGlyph) {
-      this._destroyGlyphPlugin();
-      this._initGlyphPlugin();
+      this.glyphController.destroy({ ...this.config, glyph: previousGlyph });
+      this.glyphController.init(this.config);
     }
 
     // If aggregation mode changed, re-initialize mode
     const newAggregationMode = this.config ? this.config.aggregationMode : null;
     if (previousAggregationMode !== newAggregationMode) {
-      this._destroyAggregationMode();
-      this._initAggregationMode();
+      this.aggregationController.destroy();
+      this.aggregationController.init(this.config, this.map);
       // Clear grid data when mode changes
       this.gridData = null; // Clear stale aggregation data from previous mode
       // Clear canvas to remove old rendering from previous mode
@@ -222,9 +210,7 @@ export class ScreenGridLayerGL {
     const newSource = this.config ? this.config.source : null;
     const newPlacement = this.config ? JSON.stringify(this.config.placement) : null;
     if (previousSource !== newSource || previousPlacement !== newPlacement) {
-      this._placementCacheKey = null;
-      this._anchors = [];
-      this._anchorsMaxWeight = 1;
+      this.placementController.reset();
     }
 
     // If renderMode changed, clear grid data
@@ -254,75 +240,15 @@ export class ScreenGridLayerGL {
   getCellAt(point) {
     // Feature-anchors mode: find nearest anchor
     if (this.config.renderMode === 'feature-anchors') {
-      return this._getAnchorAt(point);
+      return this.placementController.getAnchorAt(point, this.config, this.map);
     }
 
     // Normal mode (screen-grid)
-    if (!this.gridData || !this._aggregationModePlugin) {
+    if (!this.gridData || !this.aggregationController.modePlugin) {
       // Fallback to old behavior for backward compatibility
       return this.cellQueryEngine.getCellAt(point);
     }
-    return this._aggregationModePlugin.getCellAt(point, this.gridData, this.map);
-  }
-
-  /**
-   * Get nearest anchor at a point (for feature-anchors mode)
-   * @private
-   */
-  _getAnchorAt(point) {
-    if (!this.map || this._anchors.length === 0) {
-      return null;
-    }
-
-    const { x, y } = point;
-    const anchorSize = this.config.anchorSizePixels || 
-                      Math.round(this.config.cellSizePixels * this.config.glyphSize * 0.9);
-    const hitRadius = anchorSize / 2 + 5; // Add 5px tolerance
-
-    let nearestAnchor = null;
-    let minDistance = Infinity;
-
-    for (const anchor of this._anchors) {
-      try {
-        const [lng, lat] = anchor.position;
-        const screenPoint = this.map.project([lng, lat]);
-        const anchorX = screenPoint.x;
-        const anchorY = screenPoint.y;
-
-        const distance = Math.sqrt(
-          Math.pow(x - anchorX, 2) + Math.pow(y - anchorY, 2)
-        );
-
-        if (distance < hitRadius && distance < minDistance) {
-          minDistance = distance;
-          nearestAnchor = anchor;
-        }
-      } catch (error) {
-        // Skip invalid anchors
-        continue;
-      }
-    }
-
-    if (!nearestAnchor) {
-      return null;
-    }
-
-    // Return anchor info in a cell-like format for consistency
-    const weight = nearestAnchor.weight || 1;
-    const normVal = weight / this._anchorsMaxWeight;
-
-    return {
-      mode: 'feature-anchors',
-      anchor: nearestAnchor,
-      featureId: nearestAnchor.featureId,
-      props: nearestAnchor.props,
-      weight: weight,
-      normalizedValue: normVal,
-      // For backward compatibility, provide cell-like structure
-      cellData: [{ data: nearestAnchor.props, weight: weight }],
-      x: this.map.project(nearestAnchor.position).x,
-      y: this.map.project(nearestAnchor.position).y,
-    };
+    return this.aggregationController.getCellAt(point, this.gridData, this.map);
   }
 
   /**
@@ -339,112 +265,10 @@ export class ScreenGridLayerGL {
    * @returns {Object} Grid statistics
    */
   getGridStats() {
-    if (!this.gridData) return null;
-    
-    // Use mode plugin's getStats if available, otherwise fallback to aggregator
-    if (this._aggregationModePlugin && typeof this._aggregationModePlugin.getStats === 'function') {
-      return this._aggregationModePlugin.getStats(this.gridData);
-    }
-    
-    return this.aggregator.getStats(this.gridData);
+    return this.aggregationController.getStats(this.gridData, this.aggregator);
   }
 
   // ============ Internal Methods ============
-
-  /**
-   * Initialize glyph plugin for this layer if configured
-   * @private
-   */
-  _initGlyphPlugin() {
-    if (!this.config || !this.config.glyph) return;
-    try {
-      const plugin = GlyphRegistry.get(this.config.glyph);
-      if (plugin && typeof plugin.init === 'function') {
-        // Allow plugin.init to return a per-layer instance/state
-        this._glyphInstance = plugin.init({ layer: this, config: this.config.glyphConfig || {} }) || null;
-      }
-    } catch (e) {
-      Logger.error(`Glyph plugin init failed for "${this.config.glyph}":`, e);
-      this._glyphInstance = null;
-    }
-  }
-
-  /**
-   * Destroy glyph plugin instance for this layer
-   * @private
-   */
-  _destroyGlyphPlugin() {
-    if (!this.config || !this.config.glyph) return;
-    try {
-      const plugin = GlyphRegistry.get(this.config.glyph);
-      // If plugin returned an instance with destroy, prefer that
-      if (this._glyphInstance && typeof this._glyphInstance.destroy === 'function') {
-        this._glyphInstance.destroy();
-      } else if (plugin && typeof plugin.destroy === 'function') {
-        plugin.destroy({ layer: this });
-      }
-    } catch (e) {
-      Logger.error(`Glyph plugin destroy failed for "${this.config.glyph}":`, e);
-    } finally {
-      this._glyphInstance = null;
-    }
-  }
-
-  /**
-   * Initialize aggregation mode for this layer
-   * @private
-   */
-  _initAggregationMode() {
-    Logger.log('[ScreenGridLayerGL] _initAggregationMode() called');
-    const modeName = this.config.aggregationMode || 'screen-grid';
-    Logger.log('[ScreenGridLayerGL] Looking for mode:', modeName);
-    Logger.log('[ScreenGridLayerGL] Available modes:', AggregationModeRegistry.list());
-    
-    const modePlugin = AggregationModeRegistry.get(modeName);
-    
-    if (!modePlugin) {
-      const error = `AggregationModeRegistry: mode "${modeName}" not found. Available modes: ${AggregationModeRegistry.list().join(', ')}`;
-      Logger.error('[ScreenGridLayerGL]', error);
-      throw new Error(error);
-    }
-
-    Logger.log('[ScreenGridLayerGL] Mode plugin found:', modePlugin.name);
-    this._aggregationModePlugin = modePlugin;
-
-    // Initialize mode if it has init method
-    if (typeof modePlugin.init === 'function') {
-      try {
-        Logger.log('[ScreenGridLayerGL] Initializing mode plugin...');
-        this._aggregationModeInstance = modePlugin.init(
-          this.config.aggregationModeConfig || {},
-          this.map
-        );
-        Logger.log('[ScreenGridLayerGL] Mode plugin initialized');
-      } catch (e) {
-        Logger.error(`[ScreenGridLayerGL] AggregationMode "${modeName}" init failed:`, e);
-        this._aggregationModeInstance = null;
-      }
-      } else {
-      Logger.log('[ScreenGridLayerGL] Mode plugin has no init method');
-    }
-  }
-
-  /**
-   * Destroy aggregation mode instance for this layer
-   * @private
-   */
-  _destroyAggregationMode() {
-    if (this._aggregationModeInstance && typeof this._aggregationModeInstance.destroy === 'function') {
-      try {
-        this._aggregationModeInstance.destroy();
-      } catch (e) {
-        Logger.error('Error destroying aggregation mode instance:', e);
-      }
-    }
-    this._aggregationModeInstance = null;
-    this._aggregationModePlugin = null;
-  }
-
 
   /**
    * Project geographic coordinates to screen space
@@ -456,10 +280,14 @@ export class ScreenGridLayerGL {
 
     // Check if using geometry placement path
     if (this.config.source && this.config.placement) {
-      this._updatePlacementAnchors();
+      const anchors = this.placementController.update(
+        this.config,
+        this.map,
+        this.canvasManager
+      );
       
       // Convert anchors to data format for projection
-      const anchorData = this._anchors.map(anchor => ({
+      const anchorData = anchors.map(anchor => ({
         position: anchor.position,
         weight: anchor.weight || 1,
         anchor: anchor // Keep reference to original anchor
@@ -484,88 +312,6 @@ export class ScreenGridLayerGL {
   }
 
   /**
-   * Update placement anchors (with caching for view-dependent strategies)
-   * @private
-   */
-  _updatePlacementAnchors() {
-    if (!this.config.source || !this.config.placement) {
-      this._anchors = [];
-      return;
-    }
-
-    // Check if placement needs view update
-    const needsViewUpdate = PlacementEngine.needsViewUpdate(this.config.placement);
-    
-    // Generate cache key
-    const viewState = this.map ? {
-      zoom: Math.floor(this.map.getZoom() * 10) / 10, // Round to 0.1 for zoom buckets
-      center: this.map.getCenter(),
-      width: this.canvasManager.getDisplaySize().width,
-      height: this.canvasManager.getDisplaySize().height
-    } : null;
-
-    const cacheKey = needsViewUpdate && viewState
-      ? `${this.config.placement.strategy}-${JSON.stringify(this.config.placement)}-${JSON.stringify(viewState)}`
-      : `${this.config.placement.strategy}-${JSON.stringify(this.config.placement)}`;
-
-    // Check cache
-    if (this._placementCacheKey === cacheKey && this._anchors.length > 0) {
-      // Check if view changed significantly (for view-dependent strategies)
-      if (needsViewUpdate && viewState && this._lastViewState) {
-        const zoomDelta = Math.abs(viewState.zoom - this._lastViewState.zoom);
-        const panDeltaX = Math.abs(viewState.center.lng - this._lastViewState.center.lng);
-        const panDeltaY = Math.abs(viewState.center.lat - this._lastViewState.center.lat);
-        
-        // Recompute if zoom changed significantly or pan exceeded threshold
-        const zoomThreshold = 0.5;
-        const panThresholdFraction = 0.25; // 25% of viewport
-        
-        // Calculate viewport extent in geographic units (degrees)
-        const bounds = this.map.getBounds();
-        const viewportWidthDegrees = bounds.getEast() - bounds.getWest();
-        const viewportHeightDegrees = bounds.getNorth() - bounds.getSouth();
-        const panThresholdX = viewportWidthDegrees * panThresholdFraction;
-        const panThresholdY = viewportHeightDegrees * panThresholdFraction;
-        
-        if (zoomDelta > zoomThreshold || 
-            panDeltaX > panThresholdX || 
-            panDeltaY > panThresholdY) {
-          // Cache miss - recompute
-        } else {
-          // Cache hit - reuse anchors
-          return;
-        }
-      } else {
-        // Cache hit - reuse anchors
-        return;
-      }
-    }
-
-    // Compute placement
-    try {
-      this._anchors = PlacementEngine.place(
-        this.config.source,
-        this.config.placement,
-        this.map
-      );
-      this._placementCacheKey = cacheKey;
-      this._lastViewState = viewState;
-      
-      // Cache max weight for normalization
-      this._anchorsMaxWeight = this._anchors.length > 0
-        ? Math.max(...this._anchors.map(a => a.weight || 1), 1)
-        : 1;
-      
-      Logger.log(`[ScreenGridLayerGL] Placement computed: ${this._anchors.length} anchors`);
-    } catch (error) {
-      Logger.error('[ScreenGridLayerGL] Placement error:', error);
-      this._anchors = [];
-      this._placementCacheKey = null;
-      this._anchorsMaxWeight = 1;
-    }
-  }
-
-  /**
    * Aggregate points into grid
    * Skips aggregation if renderMode is 'feature-anchors'
    * @private
@@ -585,20 +331,6 @@ export class ScreenGridLayerGL {
       return;
     }
 
-    // Get aggregation mode plugin
-    const modeName = this.config.aggregationMode || 'screen-grid';
-    Logger.log('[ScreenGridLayerGL] Getting mode plugin:', modeName);
-    
-    if (!this._aggregationModePlugin) {
-      this._aggregationModePlugin = AggregationModeRegistry.get(modeName);
-    }
-    
-    if (!this._aggregationModePlugin) {
-      const error = `AggregationModeRegistry: mode "${modeName}" not found. Available modes: ${AggregationModeRegistry.list().join(', ')}`;
-      Logger.error('[ScreenGridLayerGL]', error);
-      throw new Error(error);
-    }
-
     // Determine data source
     let dataToAggregate = this.config.data;
     let getPosition = this.config.getPosition;
@@ -606,7 +338,7 @@ export class ScreenGridLayerGL {
 
     // If using placement, convert anchors to data format
     if (this.config.source && this.config.placement) {
-      dataToAggregate = this._anchors.map(anchor => ({
+      dataToAggregate = this.placementController.anchors.map(anchor => ({
         position: anchor.position,
         weight: anchor.weight || 1,
         anchor: anchor
@@ -621,33 +353,21 @@ export class ScreenGridLayerGL {
       hasGetWeight: typeof getWeight === 'function'
     });
 
-    // Prepare config for aggregation
     const { width, height } = this.canvasManager.getDisplaySize();
     Logger.log('[ScreenGridLayerGL] Canvas size:', { width, height });
-    const modeConfig = {
-      ...this.config.aggregationModeConfig,
-      cellSizePixels: this.config.cellSizePixels,
-      displaySize: { width, height },
-      aggregationFunction: this.config.aggregationFunction, // Pass aggregation function
-      onAfterAggregate: this.config.onAfterAggregate, // Pass post-aggregation hook
-    };
 
     // Aggregate using mode plugin
     Logger.log('[ScreenGridLayerGL] Calling mode plugin aggregate...');
     try {
-      this.gridData = this._aggregationModePlugin.aggregate(
+      this.gridData = this.aggregationController.aggregate(
         dataToAggregate,
         getPosition,
         getWeight,
         this.map,
-        modeConfig
+        this.config,
+        { width, height }
       );
-      
-      // Store aggregationModeConfig in gridData for render phase
-      if (this.gridData && this.config.aggregationModeConfig) {
-        this.gridData.aggregationModeConfig = this.config.aggregationModeConfig;
-      }
-      
+
       Logger.log('[ScreenGridLayerGL] Aggregation complete:', {
         hasGridData: !!this.gridData,
         gridLength: this.gridData?.grid?.length || 0,
@@ -660,7 +380,7 @@ export class ScreenGridLayerGL {
     }
 
     // Update cell query engine (for screen-space modes)
-    if (this._aggregationModePlugin?.type === 'screen-space') {
+    if (this.aggregationController.isScreenSpace()) {
       this.cellQueryEngine.setAggregationResult(this.gridData);
     }
 
@@ -713,40 +433,7 @@ export class ScreenGridLayerGL {
       gridLength: this.gridData.grid?.length
     });
 
-    // Get aggregation mode plugin
-    const modeName = this.config.aggregationMode || 'screen-grid';
-    const modePlugin = this._aggregationModePlugin || AggregationModeRegistry.get(modeName);
-    
-    if (!modePlugin) {
-      Logger.error(`AggregationModeRegistry: mode "${modeName}" not found`);
-      return;
-    }
-    
-    Logger.log('[ScreenGridLayerGL] Using mode plugin:', modePlugin.name);
-
-    // Determine the onDrawCell behavior. Priority:
-    // 1. user-provided onDrawCell callback
-    // 2. registered glyph via `config.glyph` (uses GlyphRegistry)
-    // 3. no onDrawCell -> color-mode rendering
-    let onDrawCell = this.config.onDrawCell || null;
-
-    if (!onDrawCell && this.config.glyph) {
-      const plugin = GlyphRegistry.get(this.config.glyph);
-      if (plugin && typeof plugin.draw === 'function') {
-        // Wrap plugin.draw to match the onDrawCell signature and pass glyphConfig
-        const glyphCfg = this.config.glyphConfig || {};
-        onDrawCell = (ctxArg, x, y, normVal, cellInfo) => {
-          try {
-              // Removed temporary debug log
-              plugin.draw(ctxArg, x, y, normVal, cellInfo, glyphCfg);
-            } catch (e) {
-              Logger.error(`Glyph plugin "${this.config.glyph}" threw an error:`, e);
-            }
-        };
-      } else {
-        Logger.warn(`Glyph "${this.config.glyph}" not found in GlyphRegistry`);
-      }
-    }
+    const onDrawCell = this.glyphController.getDrawCallback(this.config);
 
     // Prepare config for rendering
     const renderConfig = {
@@ -769,13 +456,13 @@ export class ScreenGridLayerGL {
     Logger.log('[ScreenGridLayerGL] Calling modePlugin.render() with:', {
       hasGridData: !!this.gridData,
       hasCtx: !!ctx,
-      modePluginName: modePlugin.name,
+      modePluginName: this.aggregationController.modePlugin?.name,
       modeConfigKeys: Object.keys(modeConfig)
     });
 
     // Render using mode plugin
     try {
-      modePlugin.render(this.gridData, ctx, modeConfig, this.map);
+      this.aggregationController.render(this.gridData, ctx, modeConfig, this.map);
       Logger.log('[ScreenGridLayerGL] modePlugin.render() completed');
     } catch (e) {
       Logger.error('[ScreenGridLayerGL] Error in modePlugin.render():', e);
@@ -820,10 +507,10 @@ export class ScreenGridLayerGL {
   _handleZoom() {
     // Check if placement needs view update
     if (this.config.source && this.config.placement) {
-      const needsViewUpdate = PlacementEngine.needsViewUpdate(this.config.placement);
+      const needsViewUpdate = this.placementController.needsViewUpdate(this.config);
       if (needsViewUpdate) {
         // Clear placement cache to force recomputation
-        this._placementCacheKey = null;
+        this.placementController.clearCache();
         this._projectPoints();
         if (this.map) {
           this.map.triggerRepaint();
@@ -832,11 +519,7 @@ export class ScreenGridLayerGL {
       }
     }
 
-    // Check if mode needs update on zoom
-    const modePlugin = this._aggregationModePlugin || 
-      AggregationModeRegistry.get(this.config.aggregationMode || 'screen-grid');
-    
-    if (modePlugin && !modePlugin.needsUpdateOnZoom()) {
+    if (!this.aggregationController.needsUpdateOnZoom()) {
       return; // Mode doesn't need update on zoom
     }
 
@@ -852,10 +535,10 @@ export class ScreenGridLayerGL {
   _handleMove() {
     // Check if placement needs view update
     if (this.config.source && this.config.placement) {
-      const needsViewUpdate = PlacementEngine.needsViewUpdate(this.config.placement);
+      const needsViewUpdate = this.placementController.needsViewUpdate(this.config);
       if (needsViewUpdate) {
         // Clear placement cache to force recomputation
-        this._placementCacheKey = null;
+        this.placementController.clearCache();
         this._projectPoints();
         if (this.map) {
           this.map.triggerRepaint();
@@ -864,11 +547,7 @@ export class ScreenGridLayerGL {
       }
     }
 
-    // Check if mode needs update on move
-    const modePlugin = this._aggregationModePlugin || 
-      AggregationModeRegistry.get(this.config.aggregationMode || 'screen-grid');
-    
-    if (modePlugin && !modePlugin.needsUpdateOnMove()) {
+    if (!this.aggregationController.needsUpdateOnMove()) {
       return; // Mode doesn't need update on move
     }
 
@@ -882,7 +561,8 @@ export class ScreenGridLayerGL {
    * @private
    */
   _drawFeatureAnchors(ctx) {
-    if (!this.map || this._anchors.length === 0) {
+    const anchors = this.placementController.anchors;
+    if (!this.map || anchors.length === 0) {
       Logger.log('[ScreenGridLayerGL] _drawFeatureAnchors: no anchors to draw');
       return;
     }
@@ -890,22 +570,7 @@ export class ScreenGridLayerGL {
     // Clear canvas
     this.canvasManager.clear();
 
-    // Determine onDrawCell behavior (same precedence as screen-grid mode)
-    let onDrawCell = this.config.onDrawCell || null;
-
-    if (!onDrawCell && this.config.glyph) {
-      const plugin = GlyphRegistry.get(this.config.glyph);
-      if (plugin && typeof plugin.draw === 'function') {
-        const glyphCfg = this.config.glyphConfig || {};
-        onDrawCell = (ctxArg, x, y, normVal, cellInfo) => {
-          try {
-            plugin.draw(ctxArg, x, y, normVal, cellInfo, glyphCfg);
-          } catch (e) {
-            Logger.error(`Glyph plugin "${this.config.glyph}" threw an error:`, e);
-          }
-        };
-      }
-    }
+    const onDrawCell = this.glyphController.getDrawCallback(this.config);
 
     // If no glyph drawing, skip (or could draw simple circles)
     if (!onDrawCell && !this.config.enableGlyphs) {
@@ -917,10 +582,10 @@ export class ScreenGridLayerGL {
                       Math.round(this.config.cellSizePixels * this.config.glyphSize * 0.9);
 
     // Calculate max weight once (outside loop)
-    const maxWeight = this._anchorsMaxWeight;
+    const maxWeight = this.placementController.maxWeight;
 
     // Project anchors to screen space and draw
-    for (const anchor of this._anchors) {
+    for (const anchor of anchors) {
       try {
         const [lng, lat] = anchor.position;
         const screenPoint = this.map.project([lng, lat]);
