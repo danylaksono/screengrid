@@ -34,6 +34,71 @@ npm start
 - **Time Series**: http://localhost:8000/examples/timeseries.html
 - **Geometry Input**: http://localhost:8000/examples/us-states.html
 
+## Preset Constructors
+
+The full constructor remains the most flexible API, but common map types can
+start from small presets. Each preset returns a normal `ScreenGridLayerGL`
+instance, so you can still pass any advanced option.
+
+### Density Grid
+
+Use `density()` for the default rectangular screen-space grid.
+
+```javascript
+const layer = ScreenGridLayerGL.density({
+  data,
+  getPosition: (d) => d.coordinates,
+  getWeight: (d) => d.count,
+  cellSizePixels: 60
+});
+```
+
+### Hex Density Grid
+
+Use `hexDensity()` when hexagonal cells reduce square-grid artefacts or fit the
+visual style better.
+
+```javascript
+const layer = ScreenGridLayerGL.hexDensity({
+  data,
+  getPosition: (d) => d.coordinates,
+  getWeight: (d) => d.value,
+  aggregationModeConfig: {
+    hexSize: 48
+  }
+});
+```
+
+### Gridded Glyph Map
+
+Use `glyphMap()` for point data where each grid cell should carry a glyph such
+as a pie, bar, or custom `onDrawCell` mark.
+
+```javascript
+const layer = ScreenGridLayerGL.glyphMap({
+  data,
+  getPosition: (d) => d.coordinates,
+  getWeight: (d) => d.total,
+  glyph: 'pie',
+  glyphConfig: {
+    colors: ['#2a9d8f', '#e9c46a', '#e76f51']
+  }
+});
+```
+
+### Feature-Anchored Glyphs
+
+Use `featureGlyphs()` when the source is GeoJSON and the glyph should be placed
+on polygon or line anchors rather than aggregated into screen cells.
+
+```javascript
+const layer = ScreenGridLayerGL.featureGlyphs({
+  source: geojson,
+  placement: { strategy: 'centroid' },
+  glyph: 'circle'
+});
+```
+
 ## File Structure
 
 ```

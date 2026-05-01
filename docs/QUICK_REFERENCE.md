@@ -52,6 +52,17 @@ import { ConfigManager } from 'screengrid';     // Configuration
 
 ## 🎯 Quick Module Reference
 
+### ScreenGridLayerGL Presets
+**What:** Opinionated entry points that still return normal layers  
+**When:** Start from a common map type before customising advanced options  
+**API:**
+```javascript
+ScreenGridLayerGL.density(options)       // rectangular density grid
+ScreenGridLayerGL.hexDensity(options)    // hexagonal density grid
+ScreenGridLayerGL.glyphMap(options)      // gridded glyph map for point data
+ScreenGridLayerGL.featureGlyphs(options) // GeoJSON feature-anchor glyphs
+```
+
 ### ConfigManager
 **What:** Configuration defaults and merging  
 **When:** Use when creating or updating layer config  
@@ -588,4 +599,3 @@ ScreenGridLayerGL.drawCircleGlyph(...);  // Static method still available
 ```
 
 The refactoring is **100% backward compatible** with the original API.
-

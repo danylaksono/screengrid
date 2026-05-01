@@ -43,7 +43,7 @@ const map = new maplibregl.Map({
 map.on('load', async () => {
   const data = await fetch('your-data.json').then(r => r.json());
   
-  const gridLayer = new ScreenGridLayerGL({
+  const gridLayer = ScreenGridLayerGL.density({
     data: data,
     getPosition: (d) => d.coordinates,
     getWeight: (d) => d.weight,
@@ -67,6 +67,21 @@ map.on('load', async () => {
 ```
 
 See [USAGE.md](docs/USAGE.md) for more examples and CDN usage details.
+
+### Preset Constructors
+
+Use the full `new ScreenGridLayerGL(options)` constructor when you need maximum
+control, or start from one of the common presets:
+
+```javascript
+ScreenGridLayerGL.density(options);       // rectangular density grid
+ScreenGridLayerGL.hexDensity(options);    // hexagonal density grid
+ScreenGridLayerGL.glyphMap(options);      // gridded glyph map for point data
+ScreenGridLayerGL.featureGlyphs(options); // GeoJSON feature-anchor glyphs
+```
+
+Each preset returns a normal `ScreenGridLayerGL` instance and accepts the same
+advanced options as the constructor.
 
 ## Key Features
 
@@ -92,6 +107,7 @@ screengrid/
 ├── src/
 │   ├── index.js                    # Main entry point
 │   ├── ScreenGridLayerGL.js        # Main orchestrator
+│   ├── controllers/                # Layer lifecycle controllers
 │   ├── core/                       # Core business logic
 │   ├── canvas/                     # Canvas rendering
 │   ├── events/                     # Event system
@@ -131,6 +147,12 @@ See [USAGE.md](docs/USAGE.md) for complete example descriptions.
 ## API Overview
 
 ### ScreenGridLayerGL Options
+
+**Presets:**
+- `ScreenGridLayerGL.density(options)` - Rectangular density grid
+- `ScreenGridLayerGL.hexDensity(options)` - Hexagonal density grid
+- `ScreenGridLayerGL.glyphMap(options)` - Gridded glyph map for point data
+- `ScreenGridLayerGL.featureGlyphs(options)` - GeoJSON feature-anchor glyphs
 
 **Basic:**
 - `data` - Array of data points
@@ -191,6 +213,7 @@ git clone https://github.com/danylaksono/screengrid.git
 cd screengrid
 npm install
 npm run build
+npm test
 ```
 
 See [USAGE.md](docs/USAGE.md) for development workflow details.
@@ -244,7 +267,6 @@ MIT License - see LICENSE file for details.
 - [Spatio-Temporal Guide](docs/SPATIO_TEMPORAL_GUIDE.md)
 - [Data Utilities](docs/DATA_UTILITIES.md)
 - [Cartography & Design](docs/CARTOGRAPHY_AND_MULTIVARIATE_DESIGN.md)
-
 
 
 

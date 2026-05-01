@@ -59,6 +59,61 @@ export class ScreenGridLayerGL {
     return '2d';
   }
 
+  // ============ Preset Factories ============
+
+  /**
+   * Create a standard rectangular density grid.
+   * @param {Object} options - ScreenGridLayerGL options
+   * @returns {ScreenGridLayerGL}
+   */
+  static density(options = {}) {
+    return new ScreenGridLayerGL({
+      aggregationMode: 'screen-grid',
+      renderMode: 'screen-grid',
+      ...options,
+    });
+  }
+
+  /**
+   * Create a hexagonal screen-space density grid.
+   * @param {Object} options - ScreenGridLayerGL options
+   * @returns {ScreenGridLayerGL}
+   */
+  static hexDensity(options = {}) {
+    return new ScreenGridLayerGL({
+      aggregationMode: 'screen-hex',
+      renderMode: 'screen-grid',
+      ...options,
+    });
+  }
+
+  /**
+   * Create a gridded glyph map for point data.
+   * @param {Object} options - ScreenGridLayerGL options
+   * @returns {ScreenGridLayerGL}
+   */
+  static glyphMap(options = {}) {
+    return new ScreenGridLayerGL({
+      aggregationMode: 'screen-grid',
+      renderMode: 'screen-grid',
+      enableGlyphs: true,
+      ...options,
+    });
+  }
+
+  /**
+   * Create feature-anchored glyphs from GeoJSON source + placement.
+   * @param {Object} options - ScreenGridLayerGL options
+   * @returns {ScreenGridLayerGL}
+   */
+  static featureGlyphs(options = {}) {
+    return new ScreenGridLayerGL({
+      renderMode: 'feature-anchors',
+      enableGlyphs: true,
+      ...options,
+    });
+  }
+
   // ============ Lifecycle Hooks ============
 
   /**
