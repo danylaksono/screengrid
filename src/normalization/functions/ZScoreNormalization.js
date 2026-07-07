@@ -17,25 +17,18 @@ export function zScoreNormalization(grid, cellValue, cellIndex, context) {
   if (cellValue === 0 || context.std === 0) {
     return 0;
   }
-  
-  // Calculate z-score
+
+  // z-score is a monotonic linear transform, so the min/max z-scores are the
+  // transforms of the min/max values already provided in the context stats.
   const zScore = (cellValue - context.mean) / context.std;
-  
-  // Get all z-scores for scaling
-  const cellsWithData = grid.filter(v => v > 0);
-  if (cellsWithData.length === 0) {
-    return 0;
-  }
-  
-  const zScores = cellsWithData.map(v => (v - context.mean) / context.std);
-  const minZ = Math.min(...zScores);
-  const maxZ = Math.max(...zScores);
-  
+  const minZ = (context.min - context.mean) / context.std;
+  const maxZ = (context.max - context.mean) / context.std;
+
   // Map z-score to 0-1 range
   if (maxZ === minZ) {
     return 0.5; // All values are the same
   }
-  
+
   return (zScore - minZ) / (maxZ - minZ);
 }
 

@@ -28,25 +28,16 @@ const layer = new ScreenGridLayerGL({
   showBackground: true,
 });
 
-// Mock canvas manager
+// Mock canvas manager: Proxy no-ops any 2D context method, accepts any property set
+const ctxStub = new Proxy({}, {
+  get: (target, prop) => {
+    if (!(prop in target)) target[prop] = () => {};
+    return target[prop];
+  },
+  set: () => true,
+});
 layer.canvasManager = {
-  getContext: () => ({
-    clearRect: () => {},
-    fillRect: () => {},
-    beginPath: () => {},
-    arc: () => {},
-    fill: () => {},
-    stroke: () => {},
-    moveTo: () => {},
-    lineTo: () => {},
-    save: () => {},
-    restore: () => {},
-    set fillStyle(v) {},
-    set strokeStyle(v) {},
-    set lineWidth(v) {},
-    set lineCap(v) {},
-    set globalAlpha(v) {}
-  }),
+  getContext: () => ctxStub,
   getDisplaySize: () => ({ width: 1200, height: 800 }),
   clear: () => {},
 };
@@ -59,6 +50,7 @@ import { Aggregator } from '../src/core/Aggregator.js';
 const map = {
   project: ([lng, lat]) => ({ x: (lng + 180) * 3.5 % 1200, y: (90 - lat) * 4 % 800 }),
   getCanvas: () => ({ width: 1200, height: 800 }),
+  getZoom: () => 11,
 };
 
 // Use Projector.projectPoints with map stub

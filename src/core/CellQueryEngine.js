@@ -55,7 +55,12 @@ export class CellQueryEngine {
     for (let row = Math.max(0, minRow); row <= Math.min(rows - 1, maxRow); row++) {
       for (let col = Math.max(0, minCol); col <= Math.min(cols - 1, maxCol); col++) {
         const idx = row * cols + col;
-        if (grid[idx] > 0) {
+        // "Has data" is based on point count so zero/negative aggregates
+        // (e.g. from mean/min aggregation) are not silently dropped
+        const hasData = cellData
+          ? Array.isArray(cellData[idx]) && cellData[idx].length > 0
+          : grid[idx] > 0;
+        if (hasData) {
           cells.push({
             col,
             row,

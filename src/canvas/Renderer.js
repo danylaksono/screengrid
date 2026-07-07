@@ -10,20 +10,64 @@ export class Renderer {
   constructor() {}
 
   /**
-   * Compute statistics for normalization context
+   * Check whether a grid cell contains data.
+   * Prefers the per-cell point list (a cell that aggregates to 0 or a negative
+   * value still contains data); falls back to inspecting the value itself.
    * @private
    */
-  static _computeStats(grid) {
-    const cellsWithData = grid.filter((v) => {
-      // Handle both numbers and objects (for multi-attribute aggregation)
-      if (typeof v === 'number') {
-        return v > 0;
-      }
-      // For objects, check if any numeric property > 0
-      return v && typeof v === 'object' && Object.values(v).some(val => typeof val === 'number' && val > 0);
-    });
+  static _cellHasData(value, points) {
+    if (points !== undefined && points !== null) {
+      return Array.isArray(points) && points.length > 0;
+    }
+    if (typeof value === 'number') {
+      return value > 0;
+    }
+    // For objects (multi-attribute aggregation), check if any numeric property > 0
+    return !!value && typeof value === 'object' &&
+      Object.values(value).some(v => typeof v === 'number' && v > 0);
+  }
 
-    if (cellsWithData.length === 0) {
+  /**
+   * Extract a single numeric value from a cell value that may be a number or
+   * an object (multi-attribute aggregation).
+   * @private
+   */
+  static _numericCellValue(value) {
+    if (typeof value === 'number') {
+      return value;
+    }
+    if (value && typeof value === 'object') {
+      let sum = 0;
+      let found = false;
+      for (const v of Object.values(value)) {
+        if (typeof v === 'number') {
+          sum += v;
+          found = true;
+        }
+      }
+      return found ? sum : 0;
+    }
+    return 0;
+  }
+
+  /**
+   * Compute statistics for normalization context
+   * @param {Array} grid - Array of aggregated cell values
+   * @param {Array<Array>|null} cellData - Optional per-cell point lists; when
+   *   provided, cells are counted as "with data" based on point count rather
+   *   than value > 0 (so zero/negative aggregates are not dropped).
+   * @private
+   */
+  static _computeStats(grid, cellData = null) {
+    const values = [];
+    for (let i = 0; i < grid.length; i++) {
+      const points = cellData ? cellData[i] : undefined;
+      if (Renderer._cellHasData(grid[i], points)) {
+        values.push(Renderer._numericCellValue(grid[i]));
+      }
+    }
+
+    if (values.length === 0) {
       return {
         max: 0,
         min: 0,
@@ -31,28 +75,29 @@ export class Renderer {
         std: 0,
         totalValue: 0,
         cellsWithData: 0,
+        sortedValues: [],
       };
     }
 
-    // Extract numeric values (handle both numbers and objects)
-    const numericValues = cellsWithData.map(v => {
-      if (typeof v === 'number') {
-        return v;
-      }
-      // For objects, use the first numeric value found (or sum all numeric values)
-      if (v && typeof v === 'object') {
-        const nums = Object.values(v).filter(val => typeof val === 'number');
-        return nums.length > 0 ? nums.reduce((sum, n) => sum + n, 0) : 0;
-      }
-      return 0;
-    });
-
-    const max = Math.max(...numericValues);
-    const min = Math.min(...numericValues);
-    const mean = numericValues.reduce((sum, v) => sum + v, 0) / numericValues.length;
-    const variance = numericValues.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / numericValues.length;
+    // Single pass for min/max/sum (avoids Math.max(...values) stack overflow
+    // on large grids), second pass for variance.
+    let min = Infinity;
+    let max = -Infinity;
+    let totalValue = 0;
+    for (const v of values) {
+      if (v < min) min = v;
+      if (v > max) max = v;
+      totalValue += v;
+    }
+    const mean = totalValue / values.length;
+    let variance = 0;
+    for (const v of values) {
+      variance += (v - mean) * (v - mean);
+    }
+    variance /= values.length;
     const std = Math.sqrt(variance);
-    const totalValue = numericValues.reduce((sum, v) => sum + v, 0);
+
+    const sortedValues = values.slice().sort((a, b) => a - b);
 
     return {
       max,
@@ -60,7 +105,8 @@ export class Renderer {
       mean,
       std,
       totalValue,
-      cellsWithData: cellsWithData.length,
+      cellsWithData: values.length,
+      sortedValues,
     };
   }
 
@@ -68,8 +114,8 @@ export class Renderer {
    * Public stats helper for aggregation modes that need renderer-compatible
    * normalization context.
    */
-  static computeStats(grid) {
-    return Renderer._computeStats(grid);
+  static computeStats(grid, cellData = null) {
+    return Renderer._computeStats(grid, cellData);
   }
 
   /**
@@ -107,15 +153,11 @@ export class Renderer {
       hoveredIndex = -1 // Global hovered index
     } = config;
 
-    // Compute stats for normalization
-    const stats = Renderer._computeStats(grid);
-    
-    if (stats.max === 0) {
-      Logger.log('[Renderer] No data to render (max value is 0)', {
-        gridLength: grid.length,
-        cols,
-        rows
-      });
+    // Compute stats for normalization (cell "has data" is based on point
+    // count, so cells that aggregate to 0 or negative values still render)
+    const stats = Renderer._computeStats(grid, cellData);
+
+    if (stats.cellsWithData === 0) {
       return;
     }
 
@@ -130,25 +172,7 @@ export class Renderer {
       ...normalizationContext,
     };
 
-    Logger.log('[Renderer] Rendering grid:', {
-      cols,
-      rows,
-      maxVal: stats.max,
-      cellsWithData: stats.cellsWithData,
-      enableGlyphs,
-      hasOnDrawCell: !!onDrawCell
-    });
-
-    // console.log('Rendering grid:', {
-    //   cols,
-    //   rows,
-    //   maxVal,
-    //   cellsWithData: grid.filter((v) => v > 0).length,
-    //   enableGlyphs,
-    // });
-
     // Clear canvas
-    const dpr = window.devicePixelRatio || 1;
     ctx.clearRect(0, 0, aggregationResult.width, aggregationResult.height);
 
     // Render each cell
@@ -157,29 +181,28 @@ export class Renderer {
         const idx = r * cols + c;
         const val = grid[idx];
 
-        // Check if cell has data (handle both numbers and objects)
-        const hasData = typeof val === 'number' 
-          ? val > 0 
-          : (val && typeof val === 'object' && Object.values(val).some(v => typeof v === 'number' && v > 0));
-
-        if (hasData) {
+        if (Renderer._cellHasData(val, cellData ? cellData[idx] : undefined)) {
           const x = c * cellSizePixels;
           const y = r * cellSizePixels;
-          
+
           // Normalize value using normalization function
-          // For objects, pass the first numeric value or a primary value
-          const cellValue = typeof val === 'number' 
-            ? val 
-            : (val && typeof val === 'object' 
+          // For objects, pass the primary value or the first numeric value
+          const cellValue = typeof val === 'number'
+            ? val
+            : (val && typeof val === 'object'
               ? (val.value !== undefined ? val.value : Object.values(val).find(v => typeof v === 'number') || 0)
               : 0);
-          
-          const normVal = normFn(grid, cellValue, idx, normContext);
-          
+
+          let normVal = normFn(grid, cellValue, idx, normContext);
+
           // Skip normalization if result is not a number (e.g., multi-attribute aggregation)
           if (typeof normVal !== 'number' || isNaN(normVal)) {
             continue;
           }
+
+          // Clamp so colorScale/onDrawCell always receive a value in [0, 1]
+          // (negative aggregates or globalMax overrides can fall outside)
+          normVal = Math.min(1, Math.max(0, normVal));
 
           // Determine if background should be drawn
           // New default: when glyphs are active (enableGlyphs && onDrawCell),
@@ -212,6 +235,8 @@ export class Renderer {
               idx,
               customData[idx],
               {
+                value: val,
+                normalizedValue: normVal,
                 zoomLevel,
                 isHovered: (idx === hoveredIndex),
                 grid
@@ -284,15 +309,6 @@ export class Renderer {
    */
   render(aggregationResult, ctx, config) {
     Renderer.render(aggregationResult, ctx, config);
-  }
-  
-  /**
-   * Compute statistics for a grid (exposed for external use)
-   * @param {Array} grid - Grid array
-   * @returns {Object} Statistics object
-   */
-  static computeStats(grid) {
-    return Renderer._computeStats(grid);
   }
 
   /**

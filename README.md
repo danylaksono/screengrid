@@ -223,7 +223,16 @@ See [USAGE.md](docs/USAGE.md) for development workflow details.
 
 ## Changelog
 
-### v2.2.0 (Current)
+### v3.0.1 (Current)
+- **FIXED**: Cells with data points that aggregate to 0 or negative values (e.g. `mean`/`min` aggregation over zero weights) are now rendered instead of silently dropped; "empty" is determined by point count
+- **FIXED**: `onDrawCell` now receives `cellInfo.value` and `cellInfo.normalizedValue` as documented
+- **FIXED**: Normalized values are clamped to [0, 1] before reaching `colorScale`/`onDrawCell`
+- **PERF**: `z-score` and `percentile` normalization no longer rescan the grid per cell (O(n²) → O(n log n) per frame)
+- **PERF**: Removed redundant per-frame point projection and per-frame debug log allocations
+- **PERF**: Grid statistics no longer use spread-based `Math.max`/`Math.min` (stack-overflow risk on large grids)
+- **DOCS**: Documented `aggregationFunction`, `normalizationFunction`, `normalizationContext`; removed duplicated sections and fixed incorrect examples
+
+### v2.2.0
 - **NEW**: Hexagonal aggregation mode (`screen-hex`)
 - **NEW**: Aggregation mode registry system
 - **IMPROVED**: Mode-specific configuration

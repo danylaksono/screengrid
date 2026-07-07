@@ -5,6 +5,7 @@
  */
 
 import { Projector } from '../../core/Projector.js';
+import { Aggregator } from '../../core/Aggregator.js';
 import { AggregationFunctionRegistry, AggregationFunctions } from '../functions/index.js';
 import { NormalizationFunctionRegistry, NormalizationFunctions } from '../../normalization/functions/index.js';
 import { Renderer } from '../../canvas/Renderer.js';
@@ -132,8 +133,9 @@ export const ScreenHexMode = {
       ? (NormalizationFunctionRegistry.get(config.normalizationFunction) || config.normalizationFunction)
       : NormalizationFunctions.maxLocal;
 
-    // Compute stats for normalization context
-    const stats = Renderer.computeStats(grid);
+    // Compute stats for normalization context (point-count based, so cells
+    // that aggregate to 0 or negative values still render)
+    const stats = Renderer.computeStats(grid, cellData);
     const normContext = {
       ...stats,
       ...(config.normalizationContext || {}),
@@ -141,23 +143,28 @@ export const ScreenHexMode = {
 
     for (let i = 0; i < grid.length; i++) {
       const val = grid[i];
-      if (val <= 0) continue;
+      // Hex grid is sparse: every entry was created from at least one point,
+      // so gate on point count rather than value > 0
+      if (!cellData[i] || cellData[i].length === 0) continue;
 
       const { q, r } = hexCoords[i];
-      
+
       // Normalize value using normalization function
-      const cellValue = typeof val === 'number' 
-        ? val 
-        : (val && typeof val === 'object' 
+      const cellValue = typeof val === 'number'
+        ? val
+        : (val && typeof val === 'object'
           ? (val.value !== undefined ? val.value : Object.values(val).find(v => typeof v === 'number') || 0)
           : 0);
-      
-      const normVal = normFn(grid, cellValue, i, normContext);
-      
+
+      let normVal = normFn(grid, cellValue, i, normContext);
+
       // Skip if normalization result is not a number
       if (typeof normVal !== 'number' || isNaN(normVal)) {
         continue;
       }
+
+      // Clamp so colorScale/onDrawCell always receive a value in [0, 1]
+      normVal = Math.min(1, Math.max(0, normVal));
 
       // Convert hex coordinates to pixel coordinates (flat-top hexagon)
       const x = hexRadius * (Math.sqrt(3) * q + Math.sqrt(3) / 2 * r);
@@ -173,7 +180,8 @@ export const ScreenHexMode = {
         renderConfig,
         cellData[i],
         hexCoords[i],
-        i
+        i,
+        val
       );
     }
   },
@@ -197,7 +205,8 @@ export const ScreenHexMode = {
     config,
     cellDataArray,
     hexCoords,
-    cellIndex
+    cellIndex,
+    value
   ) {
     ctx.beginPath();
     // Draw flat-top hexagon (6 vertices)
@@ -235,6 +244,7 @@ export const ScreenHexMode = {
         hexCoords,
         index: cellIndex,
         center: { x: centerX, y: centerY },
+        value,
         normalizedValue: normVal,
       });
     }
@@ -258,17 +268,26 @@ export const ScreenHexMode = {
 
     // Find matching cell
     const index = hexCoords.findIndex(c => `${c.q},${c.r}` === hexKey);
-    if (index === -1 || aggregationResult.grid[index] <= 0) return null;
+    if (index === -1) return null;
+
+    const points = aggregationResult.cellData[index];
+    if (!points || points.length === 0) return null;
 
     const { q: cellQ, r: cellR } = hexCoords[index];
     const centerX = hexRadius * (Math.sqrt(3) * cellQ + Math.sqrt(3) / 2 * cellR);
     const centerY = hexRadius * (3 / 2 * cellR);
 
+    // Loop instead of Math.max(...grid) to avoid stack overflow on large grids
+    let maxValue = 0;
+    for (const v of aggregationResult.grid) {
+      if (typeof v === 'number' && v > maxValue) maxValue = v;
+    }
+
     return {
       index,
       value: aggregationResult.grid[index],
-      normalizedValue: aggregationResult.grid[index] / Math.max(...aggregationResult.grid, 1),
-      cellData: aggregationResult.cellData[index],
+      normalizedValue: aggregationResult.grid[index] / (maxValue || 1),
+      cellData: points,
       hexCoords: { q: cellQ, r: cellR },
       center: { x: centerX, y: centerY },
     };
@@ -296,16 +315,7 @@ export const ScreenHexMode = {
    * @returns {Object} Statistics object
    */
   getStats(aggregationResult) {
-    const { grid } = aggregationResult;
-    const cellsWithData = grid.filter((v) => v > 0);
-    return {
-      totalCells: grid.length,
-      cellsWithData: cellsWithData.length,
-      maxValue: cellsWithData.length > 0 ? Math.max(...cellsWithData) : 0,
-      minValue: cellsWithData.length > 0 ? Math.min(...cellsWithData) : 0,
-      avgValue: cellsWithData.length > 0 ? cellsWithData.reduce((a, b) => a + b) / cellsWithData.length : 0,
-      totalValue: grid.reduce((sum, v) => sum + v, 0),
-    };
+    return Aggregator.getStats(aggregationResult);
   },
 };
 

@@ -146,12 +146,17 @@ export function computeStats(cellData, valueExtractor = null) {
     return { mean: 0, std: 0, min: 0, max: 0, count: 0, sum: 0 };
   }
 
-  const sum = values.reduce((s, v) => s + v, 0);
+  let sum = 0;
+  let min = Infinity;
+  let max = -Infinity;
+  for (const v of values) {
+    sum += v;
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
   const mean = sum / values.length;
   const variance = values.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / values.length;
   const std = Math.sqrt(variance);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
 
   return { mean, std, min, max, count: values.length, sum };
 }

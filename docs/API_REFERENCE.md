@@ -219,9 +219,9 @@ Get statistics about the current grid aggregation.
 ```javascript
 {
   totalCells: number,      // Total number of cells in grid
-  cellsWithData: number,    // Number of cells containing data
-  maxValue: number,         // Maximum aggregated value
-  minValue: number,         // Minimum aggregated value (excluding zeros)
+  cellsWithData: number,    // Number of cells containing data points
+  maxValue: number,         // Maximum aggregated value among cells with data
+  minValue: number,         // Minimum aggregated value among cells with data
   avgValue: number,         // Average value across cells with data
   totalValue: number        // Sum of all cell values
 }
@@ -231,7 +231,7 @@ Get statistics about the current grid aggregation.
 ```javascript
 const stats = layer.getGridStats();
 if (stats) {
-  console.log(`Grid: ${stats.cols}×${stats.rows} cells`);
+  console.log(`Grid: ${stats.totalCells} cells`);
   console.log(`${stats.cellsWithData} cells contain data`);
   console.log(`Value range: ${stats.minValue} - ${stats.maxValue}`);
 }
@@ -351,19 +351,21 @@ colorScale: (v) => {
 ```javascript
 {
   cellData: Array,        // Array of original data points in this cell
-  cellSize: number,      // Size of the cell in pixels
-  glyphRadius: number,   // Recommended radius for glyph drawing
+  cellSize: number,       // Size of the cell in pixels
+  glyphRadius: number,    // Recommended radius for glyph drawing
   normalizedValue: number, // Same as normVal
-  col: number,           // Grid column index
-  row: number,           // Grid row index
-  value: number,         // Raw aggregated value
-  customData: any,       // Result returned from onAfterAggregate for this cell
-  zoomLevel: number,     // Current map zoom level
-  isHovered: boolean,    // True if cell is currently hovered by mouse
-  grid: Array<number>    // Full grid array for context
+  col: number,            // Grid column index
+  row: number,            // Grid row index
+  index: number,          // Linear index of the cell in the grid array
+  value: number,          // Raw aggregated value
+  customData: any,        // Result returned from onAfterAggregate for this cell
+  zoomLevel: number,      // Current map zoom level
+  isHovered: boolean,     // True if cell is currently hovered by mouse
+  grid: Array<number>     // Full grid array for context
 }
 ```
-```
+
+**Note:** In hexagonal mode (`aggregationMode: 'screen-hex'`), `col`/`row`/`customData`/`zoomLevel`/`isHovered`/`grid` are replaced by `hexCoords: {q, r}` and `center: {x, y}`.
 
 **Example:**
 ```javascript
@@ -496,6 +498,58 @@ onClick: ({ cell, event }) => {
 
 ---
 
+### Aggregation & Normalization Options
+
+#### `aggregationMode`
+- **Type:** `'screen-grid' | 'screen-hex' | string`
+- **Default:** `'screen-grid'`
+- **Description:** Grid tessellation mode. `'screen-grid'` produces rectangular cells, `'screen-hex'` hexagonal cells. Custom modes can be registered via `AggregationModeRegistry`.
+
+#### `aggregationModeConfig`
+- **Type:** `Object`
+- **Default:** `{}`
+- **Description:** Mode-specific configuration merged into the render config (e.g. `{ hexSize: 40, showBackground: false }`).
+
+#### `aggregationFunction`
+- **Type:** `'sum' | 'mean' | 'count' | 'max' | 'min' | Function | null`
+- **Default:** `null` (falls back to `'sum'`)
+- **Description:** How point weights are combined into a single cell value. Pass a built-in name or a custom function `(cellData) => number`, where `cellData` is the array of `{data, weight, projectedX, projectedY}` entries in the cell. Custom functions can also be registered by name via `AggregationFunctionRegistry.register(name, fn)`.
+
+**Example:**
+```javascript
+const layer = new ScreenGridLayerGL({
+  data,
+  getWeight: (d) => d.price,
+  aggregationFunction: 'mean'  // cell value = average price per cell
+});
+```
+
+#### `normalizationFunction`
+- **Type:** `'max-local' | 'max-global' | 'z-score' | 'percentile' | Function | null`
+- **Default:** `null` (falls back to `'max-local'`)
+- **Description:** How raw cell values are mapped to the 0-1 range passed to `colorScale` and `onDrawCell`. Custom functions have the signature `(grid, cellValue, cellIndex, context) => number`, where `context` contains `{max, min, mean, std, totalValue, cellsWithData, sortedValues}` plus anything from `normalizationContext`.
+  - `'max-local'`: divide by the maximum of the **current viewport's** grid. Simple, but the same data value maps to different colors as you pan/zoom — the encoding is view-relative.
+  - `'max-global'`: divide by `normalizationContext.globalMax` that you supply. Use this for stable, comparable encodings across interactions.
+  - `'z-score'`: standardize then rescale to 0-1.
+  - `'percentile'`: percentile rank within the current grid.
+
+#### `normalizationContext`
+- **Type:** `Object`
+- **Default:** `{}`
+- **Description:** Extra values merged into the normalization context. Most commonly `{ globalMax: number }` for `'max-global'`.
+
+**Example (stable encoding across pan/zoom):**
+```javascript
+const layer = new ScreenGridLayerGL({
+  data,
+  getWeight: (d) => d.count,
+  normalizationFunction: 'max-global',
+  normalizationContext: { globalMax: 500 }  // fixed domain: legend stays valid
+});
+```
+
+---
+
 ### Other Options
 
 #### `enabled`
@@ -503,76 +557,10 @@ onClick: ({ cell, event }) => {
 - **Default:** `true`
 - **Description:** Whether the layer is enabled (rendered)
 
----
-
-### Geometry Input Options (v2.1.0+)
-
-These options allow you to use non-point geometries (Polygon, LineString, etc.) instead of point data.
-
-#### `source`
-- **Type:** `GeoJSON.FeatureCollection | GeoJSON.Feature[] | null`
-- **Default:** `null`
-- **Description:** GeoJSON source data with non-point geometries. Mutually exclusive with `data` option.
-- **Supported Geometry Types:** Point, MultiPoint, LineString, MultiLineString, Polygon, MultiPolygon
-
-**Example:**
-```javascript
-const layer = new ScreenGridLayerGL({
-  source: geojsonData,  // GeoJSON FeatureCollection
-  placement: { strategy: 'centroid' },
-  renderMode: 'feature-anchors'
-});
-```
-
-#### `placement`
-- **Type:** `Object | null`
-- **Default:** `null`
-- **Description:** Configuration for converting geometries to anchor points. Required when using `source`.
-
-**Placement Config Structure:**
-```javascript
-{
-  strategy: 'centroid' | 'polylabel' | 'line-sample' | 'grid-geo' | 'grid-screen' | 'point',
-  spacing?: { meters: number } | { pixels: number },
-  partition?: 'union' | 'per-part',
-  maxPerFeature?: number,
-  minArea?: number,
-  minLength?: number,
-  jitterPixels?: number,
-  zoomAdaptive?: boolean
-}
-```
-
-**Example:**
-```javascript
-placement: {
-  strategy: 'line-sample',
-  spacing: { meters: 200 },
-  zoomAdaptive: true
-}
-```
-
-#### `renderMode`
-- **Type:** `'screen-grid' | 'feature-anchors'`
-- **Default:** `'screen-grid'`
-- **Description:** Rendering mode for geometry input.
-  - `'screen-grid'`: Aggregate anchors into screen-space grid cells (default)
-  - `'feature-anchors'`: Draw glyphs directly at anchor positions (one glyph per anchor)
-
-**Example:**
-```javascript
-renderMode: 'feature-anchors'  // Draw one glyph per feature
-```
-
-#### `anchorSizePixels`
-- **Type:** `number`
-- **Default:** `auto` (calculated from `cellSizePixels * glyphSize * 0.9`)
-- **Description:** Size of glyphs in pixels when using `renderMode: 'feature-anchors'`.
-
-**Example:**
-```javascript
-anchorSizePixels: 18  // Fixed glyph size in pixels
-```
+#### `debugLogs`
+- **Type:** `boolean`
+- **Default:** `false`
+- **Description:** Emit verbose internal debug logs.
 
 ---
 
@@ -1734,39 +1722,36 @@ grid[4 * 16 + 6] = 20           // Cell [4, 6]
 
 **Aggregation Function:**
 
-The library uses **summation** as the aggregation function:
+By default the library uses **summation**:
 
 ```javascript
 cellValue = Σ(weights of all points in cell)
 ```
 
-**Why Summation?**
-
-- Intuitive for counts, populations, totals
-- Preserves magnitude information
-- Works well with weighted data
+Summation is intuitive for counts, populations, and totals — but note that with
+screen-space binning, sums grow as you zoom out (more points per cell), which is
+an artifact of the binning, not the data.
 
 **Custom Aggregation:**
 
-If you need different aggregation (average, max, etc.), you can:
+Use the `aggregationFunction` option to change how weights are combined:
 
-1. **Pre-process data** before passing to ScreenGrid:
-   ```javascript
-   // Convert to per-cell data
-   const aggregatedData = preAggregate(data);
-   // Then use getWeight to return 1 for each aggregated cell
-   ```
+```javascript
+const layer = new ScreenGridLayerGL({
+  data,
+  getWeight: (d) => d.value,
+  aggregationFunction: 'mean'  // 'sum' | 'mean' | 'count' | 'max' | 'min'
+});
 
-2. **Post-process in `onDrawCell`**:
-   ```javascript
-   onDrawCell: (ctx, x, y, normVal, cellInfo) => {
-     const { cellData } = cellInfo;
-     // Calculate average instead of sum
-     const avg = cellData.reduce((sum, item) => sum + item.data.value, 0) 
-                / cellData.length;
-     // Use avg for visualization
-   }
-   ```
+// Or a custom function:
+aggregationFunction: (cellData) => {
+  const weights = cellData.map(item => item.weight);
+  return weights.sort((a, b) => a - b)[Math.floor(weights.length / 2)]; // median
+}
+```
+
+For multi-attribute calculations, use the `onAfterAggregate` hook — its result is
+available to `onDrawCell` as `cellInfo.customData`.
 
 ---
 
@@ -1774,25 +1759,31 @@ If you need different aggregation (average, max, etc.), you can:
 
 **Purpose:** Convert raw aggregated cell values to normalized range (0-1) for consistent rendering.
 
-**Process:**
+**Process (default `'max-local'`):**
 
-1. **Find Maximum Value:**
+1. **Find Maximum Value** across cells that contain data points:
    ```javascript
-   const maxValue = Math.max(...grid);
    // Example: grid = [0, 5, 10, 15, 20, 0, ...]
    // maxValue = 20
    ```
 
 2. **Normalize Each Cell:**
    ```javascript
-   // For each cell with value > 0:
+   // For each cell containing data points:
    const normalizedValue = cellValue / maxValue;
    // Cell with value 20 → normalizedValue = 1.0
    // Cell with value 10 → normalizedValue = 0.5
    // Cell with value 5  → normalizedValue = 0.25
    ```
 
-**Important:** Only cells with `value > 0` are normalized. Empty cells (value = 0) are not rendered.
+The strategy is configurable via the `normalizationFunction` option
+(`'max-local'`, `'max-global'`, `'z-score'`, `'percentile'`, or a custom
+function). The result is clamped to [0, 1] before being passed to `colorScale`
+and `onDrawCell`.
+
+**Important:** Cells with no data points are not rendered. Cells that *do*
+contain points but aggregate to 0 (e.g. with `mean` or `min` aggregation over
+zero weights) are still rendered, at the low end of the scale.
 
 **Example Normalization:**
 
@@ -1894,12 +1885,10 @@ const layer = new ScreenGridLayerGL({
 
 #### Empty Cells
 
-Cells with no data points have `value = 0` and are **not rendered**.
-
-```javascript
-// Cell contains no points
-grid[index] = 0  // Not drawn, skipped in render loop
-```
+Cells with **no data points** are not rendered. A cell that contains points but
+aggregates to zero or a negative value (possible with `mean`, `min`, or negative
+weights) **is** rendered — "empty" is determined by point count, not by the
+aggregated value.
 
 #### Multiple Points in Same Cell
 
@@ -1959,21 +1948,18 @@ getWeight: (d) => d.population * d.density
 
 ### Advanced: Custom Normalization
 
-For custom normalization strategies, you can override in `onDrawCell`:
+Prefer the `normalizationFunction` option — it applies to both color and glyph
+rendering and receives precomputed grid statistics:
 
 ```javascript
-onDrawCell: (ctx, x, y, normVal, cellInfo) => {
-  const { cellData, value } = cellInfo;
-  
-  // Use raw value instead of normalized
-  const customNormalized = value / customMaxValue;
-  
-  // Or use percentile-based normalization
-  const percentile = calculatePercentile(value, allValues);
-  
-  // Then use for visualization
+normalizationFunction: (grid, cellValue, cellIndex, context) => {
+  // context: {max, min, mean, std, totalValue, cellsWithData, sortedValues, ...normalizationContext}
+  return Math.sqrt(cellValue / context.max); // e.g. square-root scale
 }
 ```
+
+For one-off tweaks inside a glyph you can also work from the raw value in
+`onDrawCell` via `cellInfo.value`.
 
 ---
 
@@ -1994,5 +1980,5 @@ onDrawCell: (ctx, x, y, normVal, cellInfo) => {
 
 ## Version
 
-This API reference is for ScreenGrid Library v2.2.0+
+This API reference is for ScreenGrid Library v3.0.1+
 

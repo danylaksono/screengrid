@@ -39,6 +39,12 @@ export class ConfigManager {
     // Aggregation mode configuration
     aggregationMode: 'screen-grid', // 'screen-grid' | 'screen-hex' | 'map-h3' | string (custom)
     aggregationModeConfig: {}, // Mode-specific configuration
+    // Per-cell aggregation: 'sum' | 'mean' | 'count' | 'max' | 'min' | custom fn (default: sum)
+    aggregationFunction: null,
+    // Normalization for rendering: 'max-local' | 'max-global' | 'z-score' | 'percentile' | custom fn (default: max-local)
+    normalizationFunction: null,
+    // Extra context merged into the normalization stats (e.g. { globalMax: 500 })
+    normalizationContext: {},
     // Geometry placement configuration (Option B)
     source: null, // GeoJSON FeatureCollection, Feature, or array of Features
     placement: null, // Placement configuration object

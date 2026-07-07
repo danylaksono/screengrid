@@ -1,10 +1,9 @@
-/**
+﻿/**
  * ScreenGridLayerGL.js
  * Main orchestrator class - composes all modular components
  */
 
 import { ConfigManager } from './config/ConfigManager.js';
-import { Projector } from './core/Projector.js';
 import { Aggregator } from './core/Aggregator.js';
 import { CellQueryEngine } from './core/CellQueryEngine.js';
 import { CanvasManager } from './canvas/CanvasManager.js';
@@ -27,7 +26,6 @@ export class ScreenGridLayerGL {
     this.config = ConfigManager.create(options);
 
     // Components
-    this.projector = new Projector();
     this.aggregator = new Aggregator();
     this.cellQueryEngine = new CellQueryEngine();
     this.canvasManager = new CanvasManager();
@@ -40,7 +38,6 @@ export class ScreenGridLayerGL {
     // Internal state
     this.map = null;
     this.gl = null;
-    this.pointsProjected = [];
     this.gridData = null;
     this._hoveredIndex = -1; // Track currently hovered cell index
   }
@@ -142,7 +139,7 @@ export class ScreenGridLayerGL {
       });
 
       // Project initial data
-      this._projectPoints();
+      this._updatePlacement();
 
       Logger.log('ScreenGridLayerGL added to map');
     } catch (error) {
@@ -154,8 +151,7 @@ export class ScreenGridLayerGL {
    * Called before each render
    */
   prerender() {
-    Logger.log('[ScreenGridLayerGL] prerender() called');
-    this._projectPoints();
+    this._updatePlacement();
   }
 
   /**
@@ -168,7 +164,6 @@ export class ScreenGridLayerGL {
     this.glyphController.destroy(this.config);
 
     this.map = null;
-    this.pointsProjected = [];
     this.gridData = null;
     this.placementController.reset();
 
@@ -179,33 +174,20 @@ export class ScreenGridLayerGL {
    * Called to render the layer
    */
   render() {
-    Logger.log('[ScreenGridLayerGL] render() called');
     const ctx = this.canvasManager.getContext();
     if (!ctx) {
-      Logger.log('[ScreenGridLayerGL] No canvas context available');
       return;
     }
 
     // If disabled, clear the canvas and return
     if (!this.config.enabled) {
-      Logger.log('[ScreenGridLayerGL] Layer is disabled');
       this.canvasManager.clear();
       return;
     }
 
-    Logger.log('[ScreenGridLayerGL] Aggregating and drawing...');
     this._aggregate();
-    Logger.log('[ScreenGridLayerGL] About to call _draw(), gridData exists:', !!this.gridData);
-    Logger.log('[ScreenGridLayerGL] gridData details:', {
-      type: this.gridData?.type,
-      cols: this.gridData?.cols,
-      rows: this.gridData?.rows,
-      hasGrid: !!this.gridData?.grid,
-      gridLength: this.gridData?.grid?.length
-    });
     try {
       this._draw();
-      Logger.log('[ScreenGridLayerGL] _draw() completed successfully');
     } catch (e) {
       Logger.error('[ScreenGridLayerGL] Error in _draw():', e);
       throw e;
@@ -220,7 +202,7 @@ export class ScreenGridLayerGL {
    */
   setData(newData) {
     this.config = ConfigManager.update(this.config, { data: newData });
-    this._projectPoints();
+    this._updatePlacement();
     
     // Trigger repaint so changes are visible immediately
     if (this.map) {
@@ -277,7 +259,7 @@ export class ScreenGridLayerGL {
       }
     }
 
-    this._projectPoints();
+    this._updatePlacement();
     
     // Trigger repaint so changes are visible immediately
     if (this.map) {
@@ -326,43 +308,17 @@ export class ScreenGridLayerGL {
   // ============ Internal Methods ============
 
   /**
-   * Project geographic coordinates to screen space
-   * Handles both legacy data path and new source+placement path
+   * Refresh derived point data ahead of aggregation.
+   * Only the source+placement path needs work here (anchor recomputation);
+   * for plain data the aggregation modes project points themselves during
+   * render, so projecting here would duplicate that work every frame.
    * @private
    */
-  _projectPoints() {
+  _updatePlacement() {
     if (!this.map) return;
 
-    // Check if using geometry placement path
     if (this.config.source && this.config.placement) {
-      const anchors = this.placementController.update(
-        this.config,
-        this.map,
-        this.canvasManager
-      );
-      
-      // Convert anchors to data format for projection
-      const anchorData = anchors.map(anchor => ({
-        position: anchor.position,
-        weight: anchor.weight || 1,
-        anchor: anchor // Keep reference to original anchor
-      }));
-
-      // Project anchors to screen space
-      this.pointsProjected = Projector.projectPoints(
-        anchorData,
-        (d) => d.position,
-        (d) => d.weight,
-        this.map
-      );
-    } else {
-      // Legacy path: use data + getPosition/getWeight
-      this.pointsProjected = Projector.projectPoints(
-        this.config.data,
-        this.config.getPosition,
-        this.config.getWeight,
-        this.map
-      );
+      this.placementController.update(this.config, this.map, this.canvasManager);
     }
   }
 
@@ -372,17 +328,13 @@ export class ScreenGridLayerGL {
    * @private
    */
   _aggregate() {
-    Logger.log('[ScreenGridLayerGL] _aggregate() called');
-    
     // Skip aggregation for feature-anchors mode
     if (this.config.renderMode === 'feature-anchors') {
-      Logger.log('[ScreenGridLayerGL] Skipping aggregation (feature-anchors mode)');
       this.gridData = null;
       return;
     }
 
     if (!this.map) {
-      Logger.log('[ScreenGridLayerGL] No map available for aggregation');
       return;
     }
 
@@ -402,17 +354,9 @@ export class ScreenGridLayerGL {
       getWeight = (d) => d.weight;
     }
 
-    Logger.log('[ScreenGridLayerGL] Aggregating with data:', {
-      dataLength: dataToAggregate?.length || 0,
-      hasGetPosition: typeof getPosition === 'function',
-      hasGetWeight: typeof getWeight === 'function'
-    });
-
     const { width, height } = this.canvasManager.getDisplaySize();
-    Logger.log('[ScreenGridLayerGL] Canvas size:', { width, height });
 
     // Aggregate using mode plugin
-    Logger.log('[ScreenGridLayerGL] Calling mode plugin aggregate...');
     try {
       this.gridData = this.aggregationController.aggregate(
         dataToAggregate,
@@ -422,13 +366,6 @@ export class ScreenGridLayerGL {
         this.config,
         { width, height }
       );
-
-      Logger.log('[ScreenGridLayerGL] Aggregation complete:', {
-        hasGridData: !!this.gridData,
-        gridLength: this.gridData?.grid?.length || 0,
-        cols: this.gridData?.cols,
-        rows: this.gridData?.rows
-      });
     } catch (e) {
       Logger.error('[ScreenGridLayerGL] Error during aggregation:', e);
       throw e;
@@ -441,19 +378,13 @@ export class ScreenGridLayerGL {
 
     // Trigger callback
     if (this.config.onAggregate) {
-      Logger.log('[ScreenGridLayerGL] Calling onAggregate callback');
       try {
         this.config.onAggregate(this.gridData);
-        Logger.log('[ScreenGridLayerGL] onAggregate callback completed');
       } catch (e) {
         Logger.error('[ScreenGridLayerGL] Error in onAggregate callback:', e);
         // Don't throw - allow rendering to continue even if callback fails
       }
-    } else {
-      Logger.log('[ScreenGridLayerGL] No onAggregate callback defined');
     }
-    
-    Logger.log('[ScreenGridLayerGL] _aggregate() returning, gridData exists:', !!this.gridData);
   }
 
   /**
@@ -464,7 +395,6 @@ export class ScreenGridLayerGL {
   _draw() {
     const ctx = this.canvasManager.getContext();
     if (!ctx) {
-      Logger.log('[ScreenGridLayerGL] _draw() skipping - no ctx');
       return;
     }
 
@@ -476,17 +406,8 @@ export class ScreenGridLayerGL {
 
     // Normal rendering path (screen-grid mode)
     if (!this.gridData) {
-      Logger.log('[ScreenGridLayerGL] _draw() skipping - no gridData');
       return;
     }
-
-    Logger.log('[ScreenGridLayerGL] _draw() called with gridData:', {
-      hasGridData: !!this.gridData,
-      type: this.gridData.type,
-      cols: this.gridData.cols,
-      rows: this.gridData.rows,
-      gridLength: this.gridData.grid?.length
-    });
 
     const onDrawCell = this.glyphController.getDrawCallback(this.config);
 
@@ -508,17 +429,9 @@ export class ScreenGridLayerGL {
       ...this.config.aggregationModeConfig,
     };
 
-    Logger.log('[ScreenGridLayerGL] Calling modePlugin.render() with:', {
-      hasGridData: !!this.gridData,
-      hasCtx: !!ctx,
-      modePluginName: this.aggregationController.modePlugin?.name,
-      modeConfigKeys: Object.keys(modeConfig)
-    });
-
     // Render using mode plugin
     try {
       this.aggregationController.render(this.gridData, ctx, modeConfig, this.map);
-      Logger.log('[ScreenGridLayerGL] modePlugin.render() completed');
     } catch (e) {
       Logger.error('[ScreenGridLayerGL] Error in modePlugin.render():', e);
       throw e;
@@ -566,7 +479,7 @@ export class ScreenGridLayerGL {
       if (needsViewUpdate) {
         // Clear placement cache to force recomputation
         this.placementController.clearCache();
-        this._projectPoints();
+        this._updatePlacement();
         if (this.map) {
           this.map.triggerRepaint();
         }
@@ -579,7 +492,7 @@ export class ScreenGridLayerGL {
     }
 
     EventHandlers.handleZoom(this.map, this.config, () => {
-      this._projectPoints();
+      this._updatePlacement();
     });
   }
 
@@ -594,7 +507,7 @@ export class ScreenGridLayerGL {
       if (needsViewUpdate) {
         // Clear placement cache to force recomputation
         this.placementController.clearCache();
-        this._projectPoints();
+        this._updatePlacement();
         if (this.map) {
           this.map.triggerRepaint();
         }
@@ -607,7 +520,7 @@ export class ScreenGridLayerGL {
     }
 
     EventHandlers.handleMove(() => {
-      this._projectPoints();
+      this._updatePlacement();
     });
   }
 

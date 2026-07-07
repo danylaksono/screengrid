@@ -25,16 +25,9 @@ export class Aggregator {
     const customData = new Array(rows * cols).fill(null);
 
     // Get aggregation function (default to sum for backward compatibility)
-    const aggFn = aggregationFunction 
+    const aggFn = aggregationFunction
       ? (AggregationFunctionRegistry.get(aggregationFunction) || aggregationFunction)
       : AggregationFunctions.sum;
-
-    // console.log('Aggregating points:', {
-    //   totalPoints: projectedPoints.length,
-    //   canvasSize: { width, height },
-    //   cellSize: cellSizePixels,
-    //   gridSize: { cols, rows },
-    // });
 
     // First pass: collect all points into cellData
     for (let i = 0; i < projectedPoints.length; i++) {
@@ -74,13 +67,6 @@ export class Aggregator {
       }
     }
 
-    const cellsWithData = grid.filter((v) => v > 0).length;
-    // console.log('Grid aggregation complete:', {
-    //   cellsWithData,
-    //   maxValue: Math.max(...grid),
-    //   totalValue: grid.reduce((sum, v) => sum + v, 0),
-    // });
-
     return {
       grid,
       cellData,
@@ -114,21 +100,43 @@ export class Aggregator {
   }
 
   /**
-   * Get statistics about a grid
+   * Get statistics about a grid.
+   * Cells count as "with data" when they contain points (when cellData is
+   * available), so zero/negative aggregates are included in the stats.
    * @param {Object} aggregationResult - Result from aggregate()
-   * @returns {Object} Statistics: {totalCells, cellsWithData, maxValue, minValue, avgValue}
+   * @returns {Object} Statistics: {totalCells, cellsWithData, maxValue, minValue, avgValue, totalValue}
    */
   static getStats(aggregationResult) {
-    const { grid } = aggregationResult;
-    const cellsWithData = grid.filter((v) => v > 0);
+    const { grid, cellData } = aggregationResult;
+
+    let count = 0;
+    let maxValue = -Infinity;
+    let minValue = Infinity;
+    let sum = 0;
+    let totalValue = 0;
+
+    for (let i = 0; i < grid.length; i++) {
+      const v = grid[i];
+      if (typeof v === 'number') {
+        totalValue += v;
+      }
+      const hasData = cellData
+        ? Array.isArray(cellData[i]) && cellData[i].length > 0
+        : v > 0;
+      if (!hasData || typeof v !== 'number') continue;
+      count++;
+      if (v > maxValue) maxValue = v;
+      if (v < minValue) minValue = v;
+      sum += v;
+    }
 
     return {
       totalCells: grid.length,
-      cellsWithData: cellsWithData.length,
-      maxValue: cellsWithData.length > 0 ? Math.max(...cellsWithData) : 0,
-      minValue: cellsWithData.length > 0 ? Math.min(...cellsWithData) : 0,
-      avgValue: cellsWithData.length > 0 ? cellsWithData.reduce((a, b) => a + b) / cellsWithData.length : 0,
-      totalValue: grid.reduce((sum, v) => sum + v, 0),
+      cellsWithData: count,
+      maxValue: count > 0 ? maxValue : 0,
+      minValue: count > 0 ? minValue : 0,
+      avgValue: count > 0 ? sum / count : 0,
+      totalValue,
     };
   }
 
