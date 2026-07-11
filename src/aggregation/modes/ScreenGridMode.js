@@ -47,7 +47,12 @@ export const ScreenGridMode = {
       height,
       config.cellSizePixels,
       config.aggregationFunction, // Pass aggregation function
-      config.onAfterAggregate // Pass post-aggregation hook
+      config.onAfterAggregate, // Pass post-aggregation hook
+      {
+        aggregationMode: config.aggregationMode || 'screen-grid',
+        normalizationFunction: config.normalizationFunction || 'max-local',
+        zoomLevel: map?.getZoom?.() ?? null
+      }
     );
   },
 
@@ -118,4 +123,3 @@ export const ScreenGridMode = {
     return Aggregator.getStats(aggregationResult);
   },
 };
-

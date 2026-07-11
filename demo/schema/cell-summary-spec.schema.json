@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://screengrid.dev/demo/schema/cell-summary-spec.schema.json",
+  "title": "SemanticCellSummarySpec",
+  "type": "object",
+  "required": ["name", "role", "op"],
+  "properties": {
+    "name": { "type": "string" },
+    "role": {
+      "enum": ["primary", "denominator", "composition", "profile", "uncertainty", "reliability", "provenance"]
+    },
+    "field": { "type": ["string", "null"] },
+    "op": { "enum": ["count", "sum", "mean", "min", "max", "mode", "distinct", "variance", "missingness", "category-distribution", "time-series"] },
+    "description": { "type": "string" },
+    "reliability": {
+      "type": "object",
+      "properties": {
+        "warnBelowCount": { "type": "integer", "minimum": 0 },
+        "warnOnMissingness": { "type": "boolean" },
+        "warnOnHeterogeneity": { "type": "boolean" }
+      }
+    },
+    "comparability": {
+      "type": "object",
+      "properties": {
+        "normalization": { "enum": ["local", "global", "z-score", "percentile"] },
+        "validAcrossZoom": { "type": "boolean" },
+        "requiresDenominator": { "type": "boolean" }
+      }
+    }
+  }
+}

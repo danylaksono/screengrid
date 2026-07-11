@@ -1,0 +1,11 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    { "type": "Feature", "properties": { "category": "bus", "volume": 42, "reliability": 0.91 }, "geometry": { "type": "Point", "coordinates": [-0.12, 51.51] } },
+    { "type": "Feature", "properties": { "category": "rail", "volume": 58, "reliability": 0.86 }, "geometry": { "type": "Point", "coordinates": [-0.121, 51.511] } },
+    { "type": "Feature", "properties": { "category": "walk", "volume": 18, "reliability": 0.73 }, "geometry": { "type": "Point", "coordinates": [-0.118, 51.509] } },
+    { "type": "Feature", "properties": { "category": "bus", "volume": 37, "reliability": 0.88 }, "geometry": { "type": "Point", "coordinates": [-0.101, 51.517] } },
+    { "type": "Feature", "properties": { "category": "cycle", "volume": 21, "reliability": 0.78 }, "geometry": { "type": "Point", "coordinates": [-0.099, 51.516] } },
+    { "type": "Feature", "properties": { "category": "rail", "volume": 64, "reliability": 0.94 }, "geometry": { "type": "Point", "coordinates": [-0.143, 51.501] } }
+  ]
+}

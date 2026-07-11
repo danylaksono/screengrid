@@ -159,10 +159,16 @@ Get cell information at a specific screen point.
 **Cell Object Structure:**
 ```javascript
 {
+  id: string,            // Stable semantic cell id
   col: number,           // Grid column index
   row: number,           // Grid row index
   value: number,         // Aggregated value
-  cellData: Array,       // Array of original data points in this cell
+  spatial: Object,       // Cell type, bounds, centroid, zoom, viewport
+  records: Object,       // Count, denominator, rawRefs
+  measures: Object,      // Numeric and categorical summaries
+  reliability: Object,   // Sample-size class and interpretation warnings
+  comparability: Object, // Normalisation and viewport/zoom comparability
+  cellData: Array,       // Legacy alias for records.rawRefs
   x: number,             // Screen X coordinate (top-left of cell)
   y: number,             // Screen Y coordinate (top-left of cell)
   cellSize: number,      // Cell size in pixels
@@ -341,37 +347,40 @@ colorScale: (v) => {
 - **Type:** `Function|null`
 - **Default:** `null`
 - **Description:** Callback function for custom glyph drawing
-- **Parameters:** `(ctx, x, y, normVal, cellInfo) => void`
+- **Parameters:** `(ctx, x, y, normVal, cell) => void`
   - `ctx`: Canvas 2D rendering context
   - `x`, `y`: Center coordinates of the cell
   - `normVal`: Normalized value (0-1)
-  - `cellInfo`: Object with cell information (see below)
+  - `cell`: Semantic cell object with legacy aliases (see below)
 
-**cellInfo Object:**
+**Semantic Cell Object:**
 ```javascript
 {
-  cellData: Array,        // Array of original data points in this cell
-  cellSize: number,       // Size of the cell in pixels
-  glyphRadius: number,    // Recommended radius for glyph drawing
+  spatial: Object,        // Cell type, bounds, centroid, zoom, aggregation mode
+  records: Object,        // Count, denominator, rawRefs
+  measures: Object,       // Field summaries, category distributions, missingness
+  reliability: Object,    // Sample-size class, heterogeneity, warnings
+  comparability: Object,  // Normalisation and cross-view interpretation limits
+  custom: any,            // Legacy onAfterAggregate result
+  cellData: Array,        // Legacy alias for records.rawRefs
+  cellSize: number,      // Size of the cell in pixels
+  glyphRadius: number,   // Recommended radius for glyph drawing
   normalizedValue: number, // Same as normVal
-  col: number,            // Grid column index
-  row: number,            // Grid row index
-  index: number,          // Linear index of the cell in the grid array
-  value: number,          // Raw aggregated value
-  customData: any,        // Result returned from onAfterAggregate for this cell
-  zoomLevel: number,      // Current map zoom level
-  isHovered: boolean,     // True if cell is currently hovered by mouse
-  grid: Array<number>     // Full grid array for context
+  col: number,           // Grid column index
+  row: number,           // Grid row index
+  value: number,         // Raw aggregated value
+  customData: any,       // Legacy alias for custom
+  zoomLevel: number,     // Current map zoom level
+  isHovered: boolean,    // True if cell is currently hovered by mouse
+  grid: Array<number>    // Full grid array for context
 }
 ```
-
-**Note:** In hexagonal mode (`aggregationMode: 'screen-hex'`), `col`/`row`/`customData`/`zoomLevel`/`isHovered`/`grid` are replaced by `hexCoords: {q, r}` and `center: {x, y}`.
 
 **Example:**
 ```javascript
 onDrawCell: (ctx, x, y, normVal, cellInfo) => {
-  const { cellData, glyphRadius } = cellInfo;
-  const total = cellData.reduce((sum, item) => sum + item.data.value, 0);
+  const { records, measures, glyphRadius } = cellInfo;
+  const total = measures.fields.value?.sum ?? records.count;
   
   ctx.fillStyle = `hsl(${normVal * 360}, 70%, 50%)`;
   ctx.beginPath();
@@ -388,7 +397,7 @@ onDrawCell: (ctx, x, y, normVal, cellInfo) => {
 #### `onAfterAggregate`
 - **Type:** `Function|null`
 - **Default:** `null`
-- **Description:** Callback for post-aggregation calculations. Executed once per cell with data. Result is passed to `onDrawCell` as `cellInfo.customData`.
+- **Description:** Legacy callback for post-aggregation calculations. Executed once per cell with data. Result is passed to semantic cells as `cell.custom` and to legacy callbacks as `cellInfo.customData`. Prefer semantic `cell.measures` for new code.
 - **Parameters:** `(cellData, aggregatedValue, index, grid) => any`
   - `cellData`: Array of points in the cell
   - `aggregatedValue`: The result of the primary aggregation (e.g., sum)
@@ -1980,5 +1989,4 @@ For one-off tweaks inside a glyph you can also work from the raw value in
 
 ## Version
 
-This API reference is for ScreenGrid Library v3.0.1+
-
+This API reference is for ScreenGrid Library v3.1.0+

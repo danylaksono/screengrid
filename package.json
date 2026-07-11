@@ -1,18 +1,22 @@
 {
   "name": "screengrid",
-  "version": "3.0.1",
+  "version": "3.1.0",
   "description": "A GPU/Canvas hybrid Screen-Space Grid Aggregation library for MapLibre GL JS with advanced glyph drawing capabilities",
   "main": "dist/screengrid.cjs",
   "module": "dist/screengrid.mjs",
+  "types": "index.d.ts",
   "unpkg": "dist/screengrid.umd.min.js",
   "jsdelivr": "dist/screengrid.umd.min.js",
   "type": "module",
   "scripts": {
     "start": "npx http-server -p 8000",
     "dev": "npx http-server -p 8000",
+    "demo:dev": "node node_modules/vite/bin/vite.js --config vite.demo.config.mjs --host 0.0.0.0",
+    "demo:build": "node node_modules/vite/bin/vite.js build --config vite.demo.config.mjs",
+    "demo:preview": "node node_modules/vite/bin/vite.js preview --config vite.demo.config.mjs --host 0.0.0.0 --port 4174",
     "build": "rollup -c",
     "prepublishOnly": "npm run build",
-    "test": "node tests/run-unit-tests.js"
+    "test": "npm run build && node tests/run-unit-tests.js"
   },
   "keywords": [
     "maplibre",
@@ -29,14 +33,15 @@
     "maplibre-gl": "^4.0.0"
   },
   "files": [
+    "index.d.ts",
     "dist/",
-    "src/",
-    "examples/",
     "docs/",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "exports": {
     ".": {
+      "types": "./index.d.ts",
       "import": "./dist/screengrid.mjs",
       "require": "./dist/screengrid.cjs",
       "default": "./dist/screengrid.mjs"
@@ -44,7 +49,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/danylaksono/screengrid.git"
+    "url": "git+https://github.com/danylaksono/screengrid.git"
   },
   "bugs": {
     "url": "https://github.com/danylaksono/screengrid/issues"
@@ -57,6 +62,11 @@
     "@rollup/plugin-commonjs": "^28.0.6",
     "@rollup/plugin-node-resolve": "^16.0.2",
     "@rollup/plugin-terser": "^0.4.4",
-    "rollup": "^4.52.4"
+    "@vitejs/plugin-react": "^4.3.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "rollup": "^4.52.4",
+    "vite": "^6.0.11",
+    "zustand": "^4.5.7"
   }
 }

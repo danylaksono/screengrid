@@ -35,9 +35,7 @@ export class EventHandlers {
     // Support both CellQueryEngine and ScreenGridLayerGL layer
     // Both have getCellAt method, so call it directly
     const cell = queryTarget.getCellAt({ x: event.point.x, y: event.point.y });
-    if (cell) {
-      onClick({ cell, event });
-    }
+    onClick({ cell, event });
   }
 
   /**

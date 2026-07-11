@@ -1,0 +1,9 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    { "type": "Feature", "properties": { "sensor": "alpha", "pm25": 19, "pm25_sd": 2.1, "confidence": 0.92 }, "geometry": { "type": "Point", "coordinates": [-0.132, 51.503] } },
+    { "type": "Feature", "properties": { "sensor": "alpha", "pm25": 21, "pm25_sd": 2.8, "confidence": 0.88 }, "geometry": { "type": "Point", "coordinates": [-0.133, 51.504] } },
+    { "type": "Feature", "properties": { "sensor": "beta", "pm25": 52, "pm25_sd": 19.5, "confidence": 0.41 }, "geometry": { "type": "Point", "coordinates": [-0.105, 51.501] } },
+    { "type": "Feature", "properties": { "sensor": "gamma", "pm25": 8, "pm25_sd": 1.2, "confidence": 0.96 }, "geometry": { "type": "Point", "coordinates": [-0.091, 51.526] } }
+  ]
+}

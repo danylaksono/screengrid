@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://screengrid.dev/demo/schema/glyph-spec.schema.json",
+  "title": "GlyphSpec",
+  "type": "object",
+  "required": ["type", "channels", "scales", "palette", "legend"],
+  "properties": {
+    "type": { "enum": ["heatmap", "circle", "bar", "pie", "ring", "custom"] },
+    "channels": {
+      "type": "object",
+      "properties": {
+        "size": { "$ref": "#/$defs/channel" },
+        "color": { "$ref": "#/$defs/channel" },
+        "opacity": { "$ref": "#/$defs/channel" },
+        "segments": { "$ref": "#/$defs/channel" },
+        "measures": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/measure" }
+        }
+      }
+    },
+    "scales": {
+      "type": "object",
+      "properties": {
+        "size": { "enum": ["linear", "sqrt"] },
+        "color": { "enum": ["sequential", "categorical"] },
+        "opacity": { "enum": ["linear", "inverse"] }
+      }
+    },
+    "palette": { "enum": ["ember", "viridis", "ocean", "categorical", "slate"] },
+    "legend": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "title": { "type": "string" }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "properties": {
+        "maxCategories": { "type": "integer", "minimum": 2 },
+        "minSizePixels": { "type": "integer", "minimum": 1 },
+        "supportsUncertainty": { "type": "boolean" },
+        "supportsTemporalProfile": { "type": "boolean" }
+      }
+    },
+    "custom": {
+      "type": "object",
+      "required": ["layout", "marks"],
+      "properties": {
+        "layout": { "enum": ["cartesian-mini", "radial"] },
+        "domain": { "enum": ["local", "global"] },
+        "marks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["mark"],
+            "properties": {
+              "mark": { "enum": ["line", "point", "wedge", "ring"] },
+              "data": {
+                "type": "object",
+                "properties": {
+                  "fields": { "type": "array", "items": { "type": "string" } },
+                  "fieldPattern": { "type": "string" },
+                  "order": { "enum": ["given", "lexical", "temporal"] },
+                  "aggregate": { "enum": ["sum", "mean", "min", "max"] }
+                }
+              },
+              "stroke": { "type": "string" },
+              "fill": { "type": "string" },
+              "lineWidth": { "type": "number" },
+              "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "channel": {
+      "type": "object",
+      "required": ["field"],
+      "properties": {
+        "field": { "type": ["string", "null"] },
+        "aggregate": { "enum": ["count", "sum", "mean", "min", "max", "mode", "distinct"] },
+        "fallback": { "type": ["number", "string", "null"] }
+      }
+    },
+    "measure": {
+      "type": "object",
+      "required": ["field"],
+      "properties": {
+        "field": { "type": "string" },
+        "aggregate": { "enum": ["sum", "mean", "min", "max"] },
+        "label": { "type": "string" }
+      }
+    }
+  }
+}

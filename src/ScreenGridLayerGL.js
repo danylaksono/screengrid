@@ -572,10 +572,39 @@ export class ScreenGridLayerGL {
         const weight = anchor.weight || 1;
         const normVal = weight / maxWeight;
 
-        // Prepare cellInfo-like object for glyph drawing
         const cellInfo = {
+          id: `feature-anchor:${anchor.featureId}`,
+          spatial: {
+            type: 'feature-anchor',
+            aggregationMode: 'feature-anchors',
+            centroid: { x, y },
+            zoom: this.map.getZoom(),
+            cellSizePixels: anchorSize,
+            viewportDependent: false
+          },
+          records: {
+            count: 1,
+            denominator: 1,
+            rawRefs: [{ data: anchor.props, weight }]
+          },
+          measures: { count: 1, weight, fields: {} },
+          reliability: {
+            sampleSize: 1,
+            sampleSizeClass: 'low',
+            missingFieldCount: 0,
+            heterogeneousFieldCount: 0,
+            warnings: ['single-feature-anchor']
+          },
+          comparability: {
+            normalization: 'feature-weight',
+            viewportDependent: false,
+            validAcrossZoom: true,
+            comparableAcrossCells: true,
+            comparableAcrossViewports: true
+          },
           cellData: [{ data: anchor.props, weight: weight }],
           glyphRadius: anchorSize / 2,
+          cellSize: anchorSize,
           anchor: anchor,
           featureId: anchor.featureId,
           props: anchor.props

@@ -15,7 +15,8 @@ try {
   // eslint-disable-next-line no-undef
   if (typeof require !== 'undefined') {
     try {
-      polylabel = require('polylabel');
+      const optionalRequire = require;
+      polylabel = optionalRequire(['poly', 'label'].join(''));
     } catch (e) {
       // polylabel not available
     }
@@ -171,4 +172,3 @@ export class PolylabelStrategy {
     }
   }
 }
-

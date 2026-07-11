@@ -13,9 +13,16 @@
  * @returns {number} Normalized value (0-1)
  */
 export function maxLocalNormalization(grid, cellValue, cellIndex, context) {
+  if (!Number.isFinite(cellValue)) {
+    return 0;
+  }
+  if (context.min < 0) {
+    const range = context.max - context.min;
+    if (range === 0) return cellValue === 0 ? 0 : 1;
+    return (cellValue - context.min) / range;
+  }
   if (cellValue === 0 || context.max === 0) {
     return 0;
   }
   return cellValue / context.max;
 }
-

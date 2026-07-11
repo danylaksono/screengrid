@@ -15,7 +15,10 @@
  * @returns {number} Normalized value (0-1) representing percentile rank
  */
 export function percentileNormalization(grid, cellValue, cellIndex, context) {
-  if (cellValue === 0) {
+  if (!Number.isFinite(cellValue)) {
+    return 0;
+  }
+  if (cellValue === 0 && !Array.isArray(context.values)) {
     return 0;
   }
 
@@ -35,8 +38,12 @@ export function percentileNormalization(grid, cellValue, cellIndex, context) {
     return lo / sorted.length;
   }
 
-  // Fallback for direct callers without a prepared context
-  const cellsWithData = grid.filter(v => v > 0);
+  // Fallback for direct callers without a prepared sortedValues context.
+  // Prefer the semantic `context.values` set when present; otherwise derive it,
+  // counting non-zero cells (including negatives) so signed aggregates rank.
+  const cellsWithData = Array.isArray(context.values)
+    ? context.values
+    : grid.filter(v => Number.isFinite(v) && v !== 0);
   if (cellsWithData.length === 0) {
     return 0;
   }
@@ -47,4 +54,3 @@ export function percentileNormalization(grid, cellValue, cellIndex, context) {
   // Return percentile rank (0-1)
   return rank / cellsWithData.length;
 }
-

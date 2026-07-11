@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://screengrid.dev/demo/schema/screengrid-spec.schema.json",
+  "title": "ScreengridSpec",
+  "type": "object",
+  "required": ["datasetProfile", "intent", "screengrid", "glyph", "interaction"],
+  "properties": {
+    "datasetProfile": { "$ref": "./dataset-profile.schema.json" },
+    "intent": {
+      "type": "object",
+      "required": ["task"],
+      "properties": {
+        "task": { "enum": ["density", "composition", "profile-comparison", "temporal-trend", "anomaly", "uncertainty", "flow-balance"] },
+        "audience": { "type": "string" },
+        "comparison": { "enum": ["within-cell", "across-cells", "across-viewports", "across-zoom"] },
+        "question": { "type": "string" }
+      }
+    },
+    "screengrid": {
+      "type": "object",
+      "required": ["coordinateSystem", "coordinateFields", "aggregationMode", "aggregation", "cellSizePixels", "normalization"],
+      "properties": {
+        "coordinateSystem": { "enum": ["lonlat", "xy"] },
+        "coordinateFields": {
+          "type": "object",
+          "required": ["x", "y"],
+          "properties": {
+            "x": { "type": "string" },
+            "y": { "type": "string" }
+          }
+        },
+        "aggregationMode": { "enum": ["screen-grid", "screen-hex"] },
+        "aggregation": {
+          "type": "object",
+          "required": ["function"],
+          "properties": {
+            "function": { "enum": ["count", "sum", "mean", "max", "min"] },
+            "field": { "type": ["string", "null"] }
+          }
+        },
+        "cellSizePixels": { "type": "integer", "minimum": 12, "maximum": 180 },
+        "filters": { "type": "array", "items": { "type": "object" } },
+        "summaries": {
+          "type": "array",
+          "items": { "$ref": "./cell-summary-spec.schema.json" }
+        },
+        "normalization": { "enum": ["max-local", "max-global", "z-score", "percentile"] },
+        "emptyCellPolicy": { "enum": ["hide", "show-zero"] },
+        "semanticModel": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "includeRawRefs": { "type": "boolean" },
+            "reliability": {
+              "type": "object",
+              "properties": {
+                "lowCountThreshold": { "type": "integer", "minimum": 0 },
+                "heterogeneityWarning": { "type": "boolean" },
+                "missingnessWarning": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "glyph": { "$ref": "./glyph-spec.schema.json" },
+    "validation": {
+      "type": "object",
+      "properties": {
+        "cartographicChecks": { "type": "boolean" },
+        "maxCategories": { "type": "integer", "minimum": 2 },
+        "minGlyphSizePixels": { "type": "integer", "minimum": 1 },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "interaction": {
+      "type": "object",
+      "properties": {
+        "hover": { "type": "boolean" },
+        "click": { "type": "boolean" },
+        "selection": { "type": "boolean" },
+        "explanation": { "type": "string" },
+        "tooltip": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "trigger": { "enum": ["hover", "click"] },
+            "fields": { "type": "array", "items": { "type": "string" } },
+            "calculations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["label"],
+                "properties": {
+                  "label": { "type": "string" },
+                  "op": { "enum": ["count", "sum", "mean", "min", "max", "mode", "distinct"] },
+                  "field": { "type": "string" },
+                  "expression": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -13,7 +13,7 @@ export class CellQueryEngine {
   static getCellAt(aggregationResult, point) {
     if (!aggregationResult) return null;
 
-    const { grid, cellData, cols, rows, cellSizePixels } = aggregationResult;
+    const { grid, cellData, cells = [], cols, rows, cellSizePixels } = aggregationResult;
     const col = Math.floor(point.x / cellSizePixels);
     const row = Math.floor(point.y / cellSizePixels);
 
@@ -23,7 +23,7 @@ export class CellQueryEngine {
     }
 
     const idx = row * cols + col;
-    return {
+    return decorateCell(cells[idx], {
       col,
       row,
       value: grid[idx],
@@ -32,7 +32,7 @@ export class CellQueryEngine {
       y: row * cellSizePixels,
       cellSize: cellSizePixels,
       index: idx,
-    };
+    });
   }
 
   /**
@@ -44,7 +44,7 @@ export class CellQueryEngine {
   static getCellsInBounds(aggregationResult, bounds) {
     if (!aggregationResult) return [];
 
-    const { grid, cellData, cols, rows, cellSizePixels } = aggregationResult;
+    const { grid, cellData, cells: semanticCells = [], cols, rows, cellSizePixels } = aggregationResult;
     const minCol = Math.floor(bounds.minX / cellSizePixels);
     const minRow = Math.floor(bounds.minY / cellSizePixels);
     const maxCol = Math.floor(bounds.maxX / cellSizePixels);
@@ -61,7 +61,7 @@ export class CellQueryEngine {
           ? Array.isArray(cellData[idx]) && cellData[idx].length > 0
           : grid[idx] > 0;
         if (hasData) {
-          cells.push({
+          cells.push(decorateCell(semanticCells[idx], {
             col,
             row,
             value: grid[idx],
@@ -70,7 +70,7 @@ export class CellQueryEngine {
             y: row * cellSizePixels,
             cellSize: cellSizePixels,
             index: idx,
-          });
+          }));
         }
       }
     }
@@ -87,14 +87,14 @@ export class CellQueryEngine {
   static getCellsAboveThreshold(aggregationResult, threshold) {
     if (!aggregationResult) return [];
 
-    const { grid, cellData, cols, rows, cellSizePixels } = aggregationResult;
+    const { grid, cellData, cells: semanticCells = [], cols, rows, cellSizePixels } = aggregationResult;
     const cells = [];
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
         const idx = row * cols + col;
         if (grid[idx] >= threshold) {
-          cells.push({
+          cells.push(decorateCell(semanticCells[idx], {
             col,
             row,
             value: grid[idx],
@@ -103,7 +103,7 @@ export class CellQueryEngine {
             y: row * cellSizePixels,
             cellSize: cellSizePixels,
             index: idx,
-          });
+          }));
         }
       }
     }
@@ -152,4 +152,15 @@ export class CellQueryEngine {
   getCellsAboveThreshold(threshold) {
     return CellQueryEngine.getCellsAboveThreshold(this.aggregationResult, threshold);
   }
+}
+
+/**
+ * Merge query-specific fields onto a semantic cell WITHOUT spreading it: the
+ * cell's `measures`/`reliability` are prototype getters, so a spread would drop
+ * them. Inheriting via `Object.create` keeps them lazily accessible. When there
+ * is no semantic cell (empty cell / semantics disabled), falls back to a plain
+ * object carrying just the query fields.
+ */
+function decorateCell(cell, extras) {
+  return Object.assign(Object.create(cell || null), extras);
 }

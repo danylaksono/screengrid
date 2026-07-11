@@ -11,10 +11,12 @@ This folder contains the in-depth documentation for the ScreenGrid library. For 
 - `GEOMETRY_INPUT_AND_PLACEMENT.md` – Geometry input, placement strategies, render modes
 - `PLACEMENT_CONFIG.md` – Formal placement config shape and validation rules
 - `GLYPH_DRAWING_GUIDE.md` – Glyphs with `onDrawCell`, multivariate and temporal patterns
+- `CELL_SEMANTICS.md` – Semantic cells, reliability, comparability, and migration from `customData`
+- `CARTOGRAPHIC_EVALUATION_RUBRIC.md` – Research-facing task-fit and validation rubric
 - `PLUGIN_GLYPH_ECOSYSTEM.md` – Plugin glyph registry, built‑ins, custom plugins
 - `PLUGIN_GLYPHS.md` – Design note for the plugin system (kept for background context)
 - `SPATIO_TEMPORAL_GUIDE.md` – Focused guide for spatio‑temporal/time‑series use cases
- - `CARTOGRAPHY_AND_MULTIVARIATE_DESIGN.md` – Design philosophy and cartographic patterns
+- `CARTOGRAPHY_AND_MULTIVARIATE_DESIGN.md` – Design philosophy and cartographic patterns
 
 ## How to Navigate
 
@@ -22,6 +24,7 @@ This folder contains the in-depth documentation for the ScreenGrid library. For 
 - Read `API_REFERENCE.md` when you need exact option names, defaults, and method signatures.
 - Use `ARCHITECTURE.md` if you are extending the library or reading the source.
 - Use `GLYPH_DRAWING_GUIDE.md` and `PLUGIN_GLYPH_ECOSYSTEM.md` when designing glyph‑based visualizations.
+- Use `CELL_SEMANTICS.md` and `CARTOGRAPHIC_EVALUATION_RUBRIC.md` when you need research-grade multivariate cartographic interpretation.
 - Use `GEOMETRY_INPUT_AND_PLACEMENT.md` + `PLACEMENT_CONFIG.md` for non‑point geometry workflows (polygons/lines and feature‑anchor mode).
 
 ## Version Notes
