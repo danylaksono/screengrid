@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Screengrid Co-Pilot Demo</title>
+  <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <aside class="sidebar">
+      <section class="brand">
+        <div class="brand-mark">SG</div>
+        <div>
+          <h1>Screengrid Co-Pilot</h1>
+          <p>Schema-driven point aggregation and glyph design.</p>
+        </div>
+      </section>
+
+      <section class="panel grammar-panel">
+        <div class="panel-heading">
+          <h2>Grammar</h2>
+          <div class="panel-actions">
+            <button id="applySpecEditorsBtn" type="button">Apply</button>
+            <button id="copySpecBtn" type="button">Copy</button>
+          </div>
+        </div>
+        <div class="grammar-editor">
+          <label for="screengridSpecEditor">screengrid</label>
+          <textarea id="screengridSpecEditor" rows="13" spellcheck="false"></textarea>
+        </div>
+        <div class="grammar-editor">
+          <label for="glyphSpecEditor">glyph</label>
+          <textarea id="glyphSpecEditor" rows="18" spellcheck="false"></textarea>
+        </div>
+        <div class="grammar-editor">
+          <label for="interactionSpecEditor">interaction</label>
+          <textarea id="interactionSpecEditor" rows="7" spellcheck="false"></textarea>
+        </div>
+      </section>
+    </aside>
+
+    <section class="workspace">
+      <header class="toolbar">
+        <div>
+          <h2 id="viewTitle">Upload data to begin</h2>
+          <p id="viewSubtitle">The app will profile fields, infer coordinates, and render through the shared spec.</p>
+        </div>
+        <div class="toolbar-actions">
+          <label class="upload-button">
+            <input id="fileInput" type="file" accept=".csv,.json,.geojson,text/csv,application/geo+json,application/json">
+            Upload Data
+          </label>
+          <button id="profileBtn" type="button">Dataset Profile</button>
+          <button id="fitBtn" type="button">Fit Data</button>
+          <button id="validateBtn" type="button">Validate</button>
+        </div>
+      </header>
+
+      <div class="map-wrap">
+        <div id="map"></div>
+        <div class="legend" id="legend">
+          <strong>Legend</strong>
+          <span id="legendText">Waiting for data</span>
+        </div>
+        <div class="cell-tooltip" id="cellTooltip" hidden></div>
+        <div class="toast" id="toast" hidden></div>
+      </div>
+
+      <section class="lower-grid">
+        <article class="panel attribute-panel">
+          <div class="panel-heading">
+            <h2>Attribute Design</h2>
+            <span id="validationBadge">Idle</span>
+          </div>
+          <div id="evaluationPanel" class="evaluation-panel"></div>
+          <div id="attributeList" class="attribute-list"></div>
+        </article>
+
+        <article class="panel assistant-panel">
+          <div class="panel-heading">
+            <h2>Co-Pilot</h2>
+            <span>OpenAI-compatible</span>
+          </div>
+          <div class="provider-grid">
+            <input id="baseUrl" type="url" value="https://api.openai.com/v1" aria-label="Provider base URL">
+            <input id="model" type="text" value="gpt-4.1-mini" aria-label="Model">
+            <input id="apiKey" type="password" placeholder="API key, optional for local suggestion" aria-label="API key">
+            <label class="inline-check"><input id="persistKey" type="checkbox"> Remember key locally</label>
+          </div>
+          <textarea id="assistantPrompt" rows="3">Suggest a glyph design that is easy to interpret for this dataset.</textarea>
+          <div class="assistant-actions">
+            <button id="suggestLocalBtn" type="button">Local Suggestion</button>
+            <button id="askLlmBtn" type="button">Ask LLM</button>
+          </div>
+          <div id="proposalList" class="proposal-list"></div>
+        </article>
+      </section>
+    </section>
+  </main>
+
+  <div class="modal-backdrop" id="profileModal" hidden>
+    <section class="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
+      <div class="panel-heading">
+        <h2 id="profileTitle">Dataset Profile</h2>
+        <button id="closeProfileBtn" type="button">Close</button>
+      </div>
+      <div id="profileList" class="field-list"></div>
+    </section>
+  </div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

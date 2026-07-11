@@ -4,6 +4,7 @@
  */
 
 import { AggregationFunctionRegistry, AggregationFunctions } from '../aggregation/functions/index.js';
+import { SemanticCellSummarizer } from './SemanticCellSummarizer.js';
 
 export class Aggregator {
   /**
@@ -17,7 +18,7 @@ export class Aggregator {
    * @param {Function} onAfterAggregate - Hook for post-aggregation calculations (optional)
    * @returns {Object} Aggregation result: {grid, cellData, cols, rows, width, height, cellSizePixels, customData}
    */
-  static aggregate(projectedPoints, originalData, width, height, cellSizePixels, aggregationFunction = null, onAfterAggregate = null) {
+  static aggregate(projectedPoints, originalData, width, height, cellSizePixels, aggregationFunction = null, onAfterAggregate = null, semanticOptions = {}) {
     const cols = Math.ceil(width / cellSizePixels);
     const rows = Math.ceil(height / cellSizePixels);
     const grid = new Array(rows * cols).fill(0);
@@ -67,7 +68,7 @@ export class Aggregator {
       }
     }
 
-    return {
+    const result = {
       grid,
       cellData,
       customData,
@@ -77,6 +78,15 @@ export class Aggregator {
       height,
       cellSizePixels,
     };
+
+    // Semantic cells (`cells`/`populatedCells`/`cellSemantics`) are attached as
+    // lazy getters: the render loop's default colour path never triggers them,
+    // so aggregation stays cheap per frame. See SemanticCellSummarizer.attachLazy.
+    return SemanticCellSummarizer.attachLazy(result, {
+      aggregationMode: semanticOptions.aggregationMode || 'screen-grid',
+      normalizationFunction: semanticOptions.normalizationFunction || 'max-local',
+      zoomLevel: semanticOptions.zoomLevel ?? null
+    });
   }
 
   /**
@@ -95,8 +105,8 @@ export class Aggregator {
    * @param {Function} onAfterAggregate - Post-aggregation hook
    * @returns {Object} Aggregation result
    */
-  aggregate(projectedPoints, originalData, width, height, cellSizePixels, aggregationFunction = null, onAfterAggregate = null) {
-    return Aggregator.aggregate(projectedPoints, originalData, width, height, cellSizePixels, aggregationFunction, onAfterAggregate);
+  aggregate(projectedPoints, originalData, width, height, cellSizePixels, aggregationFunction = null, onAfterAggregate = null, semanticOptions = {}) {
+    return Aggregator.aggregate(projectedPoints, originalData, width, height, cellSizePixels, aggregationFunction, onAfterAggregate, semanticOptions);
   }
 
   /**
@@ -143,4 +153,17 @@ export class Aggregator {
   getStats(aggregationResult) {
     return Aggregator.getStats(aggregationResult);
   }
+}
+
+function hasNonZeroValue(value) {
+  return Number.isFinite(toNumericValue(value)) && toNumericValue(value) !== 0;
+}
+
+function toNumericValue(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (value && typeof value === 'object') {
+    const numericValues = Object.values(value).map(Number).filter(Number.isFinite);
+    return numericValues.length > 0 ? numericValues.reduce((sum, item) => sum + item, 0) : 0;
+  }
+  return 0;
 }

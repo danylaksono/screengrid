@@ -9,6 +9,7 @@ import { Aggregator } from '../../core/Aggregator.js';
 import { AggregationFunctionRegistry, AggregationFunctions } from '../functions/index.js';
 import { NormalizationFunctionRegistry, NormalizationFunctions } from '../../normalization/functions/index.js';
 import { Renderer } from '../../canvas/Renderer.js';
+import { SemanticCellSummarizer } from '../../core/SemanticCellSummarizer.js';
 
 export const ScreenHexMode = {
   name: 'screen-hex',
@@ -81,9 +82,14 @@ export const ScreenHexMode = {
 
     // Second pass: apply aggregation function to each cell
     const hexGrid = new Map(); // hexKey -> aggregated value
+    const customDataMap = new Map();
     for (const [hexKey, cellDataArray] of hexCellData.entries()) {
       if (cellDataArray.length > 0) {
-        hexGrid.set(hexKey, aggFn(cellDataArray));
+        const aggregatedValue = aggFn(cellDataArray);
+        hexGrid.set(hexKey, aggregatedValue);
+        if (typeof config.onAfterAggregate === 'function') {
+          customDataMap.set(hexKey, config.onAfterAggregate(cellDataArray, aggregatedValue, hexKey, hexGrid));
+        }
       }
     }
 
@@ -91,6 +97,7 @@ export const ScreenHexMode = {
     const cells = Array.from(hexGrid.entries());
     const grid = cells.map(([_, value]) => value);
     const cellData = cells.map(([key, _]) => hexCellData.get(key));
+    const customData = cells.map(([key]) => customDataMap.get(key) ?? null);
 
     // Store hex coordinates for rendering and querying
     const hexCoords = cells.map(([key]) => {
@@ -98,9 +105,10 @@ export const ScreenHexMode = {
       return { q, r };
     });
 
-    return {
+    const result = {
       grid,
       cellData,
+      customData,
       hexCoords,
       hexSize,
       hexRadius,
@@ -108,6 +116,14 @@ export const ScreenHexMode = {
       height,
       type: 'hex',
     };
+
+    // Semantic cells attached lazily (see SemanticCellSummarizer.attachLazy):
+    // built on first access, never during the per-frame default render path.
+    return SemanticCellSummarizer.attachLazy(result, {
+      aggregationMode: config.aggregationMode || 'screen-hex',
+      normalizationFunction: config.normalizationFunction || 'max-local',
+      zoomLevel: map?.getZoom?.() ?? null
+    });
   },
 
   /**
@@ -118,7 +134,11 @@ export const ScreenHexMode = {
    * @param {Object} map - MapLibre map instance (not used for screen-space)
    */
   render(aggregationResult, ctx, config, map) {
+    // `cells` is a lazy getter on the result; do not destructure it eagerly or
+    // every semantic cell would be built each frame. Access it per cell only
+    // when a glyph callback is active (see below).
     const { grid, hexCoords, hexRadius, cellData } = aggregationResult;
+    const glyphsActive = config.enableGlyphs && !!config.onDrawCell;
 
     ctx.clearRect(0, 0, aggregationResult.width, aggregationResult.height);
 
@@ -179,6 +199,7 @@ export const ScreenHexMode = {
         normVal,
         renderConfig,
         cellData[i],
+        glyphsActive ? aggregationResult.cells?.[i] : null,
         hexCoords[i],
         i,
         val
@@ -204,6 +225,7 @@ export const ScreenHexMode = {
     normVal,
     config,
     cellDataArray,
+    semanticCell,
     hexCoords,
     cellIndex,
     value
@@ -237,16 +259,16 @@ export const ScreenHexMode = {
     // Draw glyphs on top if enabled
     if (config.enableGlyphs && config.onDrawCell) {
       const glyphRadius = radius * (config.glyphSize || 0.8);
-      config.onDrawCell(ctx, centerX, centerY, normVal, {
-        cellData: cellDataArray,
-        cellSize: radius * 2,
-        glyphRadius,
-        hexCoords,
-        index: cellIndex,
-        center: { x: centerX, y: centerY },
-        value,
-        normalizedValue: normVal,
-      });
+      // The semantic cell already carries cellData/cellSize/hexCoords/index/
+      // center/value; populate the per-draw fields in place and pass it directly
+      // (no per-glyph allocation). Falls back to a plain object if absent.
+      const cellArg = semanticCell
+        ? semanticCell.withRenderState(normVal, glyphRadius, false, undefined, undefined)
+        : {
+            cellData: cellDataArray, cellSize: radius * 2, glyphRadius, hexCoords,
+            index: cellIndex, center: { x: centerX, y: centerY }, value, normalizedValue: normVal,
+          };
+      config.onDrawCell(ctx, centerX, centerY, normVal, cellArg);
     }
   },
 
@@ -284,6 +306,7 @@ export const ScreenHexMode = {
     }
 
     return {
+      ...(aggregationResult.cells?.[index] || {}),
       index,
       value: aggregationResult.grid[index],
       normalizedValue: aggregationResult.grid[index] / (maxValue || 1),
@@ -318,4 +341,3 @@ export const ScreenHexMode = {
     return Aggregator.getStats(aggregationResult);
   },
 };
-

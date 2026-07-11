@@ -10,6 +10,7 @@ export { ScreenGridLayerGL } from './ScreenGridLayerGL.js';
 export { Aggregator } from './core/Aggregator.js';
 export { Projector } from './core/Projector.js';
 export { CellQueryEngine } from './core/CellQueryEngine.js';
+export { SemanticCellSummarizer } from './core/SemanticCellSummarizer.js';
 // Geometry placement modules
 export { PlacementEngine } from './core/geometry/PlacementEngine.js';
 export { PlacementValidator } from './core/geometry/PlacementValidator.js';

@@ -139,6 +139,9 @@ export class Renderer {
       return;
     }
 
+    // NB: `cells` (semantic summaries) is intentionally NOT destructured here.
+    // It is a lazy getter on the result; reading it eagerly would build every
+    // semantic cell each frame. It is accessed only inside the glyph branch below.
     const { grid, cellData, customData = [], cols, rows, cellSizePixels } = aggregationResult;
     const { 
       colorScale, 
@@ -234,6 +237,10 @@ export class Renderer {
               r,
               idx,
               customData[idx],
+              // Lazy: reading `.cells` here builds the semantic array on first
+              // glyph draw of the frame; the expensive measures/reliability on
+              // each cell remain lazy until the callback actually reads them.
+              aggregationResult.cells?.[idx],
               {
                 value: val,
                 normalizedValue: normVal,
@@ -277,6 +284,7 @@ export class Renderer {
     row,
     index,
     customData = null,
+    semanticCell = null,
     context = {}
   ) {
     const cellCenterX = x + cellSize / 2;
@@ -286,17 +294,16 @@ export class Renderer {
     ctx.save();
 
     try {
-      
-      onDrawCell(ctx, cellCenterX, cellCenterY, normVal, {
-        cellData: cellDataArray,
-        col,
-        row,
-        index,
-        glyphRadius,
-        cellSize,
-        customData,
-        ...context
-      });
+      // The semantic cell already carries cellData/customData/col/row/index/
+      // cellSize/value as own props. Populate the per-draw fields in place and
+      // pass the cell directly — no per-glyph allocation. (Profiling showed a
+      // wrapper object per glyph, via Object.create or spread, dominated the
+      // glyph render path.) Lazy `measures`/`reliability` stay lazy on the cell.
+      const cellArg = semanticCell
+        ? semanticCell.withRenderState(context.normalizedValue, glyphRadius, context.isHovered, context.grid, context.zoomLevel)
+        : { cellData: cellDataArray, col, row, index, glyphRadius, cellSize, customData, ...context };
+
+      onDrawCell(ctx, cellCenterX, cellCenterY, normVal, cellArg);
     } catch (e) {
       Logger.error('Error in onDrawCell callback:', e);
     }
