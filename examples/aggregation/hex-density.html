@@ -284,7 +284,7 @@
                             type: grid.type,
                             totalCells: grid.grid.length,
                             cellsWithData: grid.grid.filter(v => v > 0).length,
-                            maxValue: Math.max(...grid.grid, 0),
+                            maxValue: grid.grid.reduce((m, v) => (v > m ? v : m), 0),
                             hexSize: grid.hexSize,
                             hexRadius: grid.hexRadius
                         });
@@ -294,7 +294,7 @@
                                 <div><strong>Mode:</strong> Hexagonal</div>
                                 <div><strong>Size:</strong> ${grid.hexSize || 'N/A'}px</div>
                                 <div><strong>Cells:</strong> ${grid.grid.filter(v => v > 0).length}</div>
-                                <div><strong>Max Value:</strong> ${Math.max(...grid.grid, 0).toFixed(2)}</div>
+                                <div><strong>Max Value:</strong> ${grid.grid.reduce((m, v) => (v > m ? v : m), 0).toFixed(2)}</div>
                             `;
                         } else {
                             gridInfoEl.innerHTML = `
@@ -302,7 +302,7 @@
                                 <div><strong>Size:</strong> ${grid.cols} × ${grid.rows}</div>
                                 <div><strong>Cell Size:</strong> ${grid.cellSizePixels || 'N/A'}px</div>
                                 <div><strong>Cells:</strong> ${grid.grid.filter(v => v > 0).length}</div>
-                                <div><strong>Max Value:</strong> ${Math.max(...grid.grid, 0).toFixed(2)}</div>
+                                <div><strong>Max Value:</strong> ${grid.grid.reduce((m, v) => (v > m ? v : m), 0).toFixed(2)}</div>
                             `;
                         }
 

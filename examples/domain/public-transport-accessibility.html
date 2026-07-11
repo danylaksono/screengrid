@@ -196,7 +196,7 @@
           // compute global max for max-global normalization
           try {
             const values = (grid && grid.grid) ? grid.grid.map(v => (typeof v === 'number' ? v : (v && typeof v === 'object' ? Object.values(v).filter(n => typeof n === 'number').reduce((s, n) => s + n, 0) : 0))) : [];
-            const gm = values.length ? Math.max(...values) : 0;
+            const gm = values.length ? values.reduce((m, v) => (v > m ? v : m), 0) : 0;
             currentGlobalMax = gm || 0;
             if (gridLayer) gridLayer.setConfig({ normalizationContext: (document.getElementById('normalizationSelect').value === 'max-global') ? { globalMax: currentGlobalMax } : {} });
             if (cumulativeLayer) cumulativeLayer.setConfig({ normalizationContext: (document.getElementById('normalizationSelect').value === 'max-global') ? { globalMax: currentGlobalMax } : {} });

@@ -184,7 +184,7 @@
                         cols: grid.cols,
                         rows: grid.rows,
                         cellsWithData: grid.grid.filter(v => v > 0).length,
-                        maxValue: Math.max(...grid.grid)
+                        maxValue: grid.grid.reduce((m, v) => (v > m ? v : m), 0)
                     });
                 },
                 onHover: ({ cell, event }) => {

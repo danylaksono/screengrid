@@ -459,7 +459,7 @@
                         type: grid.type || 'grid',
                         totalCells: grid.grid.length,
                         cellsWithData: grid.grid.filter(v => v > 0).length,
-                        maxValue: Math.max(...grid.grid, 0)
+                        maxValue: grid.grid.reduce((m, v) => (v > m ? v : m), 0)
                     });
                     
                     if (currentMode === 'hex') {
@@ -469,7 +469,7 @@
                         gridCellsSpan.textContent = `${grid.cols} × ${grid.rows}`;
                         currentHexSizeSpan.textContent = `${grid.cellSizePixels || currentHexSize}px`;
                     }
-                    maxValueSpan.textContent = Math.max(...grid.grid, 0).toFixed(2);
+                    maxValueSpan.textContent = grid.grid.reduce((m, v) => (v > m ? v : m), 0).toFixed(2);
                 },
                 onHover: ({ cell }) => {
                     if (cell && cell.value !== undefined) {

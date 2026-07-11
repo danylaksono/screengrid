@@ -761,7 +761,7 @@
                 onAggregate: (grid) => {
                     console.log('Grid aggregated:', grid);
                     gridCellsSpan.textContent = `${grid.cols} × ${grid.rows}`;
-                    maxValueSpan.textContent = Math.max(...grid.grid).toFixed(2);
+                    maxValueSpan.textContent = grid.grid.reduce((m, v) => (v > m ? v : m), 0).toFixed(2);
                     currentCellSizeSpan.textContent = `${grid.cellSizePixels.toFixed(1)}px`;
                 },
                 onHover: ({ cell }) => {
