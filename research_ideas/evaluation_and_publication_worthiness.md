@@ -1,176 +1,132 @@
 # Evaluation and Publication Worthiness
 
+Revised July 2026. Venue strategy now leans cartography/GIScience (matching background and
+the contribution type), with JOSS as the artifact register. See
+[publication_roadmap.md](./publication_roadmap.md) for sequencing.
+
 ## Short Answer
 
-Yes, this can be publication worthy, but not if it is presented simply as another implementation of gridded glyphmaps.
+Publication-worthy: **yes, in the revised framing** — executable design knowledge +
+provenance contract + reproducible artifact, evaluated. Not publication-worthy: another
+gridded-glyphmap implementation, or any MAUP-led claim (occupied by the supervisor's
+declared future work and by HexTiles).
 
-The publishable contribution is not "we put glyphs in grid cells." Slingsby et al. have already shown the power of gridded glyphmaps very clearly. The publishable contribution is:
+## Likely Reviewer Objections (updated)
 
-- a reusable grammar for constructing them
-- a semantic cell abstraction that exposes aggregation assumptions
-- a validation model that captures cartographic design knowledge
-- a browser workflow where users upload their own data and produce reproducible specs
-- evidence across several case studies
+### "This is Slingsby's technique."
 
-If those pieces are clear, the work could fit information visualisation venues as a systems/grammar/design-pattern contribution.
-
-## Likely Reviewer Objections
-
-### "This is too close to gridded glyphmaps."
-
-Answer:
-
-- Agree and cite Slingsby prominently.
-- Position Screengrid as a generalised grammar and authoring system.
-- Show examples where the same grammar supports multiple datasets and intents.
-- Emphasise semantic cell summaries, reproducibility, and validation.
+- Agree, cite prominently, and separate layers via Munzner: technique + design space are
+  his; formalization, validation, provenance, and reproducibility are this work. The
+  design space is the *input* our rules encode.
+- Co-authorship with him makes this a feature, not a bug: the design-space authors endorse
+  the operationalization.
 
 ### "This is an engineering system, not a research contribution."
 
-Answer:
+- The research object is the **validation model**, not the library. Evaluate it directly
+  (rule coverage/precision on a broken-design corpus; expert agreement).
+- The semantic cell is the conceptual abstraction; the grammar is the reusable artifact.
+- The agent-with/without-guardrails comparison shows the design knowledge *does work*
+  detached from any particular UI.
 
-- Use Munzner's nested model to state contribution layers.
-- Make the semantic cell model the conceptual abstraction.
-- Make validation rules explicit and grounded in literature.
-- Include comparative case evidence, not only screenshots.
+### "Why not Vega-Lite / Draco / deck.gl?"
 
-### "Glyph maps can be perceptually overloaded."
+- Vega-Lite: general chart grammar; does not model spatial aggregation semantics
+  (denominators, normalisation-comparability, screen-space view dependence).
+- Draco: chart-level constraints; ours are cartographic and aggregation-aware. Cite as the
+  methodological template, differ in domain.
+- deck.gl `ScreenGridLayer`: bins for rendering; no provenance, no validity semantics, no
+  grammar. Provide a feature-comparison table.
 
-Answer:
+### "How is this different from HexTiles?"
 
-- Acknowledge this as a known risk.
-- Use validation rules and glyph limits.
-- Show that the system warns users rather than encouraging arbitrary complexity.
+- HexTiles contributes a MAUP-aware *encoding design* with confidence values; we contribute
+  the *authoring/validation infrastructure* and provenance contract that such encodings can
+  sit on. No perceptual-encoding novelty is claimed.
 
 ### "Screen-space cells are not stable geographic units."
 
-Answer:
+- Acknowledged as a property of the technique (per Slingsby §6.2.1). Screengrid's
+  contribution is that the **comparability contract makes the limitation explicit and
+  machine-checkable** (e.g. a warning when a spec claims cross-viewport comparison under
+  local normalisation). Do not extend into MAUP-visualization claims.
 
-- Treat this as a design trade-off, not a hidden flaw.
-- State that Screengrid supports interactive exploration of dense point distributions.
-- Include comparability metadata and viewport-dependence warnings.
+## Evaluation Strategy (revised — this is the make-or-break)
 
-### "Why not just use Vega-Lite or deck.gl?"
+### 1. Validation-rule evaluation (new; highest leverage)
 
-Answer:
+Build a corpus: each fixture × {sound spec, deliberately-broken variants}. Broken variants
+cover every rule: local-norm cross-cell claims, >6 categories in composition glyphs,
+sub-legible glyph sizes, sparse cells with strong emphasis, mean-only summaries with high
+within-cell variance, unordered temporal fields, missing uncertainty channel for an
+uncertainty intent. Report per-rule coverage and false-positive behaviour. Cheap,
+systematic, converts "system" into "evaluated design knowledge".
 
-- Vega-Lite is a general grammar but not a specialised cartographic grammar for semantic gridded glyphmaps.
-- deck.gl provides powerful rendering layers but not a semantic-cell grammar, cartographic validation model, or reproducible glyph-map authoring workflow.
+### 2. Expressiveness across intents
 
-## Evaluation Strategy
+Same grammar expressing density, composition, temporal profile, uncertainty/reliability —
+plus the **MCDA case from Laksono et al. 2024** re-expressed as a spec (weighted
+multi-criteria profile), which shows the grammar covering a published real use. For each:
+dataset, spec, screenshot, one inspected semantic cell, validation output.
 
-### 1. Expressiveness Evaluation
+### 3. Expert review
 
-Show that the grammar can express several design intents:
+3–6 cartography/geovis researchers or practitioners: inspect generated maps + warnings;
+judge whether warnings match expert concerns; identify missed problems. Report qualitative
+themes + design changes. More realistic than a controlled perceptual study for this paper,
+and better matched to what cartography venues value.
 
-- density
-- composition
-- temporal trend
-- uncertainty/reliability
+### 4. Agent with/without guardrails
 
-For each, provide:
+Fixed authoring tasks ("make a composition map of X", "compare temporal profiles of Y")
+given to a coding agent with and without `AGENTS.md`/grammar constraints. Measure:
+validation errors in produced specs, task completion, expert rating of outputs. This is the
+novel evaluation angle nobody else has.
 
-- dataset
-- spec
-- screenshot
-- semantic cell example
-- validation output
+### 5. Reproducibility package
 
-### 2. Comparison Against Baselines
+Source, demo, deterministic synthetic fixtures (already in `examples/data/` with a seeded
+generator), saved specs, screenshots, validation outputs, archived release. Target AGILE's
+reproducible-research review explicitly.
 
-Use lightweight comparisons:
+## Venues (revised, in strategy order)
 
-- raw point map
-- heatmap/screen grid only
-- choropleth if an areal aggregation is available
-- small multiples or linked chart
+1. **JOSS** — library artifact paper. Near-term.
+2. **AGILE full paper** — flagship, if timing fits: reproducibility track is a tailor-made
+   fit; GIScience community; European.
+3. **CaGIS** or **Transactions in GIS** — journal version of the flagship (or first target
+   if AGILE timing misses). CaGIS for the cartographic-methods framing; TGIS for
+   systems/GIScience framing.
+4. **ICC / International Journal of Cartography** — cartography-community alternative.
+5. **IJGIS** — stretch target; only with strong evaluation results.
+6. **IEEE VIS / EuroVis short** — fallback if the contribution is recut toward InfoVis;
+   note the EuroVis short slot is partially spent on the MCDA paper, so any VIS-community
+   submission must be clearly distinct from it.
+7. Workshop/poster (VIS, GIScience) — de-risking option to harvest expert critique early.
 
-The claim should not be "Screengrid is always better." The claim should be "Screengrid preserves spatial context while exposing multivariate local structure."
-
-### 3. Expert Review
-
-A small expert review would strengthen the paper substantially.
-
-Participants:
-
-- 3-6 cartography/geovis/information-vis researchers or practitioners
-
-Tasks:
-
-- inspect maps generated from provided datasets
-- critique interpretability and validation warnings
-- assess whether the grammar captures meaningful design decisions
-
-Outputs:
-
-- qualitative themes
-- design changes made after feedback
-- limitations
-
-This is more realistic than a large controlled user study for a first paper.
-
-### 4. Reproducibility Package
-
-Include:
-
-- source code
-- demo
-- fixture datasets
-- saved grammar specs
-- screenshots
-- validation outputs
-
-This will help with InfoVis-style expectations around systems papers.
-
-## Publication Venues
-
-Possible fit:
-
-- IEEE VIS short paper if the contribution is compact and well evidenced.
-- EuroVis short/full paper depending on maturity.
-- IEEE Computer Graphics and Applications for a practice/system-oriented article.
-- GIScience or cartography venues if the framing leans more geovis/cartographic.
-- VIS workshop first, if the evaluation is not yet strong enough.
-
-For a full InfoVis paper, the work likely needs:
-
-- a more formal grammar definition
-- stronger evaluation
-- clearer theoretical contribution
-- multiple polished case studies
-
-For a short paper or systems/demo paper, the current direction is more plausible.
-
-## What Must Be True Before Submission
+## What Must Be True Before Flagship Submission
 
 Minimum bar:
 
-- The demo reliably supports upload, profile, intent, glyph choice, validation, and export/save spec.
-- The paper has three coherent case studies.
-- The grammar is documented in a concise formal section.
-- The related work openly credits Slingsby's gridded glyphmaps.
-- The contribution claims avoid overstating novelty.
+- Grammar documented formally and **byte-consistent** with `SemanticCellSummarizer` /
+  `CELL_SEMANTICS.md`.
+- Validation engine runs against specs and produces the rule outputs the paper claims.
+- Broken-design corpus + results table exists.
+- Three intent case studies + the MCDA re-expression.
+- Aidan aligned on scope (operationalizes his design space; he is a co-author).
+- Related work covers: Slingsby (both), HexTiles, Honeycomb, Draco/Vega-Lite, binned
+  aggregation systems, uncertainty-vis, deck.gl comparison table.
 
 Stronger bar:
 
-- Expert review or structured design critique.
-- Saved reproducibility package.
-- Quantitative checks for validation rules across fixtures.
-- Polished visual examples with clear legends and cell inspection.
+- Expert review completed.
+- Agent with/without comparison completed.
+- JOSS paper accepted (citable artifact).
 
-## Verdict
+## Verdict (revised)
 
-Publication worthy: **potentially yes**.
-
-Current likely status: **promising workshop / short-paper material if the demo is stable and the grammar is well written**.
-
-Full-paper worthy: **only if the semantic-cell grammar and validation model are made central, with convincing case studies and some evaluation beyond implementation**.
-
-The core idea is worth pursuing because it can occupy a useful space between:
-
-- bespoke gridded glyphmap design studies
-- general visualisation grammars
-- map rendering libraries
-- automated visualisation recommendation systems
-
-That space is real. The paper just needs to be very careful about claiming it.
+- **JOSS**: ready lane, submit early.
+- **Flagship as scoped above**: credible AGILE/CaGIS/TGIS paper — the validation-model
+  evaluation is what lifts it above "system description".
+- **Agent-guardrails follow-up**: highest novelty ceiling, blocked on flagship groundwork.
+- **Any MAUP-led framing**: retired. Collaborative lane only.

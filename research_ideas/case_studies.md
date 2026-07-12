@@ -2,6 +2,25 @@
 
 The demo should be the paper's evidence platform. The goal is to show that the same grammar supports multiple multivariate cartographic tasks with user-uploaded data.
 
+Data note (July 2026): `examples/data/` now contains only synthetic, deterministic datasets
+(seeded generator: `examples/data/generate-synthetic-data.mjs`); the AITL building-stock
+data was removed. Paper case studies must use synthetic fixtures, openly licensed data, or
+real-data analyses that live outside this repository.
+
+## Case Study 0 (published precedent): Geographic MCDA
+
+Laksono, Slingsby & Jianu (2024), EuroVis Short, doi:10.2312/evs.20241062 — SAW-based MCDA
+for decarbonisation planning (Cambridge, LSOA level) with gridded glyphmaps and live
+criteria-weight adjustment.
+
+Role in the flagship paper:
+
+- Re-express the published design as a Screengrid spec (weighted multi-criteria profile
+  glyph + interaction parameters) to show the grammar covers a real, published use case.
+- Demonstrates the `profile-comparison` intent with a denominator/weighting structure.
+- Validation angle: weight adjustment changes comparability — a spec claiming cross-cell
+  ranking under local normalisation should trigger the corresponding warning.
+
 ## Case Study 1: Density and Composition
 
 Purpose:
@@ -125,13 +144,15 @@ Risk:
 
 ## Recommended Paper Set
 
-For a first submission, use three main cases:
+For the flagship submission, use three fixture cases plus the published precedent:
 
 1. density/composition
 2. temporal profile comparison
 3. uncertainty/reliability
+4. MCDA re-expression (Case Study 0) — the strongest evidence, because it shows the grammar
+   capturing a design that was already peer-reviewed and published
 
-Use the upload workflow as a system vignette rather than a full fourth case.
+Use the upload workflow as a system vignette rather than a full fifth case.
 
 ## Evidence to Collect
 

@@ -79,9 +79,10 @@ public
 .out
 .storybook-out
 
-# Temporary folders
+# Temporary folders & files
 tmp/
 temp/
+*.pdf
 
 # Logs
 logs

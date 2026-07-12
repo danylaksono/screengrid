@@ -1,107 +1,194 @@
 # Background and Related References
 
-## 1. Direct Inspiration: Gridded Glyphmaps
+## 1. Direct Lineage: Slingsby's Gridded Glyphmaps
 
-The primary intellectual ancestor is Aidan Slingsby's work on gridded glyphmaps, especially the COVID-19 modelling paper:
+Aidan Slingsby (supervisor) is the main author behind gridded glyphmaps. Three artifacts
+define the claimed territory; all Screengrid papers must cite them and position against
+them precisely.
 
-- Slingsby, A., Reeve, R., & Harris, C. (2023). *Gridded Glyphmaps for Supporting Spatial COVID-19 Modelling*. IEEE VIS 2023. DOI: `10.1109/VIS54172.2023.00009`. City Research Online: <https://openaccess.city.ac.uk/id/eprint/31115/>
-- Related public material: *GlyphMaps: Population and COVID*. <https://www.staff.city.ac.uk/~sbbb717/glyphmaps/covid/>
+### 1a. IEEE VIS 2023 short paper (published)
 
-Important similarity:
+- Slingsby, A., Reeve, R., & Harris, C. (2023). *Gridded Glyphmaps for Supporting Spatial
+  COVID-19 Modelling*. IEEE VIS 2023. DOI: `10.1109/VIS54172.2023.00009`.
+  <https://openaccess.city.ac.uk/id/eprint/31115/>
 
-- Both approaches aggregate spatial data into grid-like spatial units and place glyphs in those cells.
-- Both aim to support multivariate spatial reasoning where choropleths, heatmaps, or raw points are insufficient.
-- Both are most compelling when the glyph represents local multivariate structure, not only density.
+What it claims (from §5 "Issues, Reflections and Further Work" — read the full section, it
+is the roadmap of his future work):
 
-Important distinction to develop:
+- **Glyph complexity vs spatial resolution trade-off**, managed interactively (grid size vs
+  zoom as separate controls).
+- **Within-cell heterogeneity**: "designing glyphs that convey the heterogeneity within
+  cells could alert analysts where to inspect at a finer resolution... Glyph designs and
+  interactions for investigating this is good further work." → **his declared future work**.
+- **Spatial anomalies**: glyphs that identify anomalies buried by aggregation, using
+  locally/temporally weighted statistics. → **his declared future work**.
+- **MAUP**: gridded glyphmaps are "particularly vulnerable"; "Glyph stability when
+  interactively panning gives a visual indication of the impact of MAUP. There is scope for
+  further work in quantifying this and depicting the effects through glyphs."
+  → **his declared future work**.
+- **Implementation**: original Java app + open-source JavaScript in Observable notebooks
+  (<https://observablehq.com/collection/@aidans/covid-19-modelling>), offered for others
+  "to explore and experiment with".
 
-- Slingsby's work is a technique/design study applied to spatial modelling, with strong domain grounding.
-- Screengrid should be framed as a reusable grammar and authoring system for creating gridded glyphmaps from arbitrary uploaded point data.
-- Screengrid's distinctive unit is the **semantic cell**: a cell carries spatial metadata, measures, reliability, comparability, and provenance, not merely drawn marks.
+### 1b. Design-space manuscript (unpublished; local copy `docs/2023GriddedGlyphmapsDesignSpace.pdf`)
 
-## 2. Glyph-Based Visualisation
+*A Gridded Glyphmap Design Space for Multivariate Area-Based Cartography.* This claims the
+**design space** comprehensively:
 
-Core reference:
+- **§4.1 Discretisation**: spatial data, projection, cell size/shape/**offset**, smoothing.
+- **§4.2 Summarisation**: summarising distributions, **denominators**, numerical binning —
+  deliberately separated from glyph design ("same summarisation can be used for a lot of
+  different glyphs").
+- **§4.3 Glyph design**: visual comparison, scaling, demarcating cells, denominators and
+  sample size, geographical reference points.
+- **§4.4 Interaction**: zooming/panning, interactive scaling parameters, interactive
+  comparison, animation.
+- **§5 Implementation**: functional-programming JavaScript idiom in Observable — user
+  supplies aggregation and draw functions; `global` and `cell` variable spaces; interactive
+  parameters auto-registered in a small GUI. This is a *programmatic* idiom, not a
+  declarative grammar.
+- **§6.2.1 MAUP**: explicit discussion — zoning vs scale effects (Openshaw), interactive
+  assessment by panning/offset adjustment, and a sketched systematic assessment: adjust
+  offsets/cell size, render the distribution per cell, "we are interested in the width of
+  the distribution with respect to the magnitude of the chosen summary value".
+- **§6.2.2** density skew (most points in few cells), **§6.2.3** cognitive overload.
 
-- Borgo, R., Kehrer, J., Chung, D. H. S., Maguire, E., Laramee, R. S., Hauser, H., Ward, M., & Chen, M. (2013). *Glyph-based Visualization: Foundations, Design Guidelines, Techniques and Applications*. Eurographics State-of-the-Art Reports, 39-63. DOI: `10.2312/conf/EG2013/stars/039-063`. <https://vis.uib.no/publications/Borgo13GlyphBased/>
+Also relevant: the Observable idiom notebook
+<https://observablehq.com/@aidans/rampvis-idiom-gridded-glyphmaps> — genuinely
+screen-space aggregation, doing most of what Screengrid's rendering layer does, but hard to
+track, version, and reproduce outside Observable.
 
-Use this to position glyphs as multivariate signs with known perceptual and design risks. The paper should draw on this literature to justify why Screengrid needs explicit glyph limits, legends, and validation warnings.
+### 1c. Supervisor discussion notes (review-response correspondence, 2023)
 
-Relevant concepts:
+Points Aidan has raised that stake further territory or offer collaboration hooks:
 
-- glyph as a compact multivariate sign
-- visual channel capacity
-- local spatial context as part of interpretation
-- risks of visual complexity, ambiguity, and perceptual overload
+- **Cursor-anchored gridding** prototype (grid origin follows the mouse) to stabilise glyphs
+  while panning: <https://observablehq.com/d/05b119b94705f4bf#cell-1075>. Worth
+  *implementing in Screengrid as a credited feature* (interaction-stability), not claiming.
+- **MAUP offset-ensemble glyphs**: systematic cell-offset sweeps rendered as per-cell
+  histograms (#cell-726); he intends to summarise as e.g. a standard-deviation border
+  "in the full paper if accepted". → **do not lead on this**.
+- Glyph instability under panning is itself useful information ("where glyphs are
+  'unstable', it's useful information to know you can't trust them").
+- **Regional denominators** (e.g. normalise by the country a cell falls in) are possible in
+  his implementation but absent from the design space "because there's no concept of
+  'country', only cells". → a genuine gap Screengrid's semantic cell could fill
+  (denominator provenance), framed as provenance not MAUP.
+- **Observational study of how people use gridded glyphmaps**: "Absolutely. Would like to
+  be involved in doing this." → collaborative lane, not solo.
 
-## 3. Multivariate Maps and Glyph Placement
+### Positioning consequence
 
-Core reference:
+The technique, the design space, MAUP treatment, and the named future-work items
+(heterogeneity, anomaly, MAUP glyphs, usage study) are **his**. Screengrid papers must
+contribute at the formalization/system/provenance layer and cite 1a/1b as the source of the
+encoded design knowledge.
 
-- McNabb, L., & Laramee, R. S. (2019). *Multivariate Maps: A Glyph-Placement Algorithm to Support Multivariate Geospatial Visualization*. Information, 10(10), 302. <https://www.mdpi.com/2078-2489/10/10/302>
+## 2. Own Prior Work: MCDA Application Paper (published)
 
-Use this to position Screengrid within multivariate geospatial visualisation. McNabb and Laramee emphasise glyph placement, overlap, level of detail, interaction, and multivariate map readability.
+- Laksono, D., Slingsby, A., & Jianu, R. (2024). *Gridded-glyphmaps for supporting
+  Geographic Multicriteria Decision Analysis*. EuroVis Short Papers 2024.
+  DOI: `10.2312/evs.20241062`. <https://openaccess.city.ac.uk/id/eprint/33111/>
 
-Screengrid's relationship:
+Uses Simple Additive Weighting MCDA over LSOA-level data for decarbonisation planning in
+Cambridge, with gridded glyphmaps for interactive weight adjustment and criteria
+transparency (data via Advanced Infrastructure Ltd.). This paper **is** the application-lane
+evidence: it shows the technique carrying a real decision-analysis workload. Future papers
+should cite it as the applied precedent, and it supplies a ready-made case study
+(multi-criteria profile glyphs, weight interaction) for the flagship methods paper.
 
-- It solves overlap by using screen-space bins rather than free glyph placement.
-- It trades geographic stability for interactive, viewport-dependent legibility.
-- It needs to be honest that screen-space cells are not fixed areal units.
+## 3. MAUP-Aware Visualization (competing/adjacent — do not lead here)
 
-## 4. Binned Aggregation and Dense Visualisation
+- Kawakami, Y., Yuniar, S., & Ma, K.-L. (2024). *HexTiles and Semantic Icons for MAUP-Aware
+  Multivariate Geospatial Visualizations*. arXiv:2407.16897.
+  Hexagonal tiling + semantic icons; **explicit MAUP mitigation via per-tile confidence
+  encoding** (weighted variance per channel); evaluated with a user study and domain
+  experts (ecology/hydrology).
+- Trautner, T., Sbardellati, M., Stoppel, S., & Bruckner, S. (2022). *Honeycomb Plots:
+  Visual Enhancements for Hexagonal Maps*. Eurographics/EuroVis.
+  Encodes distributional information within hexagonal bins.
 
-Useful framing:
+Consequence: MAUP-confidence encoding on regular tessellations is an active, occupied
+space (Slingsby's declared future work + HexTiles). Screengrid's comparability/reliability
+metadata should be framed as **provenance and auditability infrastructure** that *could
+carry* such encodings, not as a MAUP-visualization contribution.
 
-- Binning is not only an optimisation. It is a visual abstraction that changes the analytical object.
-- Screengrid can be presented as a cartographic extension of binned aggregation where each bin becomes a multivariate semantic cell.
+## 4. Glyph-Based Visualisation
 
-Potential references to pursue:
+- Borgo, R., Kehrer, J., Chung, D. H. S., Maguire, E., Laramee, R. S., Hauser, H., Ward, M.,
+  & Chen, M. (2013). *Glyph-based Visualization: Foundations, Design Guidelines, Techniques
+  and Applications*. Eurographics STARs. DOI: `10.2312/conf/EG2013/stars/039-063`.
 
-- Work on binned scatterplots and multi-class aggregation.
-- Hexbin maps and spatial aggregation.
-- Density maps and screen-space aggregation layers such as deck.gl's `ScreenGridLayer`.
+Use to justify glyph limits, legends, and validation warnings (visual channel capacity,
+perceptual overload). Note: glyph *design* guidance belongs to this literature and to
+Slingsby §4.3 — Screengrid encodes it as rules, it does not claim it.
 
-## 5. Grammar and Reproducibility
+## 5. Multivariate Maps and Glyph Placement
 
-Core references:
+- McNabb, L., & Laramee, R. S. (2019). *Multivariate Maps: A Glyph-Placement Algorithm to
+  Support Multivariate Geospatial Visualization*. Information, 10(10), 302.
 
-- Satyanarayan, A., Moritz, D., Wongsuphasawat, K., & Heer, J. (2017). *Vega-Lite: A Grammar of Interactive Graphics*. IEEE TVCG / InfoVis. DOI: `10.1109/TVCG.2016.2599030`. <https://vis.mit.edu/pubs/vega-lite/>
-- Moritz, D., Wang, C., Nelson, G. L., Lin, H., Smith, A. M., Howe, B., & Heer, J. (2018). *Formalizing Visualization Design Knowledge as Constraints: Actionable and Extensible Models in Draco*. InfoVis. <https://dig.cmu.edu/publications/2018-draco.html>
+Screengrid avoids free-placement overlap via screen-space bins; trades geographic stability
+for interactive legibility; must state that screen-space cells are not fixed areal units.
 
-Use Vega-Lite to justify declarative specification: saved, validated, shared, regenerated, and edited by tools.
+## 6. Binned Aggregation Systems
 
-Use Draco to justify validation rules as design knowledge rather than ad hoc warnings.
+Needed to defend the semantic cell against "this is just a bin with stats":
 
-Screengrid's grammar contribution should be narrower than Vega-Lite:
+- imMens (Liu, Jiang & Heer 2013), Nanocubes (Lins, Klosowski & Scheidegger 2013),
+  Hashedcubes (Pahins et al. 2016), and data-tile approaches — binned aggregation for
+  *scalability*. Screengrid's cells differ in purpose: they attach **validity semantics**
+  (provenance, reliability, comparability contract), not just precomputed aggregates.
+- deck.gl `ScreenGridLayer` — screen-space binning as rendering; no semantic layer. Make
+  this comparison a first-class table in any paper.
 
-- not a general visualisation grammar
-- a cartographic grammar for screen-space gridded glyphmaps
-- centred on data profiling, semantic cell summaries, glyph mappings, and cartographic validity checks
+## 7. Grammars, Design Knowledge as Constraints, and Guided Authoring
 
-## 6. Visualisation Design and Evaluation
+- Satyanarayan, A., Moritz, D., Wongsuphasawat, K., & Heer, J. (2017). *Vega-Lite: A Grammar
+  of Interactive Graphics*. IEEE TVCG. DOI: `10.1109/TVCG.2016.2599030`.
+- Moritz, D., et al. (2018). *Formalizing Visualization Design Knowledge as Constraints:
+  Draco*. IEEE InfoVis.
+- Follow-ups worth citing: Draco 2, Dziban, Mackinlay's APT / Show Me lineage.
 
-Core reference:
+Screengrid's grammar claim is narrower than Vega-Lite (specialised cartographic grammar)
+and its validation claim is Draco-shaped but **cartographic**: the constraints are derived
+from Slingsby's design space + Borgo's glyph guidance + cartographic practice, and they are
+evaluated for whether they catch invalid designs. To our knowledge no one has
+operationalized a *cartographic* design space as executable constraints — this is the
+flagship gap (verify with a fresh search before submission).
 
-- Munzner, T. (2009). *A Nested Model for Visualization Design and Validation*. IEEE TVCG / InfoVis. <https://www.cs.ubc.ca/labs/imager/tr/2009/NestedModel/>
+## 8. Uncertainty and Geo-Semantics (supporting the semantic cell)
 
-Use this to separate contribution layers:
+- MacEachren, A. M., et al. — visualizing geospatial information uncertainty (framework
+  papers). Kinkeldey, C., MacEachren, A. M., & Schiewe, J. (2014) — review of uncertainty
+  visualization evaluation.
+- Cite for the reliability/comparability fields of the semantic cell. The cell contract is
+  *infrastructure that carries* uncertainty semantics; the encoding of uncertainty into
+  glyphs is Slingsby/HexTiles territory.
 
-- domain/problem: users need to inspect multivariate point data on maps
-- abstraction: screen-space semantic cells
-- encoding/interaction: glyph grammar plus map interaction
-- algorithm/system: MapLibre layer and browser demo
+## 9. Visualisation Design and Evaluation
 
-This separation is important because the paper may otherwise overclaim novelty in the technique layer.
+- Munzner, T. (2009). *A Nested Model for Visualization Design and Validation*. IEEE TVCG.
 
-## 7. Where Screengrid Can Contribute
+Layer separation, and the key positioning device:
 
-The strongest related-work gap is not "there are no gridded glyphmaps". There are.
+- domain/problem + technique + encoding design space → **Slingsby**
+- application evidence (MCDA) → **Laksono et al. 2024 (done)**
+- abstraction (semantic cell contract) + algorithm/system (grammar, validation engine,
+  reproducible library, agent guidance) → **Screengrid's lane**
 
-The more defensible gap is:
+## 10. Where Screengrid Contributes (revised)
 
-- existing gridded glyphmap examples are compelling but often bespoke
-- reusable grammars for constructing them from arbitrary uploaded datasets are less developed
-- semantic summaries and validation rules are often implicit
-- publication examples rarely make the cell-level assumptions, uncertainty, and comparability constraints inspectable
+The defensible gap is **not** "there are no gridded glyphmaps" and **not** "glyphmaps need
+MAUP awareness" (both claimed). It is:
 
-Screengrid can claim to contribute a reproducible design pattern and authoring workflow for this space.
+- the technique exists as bespoke, hard-to-reproduce notebook code; no versioned, tested,
+  declarative, schema-validated implementation exists → reproducibility/artifact gap (JOSS,
+  AGILE reproducibility track);
+- the design knowledge exists as prose; no machine-checkable formalization exists →
+  executable-design-knowledge gap (flagship);
+- aggregation provenance (which records, which denominator, which normalisation, valid for
+  which comparisons) is implicit in all existing implementations → semantic cell /
+  auditability gap (flagship supporting claim);
+- nobody guides *coding agents* with cartographic design constraints → agent-guardrails gap
+  (flagship evaluation + follow-up paper).

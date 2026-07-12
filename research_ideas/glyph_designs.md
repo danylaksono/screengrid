@@ -1,5 +1,15 @@
 # Glyph Designs
 
+## Lineage Note (added July 2026)
+
+Glyph *design* knowledge is not a Screengrid claim: it belongs to Slingsby's design-space
+manuscript (§4.3: visual comparison, scaling, demarcating cells, denominators/sample size,
+reference points) and to Borgo et al.'s glyph survey. This file catalogues glyphs so their
+constraints can be **encoded as grammar limits and validation rules** — the "use for /
+risks / validation rule" entries below are the raw material for the executable design
+knowledge contribution. Any paper figure derived from this file should credit the design
+space as the source of the design guidance.
+
 ## Design Principle
 
 Glyphs should be treated as task-specific encodings over semantic cells, not as decorative mini-charts. Each glyph must answer a clear question and expose enough reliability information to avoid over-interpretation.

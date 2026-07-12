@@ -4,6 +4,27 @@
 
 The grammar should make Screengrid designs reproducible, inspectable, and comparable. A paper should argue that gridded glyphmaps are often powerful but bespoke; Screengrid turns them into a repeatable design pattern.
 
+## Positioning (added July 2026)
+
+The grammar **operationalizes Slingsby's gridded-glyphmap design space** (see
+`docs/2023GriddedGlyphmapsDesignSpace.pdf`); it does not claim the design space itself.
+The key contrast with his implementation idiom: his is *programmatic* (user-supplied
+aggregation and draw functions, `global`/`cell` variable spaces, Observable-bound); ours is
+*declarative* (JSON specs, JSON-schema validated in `demo/schema/`), hence shareable,
+diffable, regenerable, and machine-checkable. That difference — prose design space and
+functional idiom vs executable spec and validation rules — is the entire contribution
+claim. See [positioning_and_contribution_claims.md](./positioning_and_contribution_claims.md).
+
+Two standing constraints:
+
+- The semantic-cell shape below must stay **byte-consistent** with the shipped
+  implementation (`src/core/SemanticCellSummarizer.js`, `docs/CELL_SEMANTICS.md`). The
+  paper's formal section should be generated from, or CI-checked against, the code.
+- An **`AGENTS.md`** should encode this grammar plus the validation rules as guidance for
+  coding agents building gridded glyphmaps. It doubles as (a) the forcing function for
+  formalizing the grammar precisely and (b) the instrument for the agent-with/without-
+  guardrails evaluation in the flagship paper.
+
 ## Proposed Grammar Layers
 
 ```text
@@ -65,7 +86,13 @@ The paper must be explicit that screen-space cells are view-dependent. This is n
 
 ## 4. Semantic Cell Model
 
-The semantic cell is the paper's likely core concept.
+The semantic cell is the paper's conceptual abstraction, framed as **provenance and
+auditability for interactive aggregation** — which records, which denominator, which
+normalisation, valid for which comparisons. Do not frame it as MAUP mitigation (that
+framing collides with Slingsby's declared future work and HexTiles; see the territory map).
+It fills a gap he has acknowledged: denominators with regional context are possible in his
+implementation but absent from the design space "because there's no concept of 'country',
+only cells" — the cell contract is where such provenance lives.
 
 Example shape:
 
