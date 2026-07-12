@@ -44,6 +44,7 @@ and (later) agent-guided authoring — not technique or glyph design.
 
 ## Notes
 
+- [Flagship Scoping Note (for discussion with Aidan)](./flagship_scoping_note.md)
 - [Background and Related References](./background_and_related_references.md)
 - [Positioning and Contribution Claims](./positioning_and_contribution_claims.md)
 - [Publication Roadmap](./publication_roadmap.md)

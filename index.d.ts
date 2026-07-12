@@ -509,3 +509,134 @@ export const LegendDataExtractor: unknown;
 export const LegendRenderers: unknown;
 export const Logger: unknown;
 export function setDebug(enabled: boolean): void;
+
+// ---------------------------------------------------------------------------
+// Grammar: declarative spec validation and compilation (src/grammar/)
+// JSON Schema contracts live in src/grammar/schemas/.
+// ---------------------------------------------------------------------------
+
+/** Current Screengrid spec format version implemented by this library. */
+export const SPEC_VERSION: string;
+
+export interface SpecParameter {
+  name: string;
+  label?: string;
+  /** [min, max], min < max */
+  domain: [number, number];
+  default: number;
+  step?: number;
+  description?: string;
+}
+
+export interface DerivedTerm {
+  field: string;
+  /** Constant weight or a reference to a declared parameter. */
+  weight?: number | { param: string };
+  /** "global" rescales to [0,1] via the dataset profile's min/max before weighting. */
+  normalize?: 'none' | 'global';
+  /** Invert after normalization (1 - v), for cost-like criteria. */
+  invert?: boolean;
+}
+
+export interface DenominatorSpec {
+  type: 'none' | 'count' | 'field' | 'area' | 'external';
+  field?: string;
+  value?: number;
+  description?: string;
+}
+
+export interface DerivedMeasure {
+  name: string;
+  op: 'weighted-sum' | 'ratio' | 'difference';
+  aggregate?: 'mean' | 'sum';
+  terms?: DerivedTerm[];
+  numerator?: DerivedTerm;
+  denominator?: DenominatorSpec;
+  description?: string;
+}
+
+/**
+ * Declarative Screengrid specification. Structural contract:
+ * src/grammar/schemas/screengrid-spec.schema.json. Cross-field and cartographic
+ * rules are enforced by validateSpec.
+ */
+export interface ScreengridSpec {
+  version: string;
+  datasetProfile: Record<string, unknown> & {
+    rowCount: number;
+    fields: Array<Record<string, unknown> & { name: string; type: string; missingCount?: number }>;
+    coordinateCandidates: Array<{ x: string; y: string; coordinateSystem: 'lonlat' | 'xy'; confidence: number }>;
+  };
+  intent: {
+    task: 'density' | 'composition' | 'profile-comparison' | 'temporal-trend' | 'anomaly' | 'uncertainty' | 'flow-balance' | 'suitability';
+    audience?: string;
+    comparison?: 'within-cell' | 'across-cells' | 'across-viewports' | 'across-zoom';
+    question?: string;
+  };
+  parameters?: SpecParameter[];
+  screengrid: Record<string, unknown> & {
+    coordinateSystem: 'lonlat' | 'xy';
+    coordinateFields: { x: string; y: string };
+    aggregationMode: 'screen-grid' | 'screen-hex';
+    aggregation: { function: string; field?: string | null; measure?: string; ref?: string };
+    derivedMeasures?: DerivedMeasure[];
+    cellSizePixels: number;
+    normalization: 'max-local' | 'max-global' | 'z-score' | 'percentile';
+  };
+  glyph: Record<string, unknown>;
+  validation?: Record<string, unknown>;
+  interaction: Record<string, unknown>;
+}
+
+export interface SpecValidationResult {
+  valid: boolean;
+  errors: string[];
+  /** Cartographic validation output: renders, but may mislead for the stated intent. */
+  warnings: string[];
+  /** "partial" when the spec uses the custom-function escape hatch. */
+  checkability: 'full' | 'partial';
+}
+
+/** Validate a spec: structural references plus cartographic design-knowledge rules. */
+export function validateSpec(spec: ScreengridSpec): SpecValidationResult;
+
+export function validateAssistantProposal(proposal: unknown): { valid: boolean; errors: string[] };
+
+/** Resolve declared parameters with runtime overrides, clamped to each domain. */
+export function resolveParameters(
+  spec: ScreengridSpec,
+  overrides?: Record<string, number>
+): Record<string, number>;
+
+/**
+ * Compile a derived measure into an aggregation function usable as
+ * ScreenGridLayerGL's aggregationFunction (receives the cell's records).
+ */
+export function compileDerivedMeasure(
+  spec: ScreengridSpec,
+  measureName: string,
+  parameterOverrides?: Record<string, number>
+): (records: CellDatum[]) => number;
+
+export interface CompiledSpec {
+  /** ScreenGridLayerGL constructor options (data not included). */
+  layerOptions: Record<string, unknown> & {
+    aggregationMode: string;
+    cellSizePixels: number;
+    normalizationFunction: string;
+    aggregationFunction: string | ((records: CellDatum[]) => number);
+    getPosition: (d: Record<string, unknown>) => [number, number];
+    getWeight: () => number;
+  };
+  parameters: Record<string, number>;
+  checkability: 'full' | 'partial';
+}
+
+/** Compile a spec into executable layer options via the library's generic hooks. */
+export function compileSpec(
+  spec: ScreengridSpec,
+  options?: {
+    parameters?: Record<string, number>;
+    customFunctions?: Record<string, (records: CellDatum[]) => number>;
+  }
+): CompiledSpec;

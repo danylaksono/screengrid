@@ -1,3 +1,5 @@
+import { SPEC_VERSION } from '../../../src/grammar/validateSpec.js';
+
 export function createDefaultSpec(datasetProfile) {
   const candidate = datasetProfile.coordinateCandidates[0];
   const numeric = datasetProfile.fields.find((field) => field.type === 'number' && ![candidate?.x, candidate?.y].includes(field.name));
@@ -7,8 +9,10 @@ export function createDefaultSpec(datasetProfile) {
   const categorical = datasetProfile.fields.find((field) => field.type === 'string');
 
   return {
+    version: SPEC_VERSION,
     datasetProfile,
     intent: inferIntent(datasetProfile),
+    parameters: [],
     screengrid: {
       coordinateSystem: candidate?.coordinateSystem || 'lonlat',
       coordinateFields: {
@@ -20,6 +24,7 @@ export function createDefaultSpec(datasetProfile) {
         function: 'count',
         field: numeric?.name || null
       },
+      derivedMeasures: [],
       cellSizePixels: 48,
       filters: [],
       summaries: [

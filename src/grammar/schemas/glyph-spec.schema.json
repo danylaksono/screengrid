@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://screengrid.dev/demo/schema/glyph-spec.schema.json",
+  "$id": "https://screengrid.dev/grammar/schemas/glyph-spec.schema.json",
   "title": "GlyphSpec",
   "type": "object",
   "required": ["type", "channels", "scales", "palette", "legend"],
@@ -56,11 +56,17 @@
             "type": "object",
             "required": ["mark"],
             "properties": {
-              "mark": { "enum": ["line", "point", "wedge", "ring"] },
+              "mark": {
+                "enum": ["line", "point", "wedge", "ring", "band", "interval", "whisker"],
+                "description": "band/interval/whisker are uncertainty marks: they draw a lower..upper extent around a central value."
+              },
               "data": {
                 "type": "object",
                 "properties": {
                   "fields": { "type": "array", "items": { "type": "string" } },
+                  "field": { "type": "string", "description": "Central value field for uncertainty marks." },
+                  "lower": { "type": "string", "description": "Lower-bound field for band/interval/whisker marks." },
+                  "upper": { "type": "string", "description": "Upper-bound field for band/interval/whisker marks." },
                   "fieldPattern": { "type": "string" },
                   "order": { "enum": ["given", "lexical", "temporal"] },
                   "aggregate": { "enum": ["sum", "mean", "min", "max"] }

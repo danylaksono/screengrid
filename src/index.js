@@ -46,6 +46,9 @@ export { AggregationFunctionRegistry, AggregationFunctions } from './aggregation
 // Normalization functions
 export { NormalizationFunctionRegistry, NormalizationFunctions } from './normalization/functions/index.js';
 
+// Grammar: declarative spec validation and compilation
+export { validateSpec, validateAssistantProposal, SPEC_VERSION, compileSpec, compileDerivedMeasure, resolveParameters } from './grammar/index.js';
+
 // Data utilities
 export { groupBy, extractAttributes, computeStats, groupByTime } from './utils/DataUtilities.js';
 

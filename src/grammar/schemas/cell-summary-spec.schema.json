@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://screengrid.dev/demo/schema/cell-summary-spec.schema.json",
+  "$id": "https://screengrid.dev/grammar/schemas/cell-summary-spec.schema.json",
   "title": "SemanticCellSummarySpec",
   "type": "object",
   "required": ["name", "role", "op"],
@@ -11,6 +11,17 @@
     },
     "field": { "type": ["string", "null"] },
     "op": { "enum": ["count", "sum", "mean", "min", "max", "mode", "distinct", "variance", "missingness", "category-distribution", "time-series"] },
+    "per": {
+      "type": "object",
+      "description": "Denominator semantics: what this summary is expressed per. Makes rate/share claims explicit and checkable.",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["none", "count", "field", "area", "external"] },
+        "field": { "type": "string", "description": "Required when type is \"field\": summed per cell as the denominator." },
+        "value": { "type": "number", "description": "Required when type is \"external\": a fixed reference value." },
+        "description": { "type": "string" }
+      }
+    },
     "description": { "type": "string" },
     "reliability": {
       "type": "object",
@@ -23,7 +34,10 @@
     "comparability": {
       "type": "object",
       "properties": {
-        "normalization": { "enum": ["local", "global", "z-score", "percentile"] },
+        "normalization": {
+          "enum": ["max-local", "max-global", "z-score", "percentile"],
+          "description": "Uses the same vocabulary as screengrid.normalization and the library's NormalizationFunctionRegistry."
+        },
         "validAcrossZoom": { "type": "boolean" },
         "requiresDenominator": { "type": "boolean" }
       }

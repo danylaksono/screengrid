@@ -35,7 +35,9 @@
   "files": [
     "index.d.ts",
     "dist/",
+    "src/grammar/schemas/",
     "docs/",
+    "AGENTS.md",
     "README.md",
     "LICENSE"
   ],

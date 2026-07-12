@@ -20,10 +20,47 @@ Two standing constraints:
 - The semantic-cell shape below must stay **byte-consistent** with the shipped
   implementation (`src/core/SemanticCellSummarizer.js`, `docs/CELL_SEMANTICS.md`). The
   paper's formal section should be generated from, or CI-checked against, the code.
-- An **`AGENTS.md`** should encode this grammar plus the validation rules as guidance for
-  coding agents building gridded glyphmaps. It doubles as (a) the forcing function for
-  formalizing the grammar precisely and (b) the instrument for the agent-with/without-
-  guardrails evaluation in the flagship paper.
+- **`AGENTS.md`** (repo root; shipped in the npm package) encodes this grammar plus the
+  validation rules as guardrails for coding agents building gridded glyphmaps. It is the
+  instrument for the agent-with/without-guardrails evaluation in the flagship paper.
+  A test (`GrammarSpec.test.js` #14) asserts it mentions the current `SPEC_VERSION`, so
+  the doc cannot silently drift from the grammar.
+
+## Implementation Status (July 2026 — grammar v0.2.0)
+
+The grammar is no longer demo-only: it lives in the library at `src/grammar/`
+(schemas in `src/grammar/schemas/`, validator `validateSpec`, compiler `compileSpec`,
+all exported from the package root and covered by `tests/unit/GrammarSpec.test.js`).
+The P0 expressiveness fixes identified in the pre-AGENTS.md audit are implemented:
+
+- **Spec versioning** — required `version` field (`SPEC_VERSION = 0.2.0`); missing or
+  major-mismatched versions are flagged.
+- **Parameters** — declared interactive parameters (name, domain, default), referenced as
+  `{"param": name}`; runtime overrides are clamped to domain. Declarative equivalent of
+  Slingsby §4.4.2 interactive parameters, and the mechanism behind MCDA weight sliders.
+- **Derived measures** — `weighted-sum` (per-term global normalization + invert for
+  cost-like criteria), `ratio` (explicit denominator), `difference`. Compiled by
+  `compileDerivedMeasure` into an ordinary aggregation function through the library's
+  generic hooks — the library stays domain-agnostic. This makes the published MCDA design
+  (Laksono et al. 2024, SAW) expressible and re-runnable from a saved spec.
+- **Denominator semantics** — `per: {type: count|field|area|external}` on summaries and
+  ratio denominators; cross-viewport claims without a denominator produce a warning.
+- **Uncertainty marks** — `band`, `interval`, `whisker` marks with required
+  `data.lower`/`data.upper`; the uncertainty-intent rule now recognises them (the
+  validator no longer recommends an encoding the grammar cannot express).
+- **Vocabulary unification** — comparability normalization now uses the same enum as the
+  library registry (`max-local|max-global|z-score|percentile`).
+- **Escape hatch** — `aggregation: {function: "custom", ref}` is legal but marks the spec
+  `checkability: "partial"` with an explicit warning: design logic outside the grammar
+  loses validation/reproducibility guarantees. This is the paper's coverage-boundary story.
+- New intent `suitability` for MCDA-style tasks; new derived-measure comparability rules
+  (composite scores compared across cells under local normalization; unnormalized
+  raw-unit criteria in a weighted sum).
+
+Deliberately **out of scope** (state in the paper and in AGENTS.md, do not fake): cell
+offset and smoothing (aggregation-contract extensions; offset also drifts toward the
+supervisor's MAUP lane), histogram/quantile summary ops, a typed filter grammar,
+comparison-to-reference interaction, animation.
 
 ## Proposed Grammar Layers
 

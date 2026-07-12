@@ -2,7 +2,7 @@
 
 This folder contains the static reference prototype for Screengrid as a schema-driven multivariate cartographic grammar. The revised demo pattern is:
 
-```
+```text
 uploaded point data -> dataset profile -> analytical intent -> spatial aggregation contract -> semantic cell model -> glyph grammar -> cartographic validation -> rendering + explanation
 ```
 
@@ -11,7 +11,7 @@ The important idea is that the visual UI and the LLM co-pilot manipulate the sam
 ## Contents
 
 - `IMPLEMENTATION_PLAN.md` - research-grounded implementation plan and staged checklist.
-- `schema/` - JSON Schema contracts for dataset profiles, analytical intent, semantic cell summaries, glyph specs, validation, and assistant actions.
+- `schema/` - moved: the JSON Schema contracts now live in the library at [`src/grammar/schemas/`](../src/grammar/schemas/), alongside the validator (`validateSpec`) and spec compiler (`compileSpec`) exported from the package root.
 - `prototype/` - the original static browser app using plain HTML, CSS, and ES modules.
 - `app/` - the publication demo app built with Vite, React, and Zustand. Chat is the primary grammar-authoring surface.
 - `fixtures/` - small GeoJSON datasets for density/composition, temporal profile, and uncertainty/reliability evaluation.
