@@ -79,9 +79,10 @@ public
 .out
 .storybook-out
 
-# Temporary folders
+# Temporary folders & files
 tmp/
 temp/
+*.pdf
 
 # Logs
 logs
@@ -106,3 +107,10 @@ Thumbs.db
 # Build outputs
 build/
 dist/
+
+# Publication planning / research notes (kept locally only)
+research_ideas/
+demo/IMPLEMENTATION_PLAN.md
+
+# Demo build output (now built/hosted from a dedicated repo)
+dist-demo/

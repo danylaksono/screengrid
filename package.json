@@ -1,9 +1,10 @@
 {
   "name": "screengrid",
-  "version": "3.0.1",
+  "version": "3.1.0",
   "description": "A GPU/Canvas hybrid Screen-Space Grid Aggregation library for MapLibre GL JS with advanced glyph drawing capabilities",
   "main": "dist/screengrid.cjs",
   "module": "dist/screengrid.mjs",
+  "types": "index.d.ts",
   "unpkg": "dist/screengrid.umd.min.js",
   "jsdelivr": "dist/screengrid.umd.min.js",
   "type": "module",
@@ -12,7 +13,7 @@
     "dev": "npx http-server -p 8000",
     "build": "rollup -c",
     "prepublishOnly": "npm run build",
-    "test": "node tests/run-unit-tests.js"
+    "test": "npm run build && node tests/run-unit-tests.js"
   },
   "keywords": [
     "maplibre",
@@ -29,14 +30,17 @@
     "maplibre-gl": "^4.0.0"
   },
   "files": [
+    "index.d.ts",
     "dist/",
-    "src/",
-    "examples/",
+    "src/grammar/schemas/",
     "docs/",
-    "README.md"
+    "AGENTS.md",
+    "README.md",
+    "LICENSE"
   ],
   "exports": {
     ".": {
+      "types": "./index.d.ts",
       "import": "./dist/screengrid.mjs",
       "require": "./dist/screengrid.cjs",
       "default": "./dist/screengrid.mjs"
@@ -44,7 +48,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/danylaksono/screengrid.git"
+    "url": "git+https://github.com/danylaksono/screengrid.git"
   },
   "bugs": {
     "url": "https://github.com/danylaksono/screengrid/issues"

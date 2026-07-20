@@ -23,7 +23,11 @@ export class CellQueryEngine {
     }
 
     const idx = row * cols + col;
-    return {
+    // Use the per-cell lazy accessor (not `cells`, which would build a
+    // SemanticCell for every populated cell in the grid just to answer a
+    // single-point query — expensive on every hover/click).
+    const semanticCell = aggregationResult.cellAt ? aggregationResult.cellAt(idx) : null;
+    return decorateCell(semanticCell, {
       col,
       row,
       value: grid[idx],
@@ -32,7 +36,7 @@ export class CellQueryEngine {
       y: row * cellSizePixels,
       cellSize: cellSizePixels,
       index: idx,
-    };
+    });
   }
 
   /**
@@ -61,7 +65,8 @@ export class CellQueryEngine {
           ? Array.isArray(cellData[idx]) && cellData[idx].length > 0
           : grid[idx] > 0;
         if (hasData) {
-          cells.push({
+          const semanticCell = aggregationResult.cellAt ? aggregationResult.cellAt(idx) : null;
+          cells.push(decorateCell(semanticCell, {
             col,
             row,
             value: grid[idx],
@@ -70,7 +75,7 @@ export class CellQueryEngine {
             y: row * cellSizePixels,
             cellSize: cellSizePixels,
             index: idx,
-          });
+          }));
         }
       }
     }
@@ -94,7 +99,8 @@ export class CellQueryEngine {
       for (let col = 0; col < cols; col++) {
         const idx = row * cols + col;
         if (grid[idx] >= threshold) {
-          cells.push({
+          const semanticCell = aggregationResult.cellAt ? aggregationResult.cellAt(idx) : null;
+          cells.push(decorateCell(semanticCell, {
             col,
             row,
             value: grid[idx],
@@ -103,7 +109,7 @@ export class CellQueryEngine {
             y: row * cellSizePixels,
             cellSize: cellSizePixels,
             index: idx,
-          });
+          }));
         }
       }
     }
@@ -152,4 +158,15 @@ export class CellQueryEngine {
   getCellsAboveThreshold(threshold) {
     return CellQueryEngine.getCellsAboveThreshold(this.aggregationResult, threshold);
   }
+}
+
+/**
+ * Merge query-specific fields onto a semantic cell WITHOUT spreading it: the
+ * cell's `measures`/`reliability` are prototype getters, so a spread would drop
+ * them. Inheriting via `Object.create` keeps them lazily accessible. When there
+ * is no semantic cell (empty cell / semantics disabled), falls back to a plain
+ * object carrying just the query fields.
+ */
+function decorateCell(cell, extras) {
+  return Object.assign(Object.create(cell || null), extras);
 }

@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://screengrid.dev/grammar/schemas/screengrid-spec.schema.json",
+  "title": "ScreengridSpec",
+  "description": "Declarative specification for a screen-space gridded glyphmap. Version 0.2 adds spec versioning, interactive parameters, derived measures (weighted composites, ratios, differences), denominator semantics, and uncertainty marks.",
+  "type": "object",
+  "required": ["version", "datasetProfile", "intent", "screengrid", "glyph", "interaction"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Screengrid spec format version this document conforms to.",
+      "pattern": "^\\d+\\.\\d+(\\.\\d+)?$"
+    },
+    "datasetProfile": { "$ref": "./dataset-profile.schema.json" },
+    "intent": {
+      "type": "object",
+      "required": ["task"],
+      "properties": {
+        "task": { "enum": ["density", "composition", "profile-comparison", "temporal-trend", "anomaly", "uncertainty", "flow-balance", "suitability"] },
+        "audience": { "type": "string" },
+        "comparison": { "enum": ["within-cell", "across-cells", "across-viewports", "across-zoom"] },
+        "question": { "type": "string" }
+      }
+    },
+    "parameters": {
+      "type": "array",
+      "description": "Named interactive parameters (declarative equivalent of tunable scaling/weight controls). Referenced elsewhere via {\"param\": name}.",
+      "items": {
+        "type": "object",
+        "required": ["name", "domain", "default"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+          "label": { "type": "string" },
+          "domain": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "default": { "type": "number" },
+          "step": { "type": "number", "exclusiveMinimum": 0 },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "screengrid": {
+      "type": "object",
+      "required": ["coordinateSystem", "coordinateFields", "aggregationMode", "aggregation", "cellSizePixels", "normalization"],
+      "properties": {
+        "coordinateSystem": { "enum": ["lonlat", "xy"] },
+        "coordinateFields": {
+          "type": "object",
+          "required": ["x", "y"],
+          "properties": {
+            "x": { "type": "string" },
+            "y": { "type": "string" }
+          }
+        },
+        "aggregationMode": { "enum": ["screen-grid", "screen-hex"] },
+        "aggregation": {
+          "type": "object",
+          "required": ["function"],
+          "properties": {
+            "function": { "enum": ["count", "sum", "mean", "max", "min", "derived", "custom"] },
+            "field": { "type": ["string", "null"] },
+            "measure": {
+              "type": "string",
+              "description": "Required when function is \"derived\": name of an entry in screengrid.derivedMeasures."
+            },
+            "ref": {
+              "type": "string",
+              "description": "Required when function is \"custom\": identifier of a registered custom aggregation function. Specs using this escape hatch are only partially checkable."
+            }
+          }
+        },
+        "derivedMeasures": {
+          "type": "array",
+          "description": "Declarative computed measures. weighted-sum: per-record weighted linear combination of (optionally normalized) fields, aggregated per cell. ratio: aggregated numerator over an explicit denominator. difference: first term minus second term.",
+          "items": {
+            "type": "object",
+            "required": ["name", "op"],
+            "properties": {
+              "name": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+              "op": { "enum": ["weighted-sum", "ratio", "difference"] },
+              "aggregate": { "enum": ["mean", "sum"], "default": "mean" },
+              "terms": {
+                "type": "array",
+                "description": "Used by weighted-sum (1..n terms) and difference (exactly 2 terms).",
+                "items": { "$ref": "#/$defs/derivedTerm" }
+              },
+              "numerator": { "$ref": "#/$defs/derivedTerm" },
+              "denominator": { "$ref": "#/$defs/denominator" },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "cellSizePixels": { "type": "integer", "minimum": 12, "maximum": 180 },
+        "filters": { "type": "array", "items": { "type": "object" } },
+        "summaries": {
+          "type": "array",
+          "items": { "$ref": "./cell-summary-spec.schema.json" }
+        },
+        "normalization": { "enum": ["max-local", "max-global", "z-score", "percentile"] },
+        "emptyCellPolicy": { "enum": ["hide", "show-zero"] },
+        "semanticModel": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "includeRawRefs": { "type": "boolean" },
+            "reliability": {
+              "type": "object",
+              "properties": {
+                "lowCountThreshold": { "type": "integer", "minimum": 0 },
+                "heterogeneityWarning": { "type": "boolean" },
+                "missingnessWarning": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "glyph": { "$ref": "./glyph-spec.schema.json" },
+    "validation": {
+      "type": "object",
+      "properties": {
+        "cartographicChecks": { "type": "boolean" },
+        "maxCategories": { "type": "integer", "minimum": 2 },
+        "minGlyphSizePixels": { "type": "integer", "minimum": 1 },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "interaction": {
+      "type": "object",
+      "properties": {
+        "hover": { "type": "boolean" },
+        "click": { "type": "boolean" },
+        "selection": { "type": "boolean" },
+        "explanation": { "type": "string" },
+        "tooltip": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "trigger": { "enum": ["hover", "click"] },
+            "fields": { "type": "array", "items": { "type": "string" } },
+            "calculations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["label"],
+                "properties": {
+                  "label": { "type": "string" },
+                  "op": { "enum": ["count", "sum", "mean", "min", "max", "mode", "distinct"] },
+                  "field": { "type": "string" },
+                  "expression": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "derivedTerm": {
+      "type": "object",
+      "required": ["field"],
+      "properties": {
+        "field": { "type": "string" },
+        "weight": {
+          "description": "Constant weight, or {\"param\": name} referencing an entry in parameters.",
+          "oneOf": [
+            { "type": "number" },
+            {
+              "type": "object",
+              "required": ["param"],
+              "properties": { "param": { "type": "string" } }
+            }
+          ]
+        },
+        "normalize": {
+          "enum": ["none", "global"],
+          "default": "none",
+          "description": "\"global\" rescales the field to [0,1] using the dataset profile's min/max before weighting, so criteria in different units are commensurable."
+        },
+        "invert": {
+          "type": "boolean",
+          "default": false,
+          "description": "Invert after normalization (1 - v), for cost-like criteria where lower is better."
+        }
+      }
+    },
+    "denominator": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["count", "field", "area", "external"] },
+        "field": { "type": "string", "description": "Required when type is \"field\": summed per cell as the denominator." },
+        "value": { "type": "number", "description": "Required when type is \"external\": a fixed reference value (e.g. a regional or national total)." },
+        "description": { "type": "string" }
+      }
+    }
+  }
+}

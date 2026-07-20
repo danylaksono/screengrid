@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://screengrid.dev/demo/schema/dataset-profile.schema.json",
+  "title": "DatasetProfile",
+  "type": "object",
+  "required": ["rowCount", "fields", "coordinateCandidates"],
+  "properties": {
+    "sourceName": { "type": "string" },
+    "sourceType": { "enum": ["csv", "geojson", "unknown"] },
+    "rowCount": { "type": "integer", "minimum": 0 },
+    "fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type", "missingCount"],
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "enum": ["number", "string", "boolean", "date", "unknown"] },
+          "missingCount": { "type": "integer", "minimum": 0 },
+          "distinctCount": { "type": "integer", "minimum": 0 },
+          "min": { "type": ["number", "null"] },
+          "max": { "type": ["number", "null"] },
+          "mean": { "type": ["number", "null"] },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["value", "count"],
+              "properties": {
+                "value": { "type": "string" },
+                "count": { "type": "integer", "minimum": 0 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "coordinateCandidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["x", "y", "coordinateSystem", "confidence"],
+        "properties": {
+          "x": { "type": "string" },
+          "y": { "type": "string" },
+          "coordinateSystem": { "enum": ["lonlat", "xy"] },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "reason": { "type": "string" }
+        }
+      }
+    }
+  }
+}
+

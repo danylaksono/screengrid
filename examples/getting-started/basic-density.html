@@ -74,7 +74,7 @@
                         console.log('Grid aggregated:', grid);
                         infoEl.innerHTML = `
                             <div>Grid: ${grid.cols} × ${grid.rows}</div>
-                            <div>Max Value: ${Math.max(...grid.grid).toFixed(2)}</div>
+                            <div>Max Value: ${grid.grid.reduce((m, v) => (v > m ? v : m), 0).toFixed(2)}</div>
                             <div>Cells with data: ${grid.grid.filter(v => v > 0).length}</div>
                         `;
                         statusEl.textContent = 'Grid layer active - hover over cells!';

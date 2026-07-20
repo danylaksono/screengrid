@@ -10,6 +10,7 @@ export { ScreenGridLayerGL } from './ScreenGridLayerGL.js';
 export { Aggregator } from './core/Aggregator.js';
 export { Projector } from './core/Projector.js';
 export { CellQueryEngine } from './core/CellQueryEngine.js';
+export { SemanticCellSummarizer } from './core/SemanticCellSummarizer.js';
 // Geometry placement modules
 export { PlacementEngine } from './core/geometry/PlacementEngine.js';
 export { PlacementValidator } from './core/geometry/PlacementValidator.js';
@@ -44,6 +45,9 @@ export { AggregationFunctionRegistry, AggregationFunctions } from './aggregation
 
 // Normalization functions
 export { NormalizationFunctionRegistry, NormalizationFunctions } from './normalization/functions/index.js';
+
+// Grammar: declarative spec validation and compilation
+export { validateSpec, validateAssistantProposal, SPEC_VERSION, compileSpec, compileDerivedMeasure, resolveParameters } from './grammar/index.js';
 
 // Data utilities
 export { groupBy, extractAttributes, computeStats, groupByTime } from './utils/DataUtilities.js';

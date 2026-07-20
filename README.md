@@ -13,6 +13,8 @@ This library is inspired by Aidan Slingsby's [Gridded Glyphmaps](https://openacc
 - **[Quick Start & Examples](docs/USAGE.md)** - Get started quickly with working examples
 - **[API Reference](docs/API_REFERENCE.md)** - Complete API documentation
 - **[Glyph Drawing Guide](docs/GLYPH_DRAWING_GUIDE.md)** - Custom glyph visualizations
+- **[Semantic Cells](docs/CELL_SEMANTICS.md)** - Research-grade cell summaries, reliability, comparability, and migration guidance
+- **[Cartographic Evaluation Rubric](docs/CARTOGRAPHIC_EVALUATION_RUBRIC.md)** - Task-fit checks for multivariate map designs
 - **[Plugin Ecosystem](docs/PLUGIN_GLYPH_ECOSYSTEM.md)** - Reusable glyph plugins
 - **[Geometry Input](docs/GEOMETRY_INPUT_AND_PLACEMENT.md)** - Non-point geometries (Polygon, LineString)
 - **[Spatio-Temporal Guide](docs/SPATIO_TEMPORAL_GUIDE.md)** - Time series visualization
@@ -223,7 +225,13 @@ See [USAGE.md](docs/USAGE.md) for development workflow details.
 
 ## Changelog
 
-### v3.0.1 (Current)
+### v3.1.0 (Current)
+- **NEW**: Aggregation results expose semantic cells via `cells`, `populatedCells`, and `cellSemantics`. These are computed lazily on first access, so the render loop pays no per-frame cost unless a consumer reads them.
+- **NEW**: Cell-level spatial metadata, measures, reliability, and comparability contracts.
+- **NEW**: Cartographic evaluation rubric and semantic-cell migration guide.
+- Semantic cells preserve legacy `cellData`/`customData` aliases, so existing `onDrawCell` callbacks keep working.
+
+### v3.0.1
 - **FIXED**: Cells with data points that aggregate to 0 or negative values (e.g. `mean`/`min` aggregation over zero weights) are now rendered instead of silently dropped; "empty" is determined by point count
 - **FIXED**: `onDrawCell` now receives `cellInfo.value` and `cellInfo.normalizedValue` as documented
 - **FIXED**: Normalized values are clamped to [0, 1] before reaching `colorScale`/`onDrawCell`
@@ -279,4 +287,3 @@ MIT License - see LICENSE file for details.
 - [Spatio-Temporal Guide](docs/SPATIO_TEMPORAL_GUIDE.md)
 - [Data Utilities](docs/DATA_UTILITIES.md)
 - [Cartography & Design](docs/CARTOGRAPHY_AND_MULTIVARIATE_DESIGN.md)
-

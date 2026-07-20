@@ -52,7 +52,7 @@
                     console.log('Grid aggregated:', {
                         cols: grid.cols,
                         rows: grid.rows,
-                        maxValue: Math.max(...grid.grid)
+                        maxValue: grid.grid.reduce((m, v) => (v > m ? v : m), 0)
                     });
                 }
             });

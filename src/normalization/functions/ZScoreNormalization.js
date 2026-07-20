@@ -14,7 +14,10 @@
  * @returns {number} Normalized value (0-1)
  */
 export function zScoreNormalization(grid, cellValue, cellIndex, context) {
-  if (cellValue === 0 || context.std === 0) {
+  if (!Number.isFinite(cellValue) || context.std === 0) {
+    return 0;
+  }
+  if (cellValue === 0 && !Array.isArray(context.values)) {
     return 0;
   }
 
@@ -29,6 +32,6 @@ export function zScoreNormalization(grid, cellValue, cellIndex, context) {
     return 0.5; // All values are the same
   }
 
+  // The renderer clamps normalized output to [0, 1] centrally, so no clamp here.
   return (zScore - minZ) / (maxZ - minZ);
 }
-
