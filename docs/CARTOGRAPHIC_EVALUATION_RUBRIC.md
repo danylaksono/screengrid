@@ -20,10 +20,6 @@ Use this rubric to assess Screengrid designs before presenting them as multivari
 
 ## Fixture Scenarios
 
-The demo fixtures cover:
-
-- `demo/fixtures/density-composition.geojson`: density and category composition.
-- `demo/fixtures/temporal-profile.geojson`: temporal profile comparison.
-- `demo/fixtures/uncertainty-reliability.geojson`: sparse and uncertain sensor summaries.
+The demo fixtures (density/category composition, temporal profile comparison, sparse/uncertain sensor summaries) live in the [screengrid-demo](https://github.com/danylaksono/screengrid-demo) repo.
 
 For each fixture, load the GeoJSON in the demo, inspect the Cartographic Evaluation panel, request a local suggestion, and confirm that warnings change when intent, glyph type, or normalisation changes.

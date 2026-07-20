@@ -235,7 +235,7 @@ analysis in particular is active research territory — flag it, don't improvise
   (`src/grammar/schemas/`), `validateSpec`, and `docs/CELL_SEMANTICS.md` must agree. Bump
   `SPEC_VERSION` on any grammar change and update this file — a test asserts this file
   mentions the current version.
-- **Data policy:** everything under `examples/` and `demo/fixtures/` must be synthetic
+- **Data policy:** everything under `examples/` must be synthetic
   (see `examples/data/generate-synthetic-data.mjs`) or openly licensed. Never commit
   proprietary datasets.
 - The library core stays **domain-agnostic**: domain logic (MCDA, accessibility, energy)

@@ -12,30 +12,12 @@ The important idea is that the visual UI and the LLM co-pilot manipulate the sam
 
 - `schema/` - moved: the JSON Schema contracts now live in the library at [`src/grammar/schemas/`](../src/grammar/schemas/), alongside the validator (`validateSpec`) and spec compiler (`compileSpec`) exported from the package root.
 - `prototype/` - the original static browser app using plain HTML, CSS, and ES modules.
-- `app/` - the publication demo app built with Vite, React, and Zustand. Chat is the primary grammar-authoring surface.
-- `fixtures/` - small GeoJSON datasets for density/composition, temporal profile, and uncertainty/reliability evaluation.
+
+The Vite/React "publication demo" app (`app/`) and its fixtures now live in the dedicated [screengrid-demo](https://github.com/danylaksono/screengrid-demo) repo.
 
 ## Running The Prototype
 
-For the publication demo app, install dependencies and run:
-
-```bash
-npm run demo:dev
-```
-
-Then open the URL printed by Vite, usually:
-
-```text
-http://localhost:5174/
-```
-
-To build the publication demo:
-
-```bash
-npm run demo:build
-```
-
-For the legacy prototype, from the repository root:
+From the repository root:
 
 ```bash
 npm run dev
