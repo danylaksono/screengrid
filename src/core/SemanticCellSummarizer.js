@@ -122,11 +122,92 @@ export class SemanticCellSummarizer {
   }
 
   /**
+   * Build a single semantic cell for `idx` without summarizing the rest of the
+   * grid. Used by point queries (hover/click) so that asking "what's under the
+   * cursor" costs O(records in that one cell), not O(populated cells in the
+   * whole grid).
+   * @param {Object} result - Aggregation result (grid mode or hex mode)
+   * @param {number} idx - Cell index into `result.grid`/`result.cellData`
+   * @param {Object} options - {aggregationMode, normalizationFunction, zoomLevel}
+   * @returns {SemanticCell|null}
+   */
+  static cellAt(result, idx, options = {}) {
+    if (idx === undefined || idx === null || idx < 0 || idx >= result.grid.length) {
+      return null;
+    }
+
+    const records = (result.cellData && result.cellData[idx]) || [];
+    if (!records.length && !hasValue(result.grid[idx])) return null;
+
+    const isHex = result.type === 'hex' || Array.isArray(result.hexCoords);
+    const aggregationMode = options.aggregationMode || (isHex ? 'screen-hex' : 'screen-grid');
+    const normalizationFunction = options.normalizationFunction || 'max-local';
+    const comparability = comparabilityFor(aggregationMode, normalizationFunction);
+    const custom = (result.customData && result.customData[idx]) ?? null;
+
+    if (isHex) {
+      const { hexRadius, width, height, hexCoords } = result;
+      const coords = hexCoords[idx];
+      const centroid = {
+        x: hexRadius * (Math.sqrt(3) * coords.q + Math.sqrt(3) / 2 * coords.r),
+        y: hexRadius * (3 / 2 * coords.r)
+      };
+      const hexDiameter = hexRadius * 2;
+      return SemanticCellSummarizer.createCell({
+        index: idx,
+        value: result.grid[idx],
+        records,
+        custom,
+        spatial: {
+          type: 'screen-hex',
+          aggregationMode,
+          hexCoords: coords,
+          bounds: { x: centroid.x - hexRadius, y: centroid.y - hexRadius, width: hexDiameter, height: hexDiameter },
+          centroid,
+          zoom: options.zoomLevel ?? null,
+          cellSizePixels: hexDiameter,
+          viewport: { width, height }
+        },
+        comparability
+      });
+    }
+
+    const { cols, cellSizePixels, width, height } = result;
+    const col = cols ? idx % cols : 0;
+    const row = cols ? Math.floor(idx / cols) : idx;
+    const x = col * cellSizePixels;
+    const y = row * cellSizePixels;
+    return SemanticCellSummarizer.createCell({
+      index: idx,
+      value: result.grid[idx],
+      records,
+      custom,
+      spatial: {
+        type: 'screen-cell',
+        aggregationMode,
+        col,
+        row,
+        bounds: { x, y, width: cellSizePixels, height: cellSizePixels },
+        centroid: { x: x + cellSizePixels / 2, y: y + cellSizePixels / 2 },
+        zoom: options.zoomLevel ?? null,
+        cellSizePixels,
+        viewport: { width, height }
+      },
+      comparability
+    });
+  }
+
+  /**
    * Attach `cells`, `populatedCells`, and `cellSemantics` to an aggregation
    * result as lazy, memoised getters. The full semantic array is only built the
    * first time one of these is read, so the render loop (which reads `grid`/
    * `cellData` for the default colour path) pays no per-frame cost unless a
    * consumer — a custom glyph callback, hover query, or inspector — asks for it.
+   *
+   * Also attaches `cellAt(idx)`, a per-cell lazy accessor for point queries
+   * (hover/click): it builds only the requested cell instead of summarizing
+   * the whole grid, and defers to the full array if that was already computed
+   * this frame (e.g. because glyph rendering triggered it first).
    *
    * @param {Object} result - Aggregation result (grid mode or hex mode)
    * @param {Object} options - {aggregationMode, normalizationFunction, zoomLevel}
@@ -144,6 +225,15 @@ export class SemanticCellSummarizer {
       return computed;
     };
 
+    const cellCache = new Map();
+    const cellAt = (idx) => {
+      if (computed !== undefined) return computed.cells[idx];
+      if (!cellCache.has(idx)) {
+        cellCache.set(idx, SemanticCellSummarizer.cellAt(result, idx, options));
+      }
+      return cellCache.get(idx);
+    };
+
     Object.defineProperty(result, 'cells', {
       enumerable: false, configurable: true, get() { return compute().cells; }
     });
@@ -152,6 +242,9 @@ export class SemanticCellSummarizer {
     });
     Object.defineProperty(result, 'populatedCells', {
       enumerable: false, configurable: true, get() { return compute().populatedCells; }
+    });
+    Object.defineProperty(result, 'cellAt', {
+      enumerable: false, configurable: true, value: cellAt
     });
 
     return result;

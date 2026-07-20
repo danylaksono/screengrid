@@ -13,7 +13,7 @@ export class CellQueryEngine {
   static getCellAt(aggregationResult, point) {
     if (!aggregationResult) return null;
 
-    const { grid, cellData, cells = [], cols, rows, cellSizePixels } = aggregationResult;
+    const { grid, cellData, cols, rows, cellSizePixels } = aggregationResult;
     const col = Math.floor(point.x / cellSizePixels);
     const row = Math.floor(point.y / cellSizePixels);
 
@@ -23,7 +23,11 @@ export class CellQueryEngine {
     }
 
     const idx = row * cols + col;
-    return decorateCell(cells[idx], {
+    // Use the per-cell lazy accessor (not `cells`, which would build a
+    // SemanticCell for every populated cell in the grid just to answer a
+    // single-point query — expensive on every hover/click).
+    const semanticCell = aggregationResult.cellAt ? aggregationResult.cellAt(idx) : null;
+    return decorateCell(semanticCell, {
       col,
       row,
       value: grid[idx],
@@ -44,7 +48,7 @@ export class CellQueryEngine {
   static getCellsInBounds(aggregationResult, bounds) {
     if (!aggregationResult) return [];
 
-    const { grid, cellData, cells: semanticCells = [], cols, rows, cellSizePixels } = aggregationResult;
+    const { grid, cellData, cols, rows, cellSizePixels } = aggregationResult;
     const minCol = Math.floor(bounds.minX / cellSizePixels);
     const minRow = Math.floor(bounds.minY / cellSizePixels);
     const maxCol = Math.floor(bounds.maxX / cellSizePixels);
@@ -61,7 +65,8 @@ export class CellQueryEngine {
           ? Array.isArray(cellData[idx]) && cellData[idx].length > 0
           : grid[idx] > 0;
         if (hasData) {
-          cells.push(decorateCell(semanticCells[idx], {
+          const semanticCell = aggregationResult.cellAt ? aggregationResult.cellAt(idx) : null;
+          cells.push(decorateCell(semanticCell, {
             col,
             row,
             value: grid[idx],
@@ -87,14 +92,15 @@ export class CellQueryEngine {
   static getCellsAboveThreshold(aggregationResult, threshold) {
     if (!aggregationResult) return [];
 
-    const { grid, cellData, cells: semanticCells = [], cols, rows, cellSizePixels } = aggregationResult;
+    const { grid, cellData, cols, rows, cellSizePixels } = aggregationResult;
     const cells = [];
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
         const idx = row * cols + col;
         if (grid[idx] >= threshold) {
-          cells.push(decorateCell(semanticCells[idx], {
+          const semanticCell = aggregationResult.cellAt ? aggregationResult.cellAt(idx) : null;
+          cells.push(decorateCell(semanticCell, {
             col,
             row,
             value: grid[idx],

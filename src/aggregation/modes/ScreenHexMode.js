@@ -199,7 +199,7 @@ export const ScreenHexMode = {
         normVal,
         renderConfig,
         cellData[i],
-        glyphsActive ? aggregationResult.cells?.[i] : null,
+        glyphsActive && aggregationResult.cellAt ? aggregationResult.cellAt(i) : null,
         hexCoords[i],
         i,
         val
@@ -305,8 +305,13 @@ export const ScreenHexMode = {
       if (typeof v === 'number' && v > maxValue) maxValue = v;
     }
 
+    // Use the per-cell lazy accessor, not `cells` — that would build a
+    // SemanticCell for every populated hex in the grid just to answer this
+    // single-point query, which is expensive on every hover/click.
+    const semanticCell = aggregationResult.cellAt ? aggregationResult.cellAt(index) : null;
+
     return {
-      ...(aggregationResult.cells?.[index] || {}),
+      ...(semanticCell || {}),
       index,
       value: aggregationResult.grid[index],
       normalizedValue: aggregationResult.grid[index] / (maxValue || 1),

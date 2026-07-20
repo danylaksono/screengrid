@@ -237,10 +237,11 @@ export class Renderer {
               r,
               idx,
               customData[idx],
-              // Lazy: reading `.cells` here builds the semantic array on first
-              // glyph draw of the frame; the expensive measures/reliability on
-              // each cell remain lazy until the callback actually reads them.
-              aggregationResult.cells?.[idx],
+              // Lazy: cellAt() builds just this cell (or reuses the full array
+              // if something else already forced it this frame); the expensive
+              // measures/reliability on the cell remain lazy until the
+              // callback actually reads them.
+              aggregationResult.cellAt ? aggregationResult.cellAt(idx) : null,
               {
                 value: val,
                 normalizedValue: normVal,
