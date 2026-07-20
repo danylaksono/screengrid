@@ -107,3 +107,7 @@ Thumbs.db
 # Build outputs
 build/
 dist/
+
+# Publication planning / research notes (kept locally only)
+research_ideas/
+demo/IMPLEMENTATION_PLAN.md
