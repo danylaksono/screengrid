@@ -237,6 +237,19 @@ Rule of thumb: full semantic/grammar route when the map's job *is* the per-cell 
 reliability/comparability; the efficient raw route when it isn't. `examples/grammar/` shows the
 semantic route; `examples/stress-test/` shows the raw route on up to 500k points.
 
+**Glyphs can draw beyond one cell (advanced — via the generic hooks, not the grammar).** The
+declarative grammar describes a glyph *inside* each cell, but screen-space glyphs render onto one
+shared, unclipped canvas, so an `onDrawCell` callback may draw anywhere — including lines or arcs
+from its cell to *other* cells. This makes inter-cell and networked glyphs possible with no library
+change (origin–destination flow maps, cell-to-cell connections, grid-routed bundling): precompute
+each cell's far endpoints in `onAfterAggregate` (project them with `map.project` — the same pixel
+space cells are binned in — and snap to cell centroids), store them as the cell's `customData`, and
+draw them in `onDrawCell`. Because both ends are cells, the network re-forms under pan and zoom.
+This lives in application code (the generic hooks), not in `validateSpec`/`compileSpec`, so its
+guarantees are the application's — and the honesty rules still hold: these arcs connect *analytical
+bins*, not places, and imply no real route (say so, as with `flow-balance` in §6).
+`examples/case-studies/` shows OD roses, inter-cell lines, and grid-routed bundling.
+
 ## 8. Out of scope — do not fake
 
 The grammar deliberately does **not** cover: cell offset control, kernel smoothing,

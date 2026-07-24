@@ -77,3 +77,26 @@ node examples/case-studies/inter-cell-smoke.mjs
 
 asserts the arc endpoints land on cell centroids and that trip counts are
 conserved across the destination cells.
+
+## `od-bundling.html` — grid-routed OD bundling
+
+The inter-cell network, but each cell-to-cell arc is **routed through a coarse
+intermediate grid** rather than drawn straight. Each arc is sampled and its
+samples snapped to the nearest coarse grid node; arcs travelling the same way
+snap to the same nodes and so **merge into bundles** along shared corridors. A
+*bundling grid* slider (a multiple of the cell size) trades detail for structure:
+higher gathers more flows onto fewer corridors, lower relaxes toward straight
+lines.
+
+It is a deliberately cheap approximation of edge bundling with **no cross-cell
+state**: the coarse routing grid is deterministic screen-space, so the corridors
+emerge purely geometrically as arcs share nodes. Like the other flow examples,
+the arcs connect analytical bins and re-form on pan/zoom — they are not real
+routes.
+
+```bash
+node examples/case-studies/od-bundling-smoke.mjs
+```
+
+checks the router: endpoints preserved, interior waypoints on coarse-grid nodes,
+and parallel arcs sharing nodes (which is what makes them bundle).
