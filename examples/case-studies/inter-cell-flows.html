@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Case study — inter-cell OD flow lines (London)</title>
+  <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    :root { --panel: 372px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .app { display: flex; height: 100vh; }
+    #map { flex: 1; background: #070a0d; }
+    .panel { width: var(--panel); background: #0d1014; color: #d7dde5; overflow-y: auto; padding: 18px; }
+    h1 { font-size: 17px; margin: 0 0 4px; }
+    h2 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: #8b96a5; margin: 18px 0 8px; }
+    .sub { color: #93a0b0; font-size: 13px; line-height: 1.5; margin: 0 0 6px; }
+    .credit { font-size: 11.5px; color: #6f7b8a; line-height: 1.5; }
+    label { display: block; font-size: 13px; margin: 12px 0 5px; color: #c8d2dd; }
+    label b { float: right; color: #eaf0f6; font-variant-numeric: tabular-nums; }
+    input[type=range] { width: 100%; }
+    .seg { display: flex; gap: 5px; flex-wrap: wrap; }
+    .seg button { flex: 1 1 auto; padding: 7px 6px; font-size: 12px; background: #161b21; color: #c8d2dd; border: 1px solid #29323d; border-radius: 6px; cursor: pointer; }
+    .seg button.active { background: #2b6cb0; border-color: #2b6cb0; color: #fff; }
+    .legend-grad { height: 12px; border-radius: 6px; background: linear-gradient(90deg, rgb(38,180,180), rgb(180,200,90), rgb(242,160,60)); }
+    .legend-scale { display: flex; justify-content: space-between; font-size: 11px; color: #8b96a5; margin-top: 3px; }
+    .metric { display: flex; justify-content: space-between; font-size: 12.5px; padding: 3px 0; border-bottom: 1px solid #1b2129; }
+    .metric b { color: #eaf0f6; font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div id="map"></div>
+    <div class="panel">
+      <h1>Inter-cell flow lines</h1>
+      <p class="sub">A different glyph idea: instead of a summary <i>inside</i> each cell, each cell
+        draws <b>arcs to the other end of its trips</b> — origin cells reach toward the cells their
+        trips arrive in. Both ends snap to cell centroids, so the whole flow network re-forms as you
+        pan and zoom (coarser cells → thicker, fewer arcs). It is deliberately a bit of a jumble;
+        the structure is the point.</p>
+      <p class="credit">Screen-space glyphs draw on one shared canvas, so a cell's callback can draw
+        beyond its own bounds — no library change needed. In the spirit of <b>Slingsby</b>'s gridded
+        glyphmaps and <b>Wickham</b>'s glyph-maps. Synthetic data — no real trips.</p>
+
+      <h2>Aggregate by</h2>
+      <div class="seg" id="by">
+        <button data-by="origin" class="active">Origin → destinations</button>
+        <button data-by="destination">Destination → origins</button>
+      </div>
+
+      <h2>Time period</h2>
+      <div class="seg" id="period">
+        <button data-period="all" class="active">All</button>
+        <button data-period="am">AM peak</button>
+        <button data-period="pm">PM peak</button>
+        <button data-period="offpeak">Off-peak</button>
+      </div>
+
+      <h2>Reference scaling</h2>
+      <div class="seg" id="scaling">
+        <button data-scaling="global" class="active">Global</button>
+        <button data-scaling="local">Local</button>
+      </div>
+
+      <h2>Declutter — min trips per arc <b id="mf-val">1</b></h2>
+      <input id="minFlow" type="range" min="1" max="40" step="1" value="1" />
+
+      <h2>Cell size <b id="cs-val">72</b></h2>
+      <input id="cellSize" type="range" min="44" max="140" step="4" value="72" />
+
+      <h2>Arc colour — mean trip length</h2>
+      <div class="legend-grad"></div>
+      <div class="legend-scale"><span>short</span><span>≥ 20 km</span></div>
+
+      <h2>View</h2>
+      <div class="metric"><span>Trips (period)</span><b id="m-trips">—</b></div>
+      <div class="metric"><span>Origin cells</span><b id="m-cells">—</b></div>
+      <div class="metric"><span>Cell-to-cell arcs</span><b id="m-arcs">—</b></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { ScreenGridLayerGL } from '../../src/index.js';
+    import { generateLondonFlows, LONDON_CENTER } from '../data/london.js';
+
+    const DIST_MAX = 20;
+    const view = { by: 'origin', period: 'all', scaling: 'global', minFlow: 1, cellSize: 72 };
+    let GLOBAL_MAX = 1;   // busiest single cell-to-cell flow across the view
+    let ARC_TOTAL = 0;
+
+    const allFlows = generateLondonFlows({ count: 9000, seed: 99 });
+    const map = new maplibregl.Map({ container: 'map', style: darkBasemap(), center: LONDON_CENTER, zoom: 10.2 });
+    let layer = null;
+
+    // Short→long distance ramp (teal → chartreuse → amber).
+    const RAMP = [[38, 180, 180], [180, 200, 90], [242, 160, 60]];
+    function distanceColor(meanKm, alpha) {
+      const t = Math.min(1, meanKm / DIST_MAX) * (RAMP.length - 1);
+      const i = Math.min(RAMP.length - 2, Math.floor(t));
+      const f = t - i, a = RAMP[i], b = RAMP[i + 1];
+      return `rgba(${Math.round(a[0] + (b[0] - a[0]) * f)}, ${Math.round(a[1] + (b[1] - a[1]) * f)}, ${Math.round(a[2] + (b[2] - a[2]) * f)}, ${alpha})`;
+    }
+
+    // --- Per-cell precompute: bin this cell's trips by the OTHER-END cell -----
+    // For each trip, project the far endpoint to screen and snap it to a cell;
+    // accumulate a cell-to-cell flow. Endpoints are cell centroids, in the same
+    // pixel space as the origin-cell centroid the glyph is handed, so the arc
+    // lines up. Runs once per cell per aggregation (map.project closed over).
+    function binOtherEnd(records) {
+      const cs = view.cellSize;
+      const lonKey = view.by === 'origin' ? 'dlon' : 'olon';
+      const latKey = view.by === 'origin' ? 'dlat' : 'olat';
+      const dest = new Map(); // "col,row" -> {x, y, count, distSum}
+      let localMax = 0;
+      for (let i = 0; i < records.length; i++) {
+        const d = records[i].data;
+        const p = map.project([d[lonKey], d[latKey]]);
+        const col = Math.floor(p.x / cs), row = Math.floor(p.y / cs);
+        const key = col + ',' + row;
+        let e = dest.get(key);
+        if (!e) { e = { x: (col + 0.5) * cs, y: (row + 0.5) * cs, count: 0, distSum: 0 }; dest.set(key, e); }
+        e.count += 1;
+        e.distSum += d.dist_km;
+      }
+      const destinations = [];
+      for (const e of dest.values()) { destinations.push(e); if (e.count > localMax) localMax = e.count; }
+      return { destinations, localMax, total: records.length };
+    }
+
+    // --- The inter-cell glyph: arcs from this cell to each linked cell --------
+    function drawFlows(ctx, x, y, normVal, cell) {
+      const cd = cell.customData;
+      if (!cd) return;
+      const ref = view.scaling === 'global' ? (GLOBAL_MAX || 1) : (cd.localMax || 1);
+      const dests = cd.destinations;
+      for (let i = 0; i < dests.length; i++) {
+        const dst = dests[i];
+        if (dst.count < view.minFlow) continue;
+        if (dst.x === x && dst.y === y) continue; // self-loop (same cell)
+        const strength = Math.min(1, dst.count / ref);
+        const meanKm = dst.distSum / dst.count;
+        // Curved arc: bow the chord out along its perpendicular, same rotational
+        // sense for every arc so parallel flows separate into readable bundles.
+        const dx = dst.x - x, dy = dst.y - y, len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len, ny = dx / len, bow = len * 0.16;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo((x + dst.x) / 2 + nx * bow, (y + dst.y) / 2 + ny * bow, dst.x, dst.y);
+        ctx.strokeStyle = distanceColor(meanKm, 0.22 + 0.55 * strength);
+        ctx.lineWidth = 0.5 + 3.5 * Math.sqrt(strength);
+        ctx.stroke();
+      }
+      // Origin node.
+      ctx.beginPath();
+      ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fill();
+    }
+
+    function currentFlows() {
+      return view.period === 'all' ? allFlows : allFlows.filter((f) => f.period === view.period);
+    }
+
+    function rebuild() {
+      if (!map.isStyleLoaded()) { map.once('idle', rebuild); return; }
+      if (layer && map.getLayer('flows')) map.removeLayer('flows');
+      const data = currentFlows();
+      const lonKey = view.by === 'origin' ? 'olon' : 'dlon';
+      const latKey = view.by === 'origin' ? 'olat' : 'dlat';
+      document.getElementById('m-trips').textContent = data.length.toLocaleString();
+
+      layer = ScreenGridLayerGL.glyphMap({
+        id: 'flows',
+        data,
+        getPosition: (d) => [d[lonKey], d[latKey]],  // aggregate by chosen end
+        getWeight: () => 1,
+        cellSizePixels: view.cellSize,
+        showBackground: false,
+        hoverRepaint: false,
+        glyphSize: 1,
+        colorScale: () => [0, 0, 0, 0],
+        onAfterAggregate: (records) => binOtherEnd(records),
+        onDrawCell: drawFlows,
+        onAggregate: (result) => {
+          const cd = result.customData;
+          let gmax = 1, cells = 0, arcs = 0;
+          for (let i = 0; i < cd.length; i++) {
+            const c = cd[i];
+            if (!c) continue;
+            cells += 1;
+            arcs += c.destinations.length;
+            if (c.localMax > gmax) gmax = c.localMax;
+          }
+          GLOBAL_MAX = gmax; ARC_TOTAL = arcs;
+          document.getElementById('m-cells').textContent = cells.toLocaleString();
+          document.getElementById('m-arcs').textContent = arcs.toLocaleString();
+        },
+      });
+      map.addLayer(layer);
+    }
+
+    function repaint() { if (map) map.triggerRepaint(); }
+
+    seg('by', (v) => { view.by = v; rebuild(); });
+    seg('period', (v) => { view.period = v; rebuild(); });
+    seg('scaling', (v) => { view.scaling = v; repaint(); });
+    document.getElementById('minFlow').addEventListener('input', (e) => {
+      view.minFlow = parseInt(e.target.value, 10);
+      document.getElementById('mf-val').textContent = view.minFlow;
+      repaint();
+    });
+    document.getElementById('cellSize').addEventListener('input', (e) => {
+      view.cellSize = parseInt(e.target.value, 10);
+      document.getElementById('cs-val').textContent = view.cellSize;
+      rebuild();
+    });
+    function seg(id, onPick) {
+      const root = document.getElementById(id);
+      root.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+        root.querySelectorAll('button').forEach((x) => x.classList.remove('active'));
+        b.classList.add('active');
+        onPick(b.dataset[id]);
+      }));
+    }
+
+    map.on('load', rebuild);
+
+    function darkBasemap() {
+      return {
+        version: 8,
+        sources: { dark: { type: 'raster', tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors © CARTO' } },
+        layers: [{ id: 'dark', type: 'raster', source: 'dark' }]
+      };
+    }
+  </script>
+</body>
+</html>

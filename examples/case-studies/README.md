@@ -51,3 +51,29 @@ node examples/case-studies/smoke-test.mjs
 Drives the real `ScreenGridMode.aggregate` pipeline with the page's binning and
 asserts the histogram reaches the glyph via `customData` and that the semantic
 cell exposes it (plus `reliability` for the tooltip).
+
+## `inter-cell-flows.html` — inter-cell flow lines
+
+A different glyph idea: rather than summarising each cell *in place*, each cell
+draws **arcs to the other cells its trips connect to**. Origin cells reach toward
+the cells their trips arrive in (or the reverse — there's an origin/destination
+toggle). Both endpoints snap to cell centroids, so the entire flow network
+re-forms as you pan and zoom: coarser cells merge many trips into fewer, thicker
+arcs; finer cells split them apart. A *min trips per arc* slider declutters from
+full jumble down to the backbone.
+
+The point of interest for library users: **inter-cell glyphs need no special
+support.** Screen-space glyphs render onto one shared, unclipped canvas, so a
+cell's `onDrawCell` can draw a line from its own centroid to anywhere. Each origin
+cell's destination cells are precomputed in `onAfterAggregate` (projecting the far
+endpoint with `map.project` — the same pixel space cells are binned in — and
+snapping to a cell centroid), stored as `customData`, then drawn as curved arcs.
+Arc width/opacity encode flow volume (global or local reference), colour encodes
+mean trip length.
+
+```bash
+node examples/case-studies/inter-cell-smoke.mjs
+```
+
+asserts the arc endpoints land on cell centroids and that trip counts are
+conserved across the destination cells.
