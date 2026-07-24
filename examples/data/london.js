@@ -191,3 +191,88 @@ export function buildLondonProfile(records) {
     ],
   };
 }
+
+// ---------------------------------------------------------------------------
+// Synthetic origin–destination (OD) trips, for the flow-glyph case study.
+// Each trip has an origin and a destination drawn from the same town centres;
+// commutes flow residential -> employment in the AM peak and reverse in the PM
+// peak, giving the directional structure a gridded flow glyph is meant to
+// reveal (Slingsby's gridded glyphmaps; Wickham et al.'s glyph-maps). Bearing
+// and distance are precomputed so the per-frame glyph does no trigonometry.
+// ---------------------------------------------------------------------------
+
+const FLOW_PURPOSES_OFFPEAK = ['leisure', 'shopping', 'education'];
+
+// Great-circle-ish bearing (0=N, 90=E, clockwise) and distance (km) for the
+// short intra-city hops here, via an equirectangular approximation.
+function bearingAndDistance(olon, olat, dlon, dlat) {
+  const midLat = ((olat + dlat) / 2) * Math.PI / 180;
+  const dx = (dlon - olon) * Math.cos(midLat) * 111.32; // km east
+  const dy = (dlat - olat) * 110.57;                    // km north
+  let bearing = Math.atan2(dx, dy) * 180 / Math.PI;     // 0=N, clockwise
+  if (bearing < 0) bearing += 360;
+  return { bearing, distance: Math.hypot(dx, dy) };
+}
+
+function pickCentreWeighted(rand, weightOf) {
+  const total = CENTRES.reduce((s, c) => s + weightOf(c), 0);
+  let t = rand() * total;
+  for (const c of CENTRES) {
+    t -= weightOf(c);
+    if (t <= 0) return c;
+  }
+  return CENTRES[0];
+}
+
+/**
+ * Generate synthetic London OD trips.
+ * @param {Object} [opts]
+ * @param {number} [opts.count=8000] - number of trips
+ * @param {number} [opts.seed=99] - PRNG seed (same seed => same trips)
+ * @returns {Array<Object>} trips: { olon, olat, dlon, dlat, bearing, dist_km, period, purpose }
+ *   getPosition should read the ORIGIN ([olon, olat]).
+ */
+export function generateLondonFlows({ count = 8000, seed = 99 } = {}) {
+  const rand = rng(seed);
+  const [west, south, east, north] = LONDON_BBOX;
+  // Employment pull ~ centrality; residential weight ~ the inverse (+ base).
+  const employment = (c) => Math.max(0.05, c.pull);
+  const residential = (c) => Math.max(0.05, 1 - c.pull) + 0.15;
+  const jitter = (v, spread, lo, hi) => clamp(v + gaussian(rand) * spread, lo, hi);
+
+  const flows = new Array(count);
+  for (let i = 0; i < count; i++) {
+    const roll = rand();
+    let period, purpose, origin, dest;
+    if (roll < 0.42) {
+      period = 'am'; purpose = 'commute';
+      origin = pickCentreWeighted(rand, residential);
+      dest = pickCentreWeighted(rand, employment);
+    } else if (roll < 0.78) {
+      period = 'pm'; purpose = 'commute';
+      origin = pickCentreWeighted(rand, employment);
+      dest = pickCentreWeighted(rand, residential);
+    } else {
+      period = 'offpeak';
+      purpose = FLOW_PURPOSES_OFFPEAK[Math.floor(rand() * FLOW_PURPOSES_OFFPEAK.length)];
+      origin = pickCentreWeighted(rand, () => 1);
+      dest = pickCentreWeighted(rand, purpose === 'leisure' ? employment : residential);
+    }
+
+    const olon = jitter(origin.lon, origin.spread, west, east);
+    const olat = jitter(origin.lat, origin.spread * 0.7, south, north);
+    const dlon = jitter(dest.lon, dest.spread, west, east);
+    const dlat = jitter(dest.lat, dest.spread * 0.7, south, north);
+    const { bearing, distance } = bearingAndDistance(olon, olat, dlon, dlat);
+
+    flows[i] = {
+      olon: round(olon, 6), olat: round(olat, 6),
+      dlon: round(dlon, 6), dlat: round(dlat, 6),
+      bearing: round(bearing, 1),
+      dist_km: round(distance, 2),
+      period,
+      purpose,
+    };
+  }
+  return flows;
+}

@@ -57,6 +57,11 @@ town-centre coordinates seed the clustering; every attribute is invented.
 - `buildLondonProfile(records)` → the `datasetProfile` the grammar validates and
   compiles against, with real numeric `min`/`max` (global term normalization
   needs them) and categorical `distinctCount`s (the category guardrail uses them).
+- `generateLondonFlows({ count, seed })` → synthetic origin–destination trips for
+  the flow-glyph case study (`examples/case-studies/od-flows.html`): each trip has
+  an origin/destination, precomputed `bearing` and `dist_km`, a `period`
+  (`am`/`pm`/`offpeak`) and a `purpose`. Commutes flow residential → employment in
+  the AM peak and reverse in the PM peak. Aggregate by the origin (`[olon, olat]`).
 
 ## Regenerating
 
