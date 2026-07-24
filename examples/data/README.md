@@ -39,6 +39,25 @@ accessibility values for six categories × eight travel-time cuts:
 - fields: `${category}_${minutes}` (synthetic count) and `${category}_pct_${minutes}` (0–1, cumulative/monotonic) — the glyph reads the `_pct_` fields
 - positioning: `properties.cent_long`, `properties.cent_lat`
 
+## `london.js` (generated at runtime, not committed as JSON)
+
+A dependency-free ES module that generates synthetic multivariate **Greater
+London** points on demand, used by the grammar examples (`examples/grammar/`) and
+the stress test (`examples/stress-test/`). Nothing is committed as data — the
+pages call `generateLondonPoints({ count, seed })` in the browser, so the same
+`(count, seed)` always yields the same points and the stress test can scale to
+500k without a large file in the repo.
+
+Only public geography drives it: a Greater London bounding box and approximate
+town-centre coordinates seed the clustering; every attribute is invented.
+
+- `generateLondonPoints({ count, seed, scatter })` → records with `lon`, `lat`,
+  `borough`, `land_use` (`residential`/`retail`/`office`/`greenspace`/`industrial`),
+  `price`, `access`, `rent`, `pm25`, `year`.
+- `buildLondonProfile(records)` → the `datasetProfile` the grammar validates and
+  compiles against, with real numeric `min`/`max` (global term normalization
+  needs them) and categorical `distinctCount`s (the category guardrail uses them).
+
 ## Regenerating
 
 These files are produced by a small deterministic generator (seeded PRNG). If

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stress test — London points at scale</title>
+  <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    :root { --panel: 340px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .app { display: flex; height: 100vh; }
+    #map { flex: 1; }
+    .panel { width: var(--panel); background: #0f1216; color: #d7dde5; overflow-y: auto; padding: 18px; }
+    h1 { font-size: 17px; margin: 0 0 4px; }
+    h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #8b96a5; margin: 18px 0 8px; }
+    .sub { color: #8b96a5; font-size: 13px; line-height: 1.45; margin: 0 0 6px; }
+    label { display: block; font-size: 13px; margin: 12px 0 4px; color: #c8d2dd; }
+    select, input[type=range] { width: 100%; }
+    .seg { display: flex; gap: 6px; margin-top: 6px; }
+    .seg button { flex: 1; padding: 7px; font-size: 12px; background: #171c22; color: #c8d2dd; border: 1px solid #2a333f; border-radius: 6px; cursor: pointer; }
+    .seg button.active { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+    .metric { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 0; border-bottom: 1px solid #1c2229; }
+    .metric b { color: #eaf0f6; font-variant-numeric: tabular-nums; }
+    .fps { font-size: 30px; font-weight: 700; color: #7fe0a3; font-variant-numeric: tabular-nums; }
+    .fps.warn { color: #f2cf7a; } .fps.bad { color: #f2908c; }
+    .note { font-size: 12px; color: #6f7b8a; line-height: 1.5; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div id="map"></div>
+    <div class="panel">
+      <h1>Stress test</h1>
+      <p class="sub">Synthetic London points at scale. Pan/zoom to re-aggregate every frame and
+        watch the FPS. Switch to <b>glyph</b> mode to force per-cell semantic summaries — the
+        cost the lazy cell model defers until something actually reads a cell.</p>
+
+      <div class="fps"><span id="fps">—</span> <span style="font-size:13px;color:#8b96a5">fps</span></div>
+
+      <label>Points <b id="n-val"></b></label>
+      <select id="count">
+        <option value="5000">5,000</option>
+        <option value="25000">25,000</option>
+        <option value="50000" selected>50,000</option>
+        <option value="100000">100,000</option>
+        <option value="250000">250,000</option>
+        <option value="500000">500,000</option>
+      </select>
+
+      <label>Tessellation</label>
+      <div class="seg" id="mode">
+        <button data-mode="screen-grid" class="active">Square grid</button>
+        <button data-mode="screen-hex">Hex</button>
+      </div>
+
+      <label>Render</label>
+      <div class="seg" id="render">
+        <button data-render="color" class="active">Colour (no semantics)</button>
+        <button data-render="glyph">Glyph (semantic)</button>
+      </div>
+
+      <label>Cell size (px) <b id="cs-val">40</b></label>
+      <input id="cellSize" type="range" min="16" max="120" step="4" value="40" />
+
+      <h2>Metrics</h2>
+      <div class="metric"><span>Points</span><b id="m-points">—</b></div>
+      <div class="metric"><span>Grid / cells</span><b id="m-grid">—</b></div>
+      <div class="metric"><span>Populated cells</span><b id="m-cells">—</b></div>
+      <div class="metric"><span>Initial aggregate</span><b id="m-agg">—</b></div>
+      <div class="metric"><span>Data generation</span><b id="m-gen">—</b></div>
+
+      <p class="note">FPS is a rolling average of the render loop while the map is moving.
+        In colour mode the render path only reads <code>grid</code>/<code>cellData</code>; in
+        glyph mode it also builds a semantic cell per populated cell (and this glyph reads its
+        <code>measures</code>), so any gap between the two is the semantic-cell cost.</p>
+      <p class="note"><b>500k</b> regenerates a large array — give it a moment.</p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { ScreenGridLayerGL } from '../../src/index.js';
+    import { generateLondonPoints, LONDON_CENTER } from '../data/london.js';
+
+    const state = { count: 50000, mode: 'screen-grid', render: 'color', cellSize: 40, data: [] };
+
+    const map = new maplibregl.Map({ container: 'map', style: darkBasemap(), center: LONDON_CENTER, zoom: 10 });
+    let layer = null;
+
+    // --- FPS meter (rolling average, only meaningful while moving) ------------
+    let frames = 0, lastFpsT = performance.now();
+    function fpsLoop(now) {
+      frames++;
+      if (now - lastFpsT >= 500) {
+        const fps = Math.round((frames * 1000) / (now - lastFpsT));
+        const el = document.getElementById('fps');
+        el.textContent = fps;
+        const box = el.parentElement;
+        box.className = 'fps' + (fps < 25 ? ' bad' : fps < 45 ? ' warn' : '');
+        frames = 0; lastFpsT = now;
+      }
+      requestAnimationFrame(fpsLoop);
+    }
+    requestAnimationFrame(fpsLoop);
+
+    // A cheap semantic glyph: dot sized by count, tinted by mean price. Reading
+    // cell.measures is what forces the semantic summary to materialise.
+    function drawGlyph(ctx, x, y, normVal, cell) {
+      const n = cell.records?.count ?? cell.cellData?.length ?? 0;
+      if (!n) return;
+      const price = cell.measures?.fields?.price?.mean ?? 0;
+      const t = Math.min(1, price / 2000000);
+      const r = Math.max(1.5, (cell.glyphRadius || 12) * Math.sqrt(normVal));
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${Math.round(60 + t * 195)}, ${Math.round(180 - t * 120)}, ${Math.round(230 - t * 120)}, 0.85)`;
+      ctx.fill();
+    }
+
+    function regenerate() {
+      const t0 = performance.now();
+      state.data = generateLondonPoints({ count: state.count, seed: 42 });
+      document.getElementById('m-gen').textContent = `${(performance.now() - t0).toFixed(0)} ms`;
+      document.getElementById('m-points').textContent = state.count.toLocaleString();
+      document.getElementById('n-val').textContent = state.count.toLocaleString();
+    }
+
+    function rebuild() {
+      if (!map.isStyleLoaded()) { map.once('idle', rebuild); return; }
+      if (layer && map.getLayer('stress')) map.removeLayer('stress');
+
+      const createdAt = performance.now();
+      let timed = false;
+      const glyph = state.render === 'glyph';
+
+      const common = {
+        id: 'stress',
+        data: state.data,
+        getPosition: (d) => [d.lon, d.lat],
+        getWeight: () => 1,
+        cellSizePixels: state.cellSize,
+        normalizationFunction: 'max-local',
+        colorScale: (v) => [255 * v, 90 + 120 * (1 - v), 40, glyph ? 90 : 210],
+        onAggregate: (grid) => {
+          if (!timed) { document.getElementById('m-agg').textContent = `${(performance.now() - createdAt).toFixed(0)} ms`; timed = true; }
+          const cols = grid.cols ?? '—', rows = grid.rows ?? '—';
+          const total = Array.isArray(grid.grid) ? grid.grid.length : 0;
+          const populated = Array.isArray(grid.grid) ? grid.grid.reduce((n, v) => n + (v > 0 ? 1 : 0), 0) : 0;
+          document.getElementById('m-grid').textContent = `${cols} × ${rows} (${total.toLocaleString()})`;
+          document.getElementById('m-cells').textContent = populated.toLocaleString();
+        }
+      };
+
+      layer = glyph
+        ? ScreenGridLayerGL.glyphMap({ ...common, aggregationMode: state.mode, glyphSize: 0.8, showBackground: false, onDrawCell: drawGlyph })
+        : (state.mode === 'screen-hex'
+            ? ScreenGridLayerGL.hexDensity(common)
+            : ScreenGridLayerGL.density(common));
+      map.addLayer(layer);
+    }
+
+    // --- Controls ------------------------------------------------------------
+    document.getElementById('count').addEventListener('change', (e) => { state.count = parseInt(e.target.value, 10); regenerate(); rebuild(); });
+    document.getElementById('cellSize').addEventListener('input', (e) => { state.cellSize = parseInt(e.target.value, 10); document.getElementById('cs-val').textContent = state.cellSize; rebuild(); });
+    document.querySelectorAll('#mode button').forEach((b) => b.addEventListener('click', () => {
+      state.mode = b.dataset.mode; setActive('#mode', b); rebuild();
+    }));
+    document.querySelectorAll('#render button').forEach((b) => b.addEventListener('click', () => {
+      state.render = b.dataset.render; setActive('#render', b); rebuild();
+    }));
+    function setActive(sel, btn) { document.querySelectorAll(`${sel} button`).forEach((x) => x.classList.remove('active')); btn.classList.add('active'); }
+
+    map.on('load', () => { regenerate(); rebuild(); });
+
+    function darkBasemap() {
+      return {
+        version: 8,
+        sources: { dark: { type: 'raster', tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors © CARTO' } },
+        layers: [{ id: 'dark', type: 'raster', source: 'dark' }]
+      };
+    }
+  </script>
+</body>
+</html>

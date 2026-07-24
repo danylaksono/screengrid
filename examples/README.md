@@ -2,6 +2,8 @@
 
 The examples are organised by what they teach:
 
+- `grammar/` - The declarative grammar end to end (`validateSpec` / `compileSpec`): density, MCDA suitability, and composition on synthetic London data. Start here for the spec-driven workflow.
+- `stress-test/` - Performance harness: synthetic London points up to 500k, square/hex tessellation, and a live FPS meter for the lazy semantic-cell cost.
 - `getting-started/` - Small introductory examples and the fuller interactive control demo.
 - `aggregation/` - Rectangular and hexagonal screen-space aggregation patterns.
 - `glyphs/` - Built-in glyphs, custom glyph callbacks, plugin glyphs, and legends.
