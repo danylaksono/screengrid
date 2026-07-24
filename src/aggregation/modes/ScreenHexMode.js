@@ -105,11 +105,25 @@ export const ScreenHexMode = {
       return { q, r };
     });
 
+    // Precompute a hexKey -> array-index map and the numeric max in one pass so
+    // point queries (getCellAt) are O(1) instead of re-scanning hexCoords/grid
+    // on every hover. Only numeric cell values count toward the max (object /
+    // multivariate values are ignored, matching the render path).
+    const hexIndex = new Map();
+    let maxValue = 0;
+    for (let i = 0; i < cells.length; i++) {
+      hexIndex.set(cells[i][0], i);
+      const value = grid[i];
+      if (typeof value === 'number' && value > maxValue) maxValue = value;
+    }
+
     const result = {
       grid,
       cellData,
       customData,
       hexCoords,
+      hexIndex,
+      maxValue,
       hexSize,
       hexRadius,
       width,
@@ -154,8 +168,11 @@ export const ScreenHexMode = {
       : NormalizationFunctions.maxLocal;
 
     // Compute stats for normalization context (point-count based, so cells
-    // that aggregate to 0 or negative values still render)
-    const stats = Renderer.computeStats(grid, cellData);
+    // that aggregate to 0 or negative values still render). Skip the per-frame
+    // sort unless the active normalization consumes sortedValues (percentile).
+    const stats = Renderer.computeStats(grid, cellData, {
+      needsSorted: Renderer._needsSortedValues(normFn),
+    });
     const normContext = {
       ...stats,
       ...(config.normalizationContext || {}),
@@ -280,7 +297,7 @@ export const ScreenHexMode = {
    * @returns {Object|null} Cell information or null
    */
   getCellAt(point, aggregationResult, map) {
-    const { hexCoords, hexRadius } = aggregationResult;
+    const { hexCoords, hexRadius, hexIndex } = aggregationResult;
     const { x, y } = point;
 
     // Convert screen coordinates to hex coordinates (matching aggregate formula)
@@ -288,8 +305,11 @@ export const ScreenHexMode = {
     const r = Math.round((2 / 3 * y) / hexRadius);
     const hexKey = `${q},${r}`;
 
-    // Find matching cell
-    const index = hexCoords.findIndex(c => `${c.q},${c.r}` === hexKey);
+    // O(1) lookup via the precomputed key->index map (falls back to a linear
+    // scan only for results produced before hexIndex existed).
+    const index = hexIndex
+      ? (hexIndex.has(hexKey) ? hexIndex.get(hexKey) : -1)
+      : hexCoords.findIndex(c => `${c.q},${c.r}` === hexKey);
     if (index === -1) return null;
 
     const points = aggregationResult.cellData[index];
@@ -299,10 +319,14 @@ export const ScreenHexMode = {
     const centerX = hexRadius * (Math.sqrt(3) * cellQ + Math.sqrt(3) / 2 * cellR);
     const centerY = hexRadius * (3 / 2 * cellR);
 
-    // Loop instead of Math.max(...grid) to avoid stack overflow on large grids
-    let maxValue = 0;
-    for (const v of aggregationResult.grid) {
-      if (typeof v === 'number' && v > maxValue) maxValue = v;
+    // Use the precomputed numeric max (O(1)); loop only as a fallback for
+    // older results. Avoids Math.max(...grid) (stack overflow on large grids).
+    let maxValue = aggregationResult.maxValue;
+    if (maxValue === undefined) {
+      maxValue = 0;
+      for (const v of aggregationResult.grid) {
+        if (typeof v === 'number' && v > maxValue) maxValue = v;
+      }
     }
 
     // Use the per-cell lazy accessor, not `cells` — that would build a
@@ -310,15 +334,18 @@ export const ScreenHexMode = {
     // single-point query, which is expensive on every hover/click.
     const semanticCell = aggregationResult.cellAt ? aggregationResult.cellAt(index) : null;
 
-    return {
-      ...(semanticCell || {}),
+    // Inherit from the semantic cell via Object.create rather than spreading it:
+    // its `measures`/`reliability` are prototype getters (see
+    // SemanticCellSummarizer), and a spread would silently drop them — the exact
+    // anti-pattern AGENTS.md forbids. Query-specific fields are layered on top.
+    return Object.assign(Object.create(semanticCell || null), {
       index,
       value: aggregationResult.grid[index],
       normalizedValue: aggregationResult.grid[index] / (maxValue || 1),
       cellData: points,
       hexCoords: { q: cellQ, r: cellR },
       center: { x: centerX, y: centerY },
-    };
+    });
   },
 
   /**
