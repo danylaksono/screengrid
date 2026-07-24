@@ -33,9 +33,9 @@
     <div id="map"></div>
     <div class="panel">
       <h1>Stress test</h1>
-      <p class="sub">Synthetic London points at scale. Pan/zoom to re-aggregate every frame and
-        watch the FPS. Switch to <b>glyph</b> mode to force per-cell semantic summaries — the
-        cost the lazy cell model defers until something actually reads a cell.</p>
+      <p class="sub">How the library holds up rendering large point datasets. Synthetic London
+        points from 5k to <b>500k</b>; pan/zoom to re-project and re-aggregate every frame and
+        watch the FPS. Compare square vs hex tessellation and colour-fill vs per-cell glyph.</p>
 
       <div class="fps"><span id="fps">—</span> <span style="font-size:13px;color:#8b96a5">fps</span></div>
 
@@ -57,8 +57,8 @@
 
       <label>Render</label>
       <div class="seg" id="render">
-        <button data-render="color" class="active">Colour (no semantics)</button>
-        <button data-render="glyph">Glyph (semantic)</button>
+        <button data-render="color" class="active">Colour fill</button>
+        <button data-render="glyph">Glyph (per-cell)</button>
       </div>
 
       <label>Cell size (px) <b id="cs-val">40</b></label>
@@ -72,9 +72,10 @@
       <div class="metric"><span>Data generation</span><b id="m-gen">—</b></div>
 
       <p class="note">FPS is a rolling average of the render loop while the map is moving.
-        In colour mode the render path only reads <code>grid</code>/<code>cellData</code>; in
-        glyph mode it also builds a semantic cell per populated cell (and this glyph reads its
-        <code>measures</code>), so any gap between the two is the semantic-cell cost.</p>
+        Every pan/zoom re-projects and re-aggregates all points from scratch, so this is a
+        worst-case for screen-space binning. The glyph reads each cell's raw records
+        (<code>cell.cellData</code>) directly — the most efficient route — to measure raw
+        render throughput, not semantic-summary cost.</p>
       <p class="note"><b>500k</b> regenerates a large array — give it a moment.</p>
     </div>
   </div>
@@ -104,13 +105,18 @@
     }
     requestAnimationFrame(fpsLoop);
 
-    // A cheap semantic glyph: dot sized by count, tinted by mean price. Reading
-    // cell.measures is what forces the semantic summary to materialise.
+    // Cheapest route: read the cell's RAW records (cell.cellData) directly and
+    // do a single tight pass — no semantic measures/reliability are touched, so
+    // this measures the library's raw render throughput at scale rather than the
+    // semantic-cell cost (which the grammar examples cover). Dot sized by count,
+    // tinted by mean price.
     function drawGlyph(ctx, x, y, normVal, cell) {
-      const n = cell.records?.count ?? cell.cellData?.length ?? 0;
+      const records = cell.cellData;
+      const n = records ? records.length : 0;
       if (!n) return;
-      const price = cell.measures?.fields?.price?.mean ?? 0;
-      const t = Math.min(1, price / 2000000);
+      let sum = 0;
+      for (let i = 0; i < n; i++) sum += records[i].data.price;
+      const t = Math.min(1, (sum / n) / 2000000);
       const r = Math.max(1.5, (cell.glyphRadius || 12) * Math.sqrt(normVal));
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -153,7 +159,9 @@
       };
 
       layer = glyph
-        ? ScreenGridLayerGL.glyphMap({ ...common, aggregationMode: state.mode, glyphSize: 0.8, showBackground: false, onDrawCell: drawGlyph })
+        // hoverRepaint:false — this glyph doesn't read isHovered, so skip the
+        // full-canvas redraw every time the cursor crosses a cell.
+        ? ScreenGridLayerGL.glyphMap({ ...common, aggregationMode: state.mode, glyphSize: 0.8, showBackground: false, hoverRepaint: false, onDrawCell: drawGlyph })
         : (state.mode === 'screen-hex'
             ? ScreenGridLayerGL.hexDensity(common)
             : ScreenGridLayerGL.density(common));

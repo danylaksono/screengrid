@@ -66,9 +66,8 @@ part of `npm test`; run it directly:
 node examples/grammar/smoke-test.mjs
 ```
 
-## Stress test
+## See also
 
-[`../stress-test/london-stress.html`](../stress-test/london-stress.html) scales
-the same generator to **500k** points, toggles square/hex tessellation, and
-switches between colour and glyph rendering so the FPS meter exposes the cost the
-lazy semantic-cell model defers until a cell is actually read.
+[`../stress-test/`](../stress-test/) is a separate concern — raw rendering
+throughput on large datasets (up to 500k points), not the grammar. It shares this
+folder's synthetic London generator but deliberately avoids semantic cells.

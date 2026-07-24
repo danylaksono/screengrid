@@ -30,6 +30,11 @@ export class ConfigManager {
     onClick: null,
     onDrawCell: null,
     enableGlyphs: false,
+    // When true (default), moving the cursor into a new cell triggers a repaint
+    // so a glyph that reads `isHovered` can redraw its highlight. Set false for
+    // dense glyph maps that don't highlight on hover, to avoid a full-canvas
+    // redraw on every mouse move (onHover callbacks still fire).
+    hoverRepaint: true,
     glyphSize: 0.8,
     adaptiveCellSize: false,
     minCellSize: 20,

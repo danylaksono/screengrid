@@ -211,6 +211,32 @@ Use these in glyph callbacks and tooltips: surface `reliability.warnings` for sp
 and gate any comparative wording on `comparability`. Do not recompute per-cell statistics
 by hand — read them from the cell.
 
+**Pick the lightest route that serves the intent (matters at scale).** Semantic cells are
+lazy: the default colour aggregation and render path read only `grid`/`cellData` and never
+build them. The cost is in a cell's `measures`/`reliability` (per-field stats), computed on
+first read. Screen-space maps **re-aggregate on every pan/zoom frame**, so anything read per
+cell *per frame* is paid per frame. Decide the render route accordingly:
+
+- **Efficient route** — density/colour, or a glyph that needs only a value or two: read
+  `cell.cellData` (the raw records) directly in the draw callback and compute just what you
+  draw (e.g. a sum for a bar height). Do **not** touch `cell.measures` in a per-frame glyph
+  over a large dataset — that materialises the full per-field summary for every cell every
+  frame. This is not "recomputing statistics by hand" (above); it is drawing a raw value.
+- **Full semantic route** — reserve `cell.measures` / `cell.reliability` / `cell.comparability`
+  for **interaction** (hover/click tooltips, inspectors) and for glyphs whose whole point is
+  the multivariate summary or its reliability. There they are read occasionally (one cell),
+  not every frame — and there you *must* read them rather than hand-roll the stats.
+- For dense glyph maps that don't highlight on hover, set `hoverRepaint: false` so moving the
+  cursor doesn't force a full-canvas redraw each time it crosses a cell (`onHover` still fires).
+- Prefer `screen-grid` over `screen-hex` for the largest datasets — the square grid bins into
+  a flat array; hex bins into a keyed map (more work per frame).
+- The grammar itself is cheap: **validate every spec** (it runs once, not per frame). Scale
+  never justifies skipping validation — only a lighter *render* route.
+
+Rule of thumb: full semantic/grammar route when the map's job *is* the per-cell summary or its
+reliability/comparability; the efficient raw route when it isn't. `examples/grammar/` shows the
+semantic route; `examples/stress-test/` shows the raw route on up to 500k points.
+
 ## 8. Out of scope — do not fake
 
 The grammar deliberately does **not** cover: cell offset control, kernel smoothing,
@@ -231,6 +257,12 @@ analysis in particular is active research territory — flag it, don't improvise
   - Never use `Math.max(...arr)`/`Math.min(...arr)` on unbounded arrays (stack overflow on
     dense cells); use a loop or reduce.
   - No per-glyph object allocation in render loops.
+  - In a per-frame glyph callback, read `cell.cellData` for the one or two values you draw;
+    reading `cell.measures` forces the full per-field summary for every cell every frame.
+    Keep `measures`/`reliability` for interaction and summary glyphs (see §7).
+  - Sort/compute per-frame stats only when needed (e.g. `sortedValues` is for percentile
+    normalization only); keep hover from repainting unless a glyph reflects `isHovered`
+    (`hoverRepaint`).
 - **Grammar/code sync contract:** the spec vocabulary in this file, the JSON Schemas
   (`src/grammar/schemas/`), `validateSpec`, and `docs/CELL_SEMANTICS.md` must agree. Bump
   `SPEC_VERSION` on any grammar change and update this file — a test asserts this file
