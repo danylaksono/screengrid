@@ -228,10 +228,14 @@ See [USAGE.md](docs/USAGE.md) for development workflow details.
 ### v3.1.0 (Current)
 - **NEW**: Aggregation results expose semantic cells via `cells`, `populatedCells`, and `cellSemantics`. These are computed lazily on first access, so the render loop pays no per-frame cost unless a consumer reads them.
 - **NEW**: Cell-level spatial metadata, measures, reliability, and comparability contracts.
+- **NEW**: Declarative grammar (`src/grammar/`): `validateSpec`, `compileSpec`, `compileDerivedMeasure`, `resolveParameters`, `validateAssistantProposal`, and `SPEC_VERSION`. JSON Schema contracts ship in `src/grammar/schemas/`.
+- **NEW**: `CellQueryEngine` for querying aggregated cells without forcing full semantic materialization.
 - **NEW**: Cartographic evaluation rubric and semantic-cell migration guide.
+- **PACKAGING**: `peerDependencies` on `maplibre-gl` widened to `>=4`; the published tarball no longer carries reference PDFs (16.8 MB → ~630 kB).
 - Semantic cells preserve legacy `cellData`/`customData` aliases, so existing `onDrawCell` callbacks keep working.
+- Includes the v3.0.1 fixes below, which were never published as a standalone release.
 
-### v3.0.1
+### v3.0.1 (unreleased — folded into v3.1.0)
 - **FIXED**: Cells with data points that aggregate to 0 or negative values (e.g. `mean`/`min` aggregation over zero weights) are now rendered instead of silently dropped; "empty" is determined by point count
 - **FIXED**: `onDrawCell` now receives `cellInfo.value` and `cellInfo.normalizedValue` as documented
 - **FIXED**: Normalized values are clamped to [0, 1] before reaching `colorScale`/`onDrawCell`
