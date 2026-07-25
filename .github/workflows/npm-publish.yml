@@ -15,10 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Use Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
@@ -52,18 +52,16 @@ jobs:
             echo "publish=true" >> $GITHUB_OUTPUT
           fi
 
-      # Prefers trusted publishing: with npm >= 11.5.1 and `id-token: write`, npm
-      # exchanges the workflow's OIDC identity for a short-lived registry token,
-      # provided danylaksono/screengrid + this workflow are registered as a
-      # trusted publisher on the package's npm settings. If that exchange is not
-      # available, npm falls back to NODE_AUTH_TOKEN, so this step works either
-      # way. Once trusted publishing is confirmed working, NPM_TOKEN can be
-      # deleted and the `env:` block dropped.
+      # Publishes via trusted publishing: npm exchanges this workflow's OIDC
+      # identity (`id-token: write`) for a short-lived registry credential.
+      # danylaksono/screengrid + npm-publish.yml are registered as a trusted
+      # publisher on the package's npm settings. There is deliberately no
+      # NODE_AUTH_TOKEN fallback -- a long-lived token would reintroduce the
+      # 2FA-bypass path npm is deprecating, and would let an OIDC
+      # misconfiguration fail as a confusing auth error instead of loudly.
       - name: Publish to npm
         if: steps.versions.outputs.publish == 'true'
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Summary
         run: |

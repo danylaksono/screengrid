@@ -1,6 +1,6 @@
 {
   "name": "screengrid",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "A GPU/Canvas hybrid Screen-Space Grid Aggregation library for MapLibre GL JS with advanced glyph drawing capabilities",
   "main": "dist/screengrid.cjs",
   "module": "dist/screengrid.mjs",
@@ -44,7 +44,8 @@
       "import": "./dist/screengrid.mjs",
       "require": "./dist/screengrid.cjs",
       "default": "./dist/screengrid.mjs"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "repository": {
     "type": "git",
@@ -60,7 +61,7 @@
   "devDependencies": {
     "@rollup/plugin-commonjs": "^28.0.6",
     "@rollup/plugin-node-resolve": "^16.0.2",
-    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-terser": "^1.0.0",
     "rollup": "^4.52.4"
   }
 }
