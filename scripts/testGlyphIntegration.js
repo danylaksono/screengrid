@@ -2,10 +2,11 @@ import { Renderer } from '../src/canvas/Renderer.js';
 import { GlyphRegistry } from '../src/glyphs/GlyphRegistry.js';
 import '../src/glyphs/PublicTransportGlyph.js';
 import fs from 'fs';
+import { expandPtal } from '../examples/data/ptal-loader.js';
 
 if (typeof global.window === 'undefined') global.window = { devicePixelRatio: 1 };
 
-const data = JSON.parse(fs.readFileSync(new URL('../examples/data/public_transport_accessibility.json', import.meta.url)));
+const { data } = expandPtal(JSON.parse(fs.readFileSync(new URL('../examples/data/ptal-london.json', import.meta.url))));
 console.log('Loaded data length', data.length);
 
 // Build simple 4x4 grid, 2x2 cells for simplicity
@@ -30,6 +31,8 @@ const aggregationResult = { cols, rows, width, height, cellSizePixels, grid, cel
 const ctx = {
   clearRect: () => {},
   fillRect: () => {},
+  strokeRect: () => {},
+  rect: () => {},
   beginPath: () => {},
   arc: () => {},
   fill: () => {},

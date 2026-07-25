@@ -1,10 +1,11 @@
 import { ScreenGridLayerGL } from '../src/ScreenGridLayerGL.js';
 import '../src/glyphs/PublicTransportGlyph.js';
 import fs from 'fs';
+import { expandPtal } from '../examples/data/ptal-loader.js';
 
 if (typeof global.window === 'undefined') global.window = { devicePixelRatio: 1 };
 
-const data = JSON.parse(fs.readFileSync(new URL('../examples/data/public_transport_accessibility.json', import.meta.url)));
+const { data } = expandPtal(JSON.parse(fs.readFileSync(new URL('../examples/data/ptal-london.json', import.meta.url))));
 
 const layer = new ScreenGridLayerGL({
   id: 'pta-layer',

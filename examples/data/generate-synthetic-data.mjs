@@ -84,70 +84,16 @@ function makeCambridge() {
   return records;
 }
 
-// =====================================================================
-// 2) public_transport_accessibility.json — SYNTHETIC accessibility data
-//    Array of GeoJSON Features; the glyph reads props[`${cat}_pct_${m}`]
-//    and getPosition uses props.cent_long / props.cent_lat.
-//    Categories/minutes match src/glyphs/PublicTransportGlyph.js.
-// =====================================================================
-function makeAccessibility() {
-  const r = rng(52052026);
-  const CATS = ['employment', 'supermarket', 'school_primary', 'school_secondary', 'gp', 'hospitals'];
-  const MINUTES = [15, 30, 45, 60, 75, 90, 105, 120];
-  // per-category "abundance" scaling for the raw cumulative counts
-  const CAT_SCALE = { employment: 90000, supermarket: 350, school_primary: 900, school_secondary: 220, gp: 260, hospitals: 40 };
-  // Great Britain-ish bounding box
-  const LON = [-4.8, 1.6];
-  const LAT = [50.3, 55.4];
-  const N = 1200;
-  const between = ([lo, hi]) => lo + r() * (hi - lo);
-  const features = [];
-
-  for (let i = 0; i < N; i++) {
-    const cent_long = round(between(LON), 5);
-    const cent_lat = round(between(LAT), 5);
-    // urbanity 0..1: a few urban clusters + rural baseline
-    const urban = Math.max(0, Math.min(1, 0.25 + 0.75 * Math.pow(r(), 2.2)));
-    const props = {
-      fid: i + 1,
-      LSOA11CD: `S0${(1000000 + i).toString()}`, // synthetic code
-      LSOA11NM: `Synthetic Area ${i + 1}`,
-      cent_long,
-      cent_lat,
-      area: round(50000 + r() * 4000000, 2),
-      'geo-code': `S0${(1000000 + i).toString()}`,
-    };
-    for (const cat of CATS) {
-      const catBias = 0.6 + r() * 0.8; // per-feature, per-category variation
-      let prevPct = 0;
-      for (const m of MINUTES) {
-        // cumulative accessibility: rises with time-cut, saturating; scaled by urbanity
-        const saturation = 1 - Math.exp(-(m / 60) * (0.8 + urban * 1.6));
-        let pct = Math.max(prevPct, Math.min(1, saturation * urban * catBias));
-        pct = Math.min(1, pct + (r() - 0.5) * 0.02); // small noise, still monotonic-ish
-        pct = Math.max(prevPct, pct);
-        prevPct = pct;
-        props[`${cat}_${m}`] = Math.round(pct * CAT_SCALE[cat]);
-        props[`${cat}_pct_${m}`] = round(pct, 4);
-      }
-    }
-    features.push({
-      type: 'Feature',
-      properties: props,
-      geometry: { type: 'Point', coordinates: [cent_long, cent_lat] },
-    });
-  }
-  return features;
-}
+// Note: this script used to also emit a synthetic
+// public_transport_accessibility.json on a 0-1 scale. That generator has been
+// removed — the accessibility example now uses the real Verduzco et al. (2024)
+// London extract in ptal-london.json (0-100 scale), loaded via ptal-loader.js.
+// See examples/data/README.md and scripts/ptal/slim-ptal.mjs.
 
 fs.mkdirSync(OUT, { recursive: true });
 const cambridge = makeCambridge();
-const access = makeAccessibility();
 fs.writeFileSync(path.join(OUT, 'cambridge.json'), JSON.stringify(cambridge));
-fs.writeFileSync(path.join(OUT, 'public_transport_accessibility.json'), JSON.stringify(access));
 
 const sz = (p) => (fs.statSync(p).size / 1024).toFixed(0) + ' KB';
 console.log(`cambridge.json: ${cambridge.length} records, ${sz(path.join(OUT, 'cambridge.json'))}`);
-console.log(`public_transport_accessibility.json: ${access.length} features, ${sz(path.join(OUT, 'public_transport_accessibility.json'))}`);
 console.log('cambridge sample:', JSON.stringify(cambridge[0]));
-console.log('access sample props keys:', Object.keys(access[0].properties).length, 'fields');

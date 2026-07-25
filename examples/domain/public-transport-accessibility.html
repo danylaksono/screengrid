@@ -98,12 +98,9 @@
       </div>
       <div style="margin-top:4px; font-size:11px; color:#333;">Cumulative = per-feature sum across selected time bins,
         averaged per cell.</div>
-      <div style="margin-top:8px; padding-top:7px; border-top:1px solid #e2e6ea; font-size:10.5px; color:#767; line-height:1.45;">
-        <strong>Synthetic data.</strong> Values are generated to demonstrate the
-        glyph and do not describe real accessibility anywhere in Great Britain.
-        The schema mirrors DfT Journey Time Statistics (six service categories
-        &times; eight travel-time bands) so the example can be repointed at the
-        real release.
+      <div id="dataNote"
+        style="margin-top:8px; padding-top:7px; border-top:1px solid #e2e6ea; font-size:10.5px; color:#767; line-height:1.45;">
+        Loading data&hellip;
       </div>
     </div>
   </div>
@@ -111,6 +108,7 @@
   <script type="module">
     import { ScreenGridLayerGL } from '../../src/index.js';
     import '../../src/glyphs/PublicTransportGlyph.js';
+    import { loadPtal } from '../data/ptal-loader.js';
 
     const MINUTES = [15, 30, 45, 60, 75, 90, 105, 120];
 
@@ -133,8 +131,8 @@
         },
         layers: [{ id: 'carto-dark', type: 'raster', source: 'carto-dark' }]
       },
-      center: [-1.25, 52.5],
-      zoom: 6
+      center: [-0.118, 51.509],
+      zoom: 9.6
     });
 
     const minuteLabel = document.getElementById('minuteLabel');
@@ -148,14 +146,16 @@
     let currentGlobalMax = null;
 
     async function loadData() {
-      const url = '../data/public_transport_accessibility.json';
       try {
-        const res = await fetch(url);
-        data = await res.json();
-        console.log('Loaded accessibility data, records:', data.length);
+        const ptal = await loadPtal();
+        data = ptal.data;
+        const note = document.getElementById('dataNote');
+        if (note) note.innerHTML = `<strong>${ptal.label}.</strong> ${ptal.attribution}`;
         setupLayer();
       } catch (e) {
-        console.error('Failed to load data', e);
+        console.error('Failed to load accessibility data', e);
+        const note = document.getElementById('dataNote');
+        if (note) note.innerHTML = `<strong>Could not load data.</strong> ${e.message}`;
       }
     }
 

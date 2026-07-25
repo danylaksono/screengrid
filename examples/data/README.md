@@ -1,9 +1,14 @@
 # Example datasets
 
-All data in this folder is **synthetic** — generated purely to demonstrate the
+Most data in this folder is **synthetic** — generated purely to demonstrate the
 ScreenGrid library. It does not represent real people, places, buildings, or
 measurements, and it is not derived from any proprietary or third-party source.
 Coordinates use real geography only so the examples render over a familiar map.
+
+Two datasets are **real open data** and are labelled as such below:
+`ptal-london.json` (committed) and `santander-flows.json` (fetched locally).
+The London borough boundaries used by the geometry example are fetched live and
+never committed.
 
 ## `cambridge.json`
 
@@ -25,19 +30,49 @@ Each record:
 | `labour_cost`, `material_cost`, `total_cost` | number | GBP |
 | `ashp_carbonsaved`, `ev_carbonsaved`, `pv_carbonsaved` | number \| null | kgCO₂; only the field matching `technology` is set |
 
-## `public_transport_accessibility.json`
+## Real data — `ptal-london.json` (committed, 1.1 MB)
 
-A synthetic accessibility dataset: a GeoJSON `Feature` array spread across Great
-Britain. Used by `examples/domain/public-transport-accessibility.html` with the
-built-in `public-transport` glyph.
+**Real** public transport accessibility for **4,835 Greater London LSOAs**, from
+Verduzco Torres & McArthur (2024). Used by
+`examples/domain/public-transport-accessibility.html` with the built-in
+`public-transport` glyph. Loaded through `ptal-loader.js` — do not `fetch` it
+directly, the on-disk layout is columnar.
 
-Each feature's `properties` contains centroid coordinates and cumulative
-accessibility values for six categories × eight travel-time cuts:
+Cumulative accessibility for six categories × eight travel-time cuts:
 
 - categories: `employment`, `supermarket`, `school_primary`, `school_secondary`, `gp`, `hospitals`
 - minutes: `15, 30, 45, 60, 75, 90, 105, 120`
-- fields: `${category}_${minutes}` (synthetic count) and `${category}_pct_${minutes}` (0–1, cumulative/monotonic) — the glyph reads the `_pct_` fields
+- values: `${category}_pct_${minutes}` on a **0–100** scale, cumulative and monotonic across time cuts
 - positioning: `properties.cent_long`, `properties.cent_lat`
+
+The loader expands the columnar file into GeoJSON `Feature`s carrying exactly
+those `_pct_` field names, so the glyph sees the same shape it always has.
+
+### Why columnar, and how to regenerate
+
+The source extract is 19.1 MB. A `Feature`-per-record layout spends more bytes
+repeating key names like `"school_secondary_pct_105"` (6.6 MB across 4,835
+records) than on the values themselves, so the committed file stores columns and
+`ptal-loader.js` rebuilds the records. Combined with dropping unused MultiPolygon
+geometry (33% of the source), dropping the raw count columns the original
+metadata says were meant to be excluded, and rounding percentages to 1 dp, the
+file is **1.1 MB — 94% smaller** with no loss the glyph can express.
+
+The full source is preserved in git history. To regenerate:
+
+```bash
+git show d78801d:examples/data/public_transport_accessibility.json > ptal-full.json
+node scripts/ptal/slim-ptal.mjs ptal-full.json examples/data/ptal-london.json
+```
+
+The script re-checks that every category × time-cut series survives and stays
+monotonic, and fails rather than writing a broken file. See
+`public_transport_accessibility_metadata.md` for the original column
+descriptions.
+
+> Public transport accessibility indicators: Verduzco Torres, J.G. &
+> McArthur, D.P. (2024). Contains National Statistics and OS data © Crown
+> copyright and database right.
 
 ## `london.js` (generated at runtime, not committed as JSON)
 
