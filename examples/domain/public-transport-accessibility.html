@@ -22,44 +22,88 @@
       position: absolute;
       right: 10px;
       top: 10px;
-      background: white;
-      padding: 10px;
+      width: 214px;
+      background: rgba(255, 255, 255, 0.97);
+      padding: 9px 10px;
       border-radius: 6px;
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
-      z-index: 1000
+      font-size: 12px;
+      line-height: 1.35;
+      z-index: 1000;
+    }
+
+    .controls h1 {
+      margin: 0 0 7px;
+      font-size: 12.5px;
+      letter-spacing: 0.01em;
     }
 
     .controls label {
       display: block;
-      font-size: 13px;
-      margin-top: 6px
+      margin-top: 5px;
     }
 
     .controls input[type=range] {
-      width: 200px
+      width: 100%;
+      margin: 2px 0 0;
+      vertical-align: middle;
     }
 
-    .legend {
-      margin-top: 8px;
+    .controls select {
+      width: 100%;
       font-size: 12px;
+      margin-top: 1px;
     }
 
-    .legend .bar {
-      width: 180px;
-      height: 12px;
-      border-radius: 3px;
-      margin-top: 6px;
-      border: 1px solid rgba(0, 0, 0, 0.12);
-    }
-
-    .legend .row {
+    .controls .check {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 5px;
+      margin-top: 4px;
     }
 
-    .legend .label {
-      width: 90px;
+    .controls .check input {
+      margin: 0;
+    }
+
+    .val {
+      float: right;
+      color: #567;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Category swatches mirror the glyph's bar colours, in glyph order. */
+    .legend {
+      margin-top: 9px;
+      padding-top: 8px;
+      border-top: 1px solid #e4e8ec;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px 8px;
+    }
+
+    .legend .item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10.5px;
+      color: #445;
+    }
+
+    .legend .sw {
+      width: 9px;
+      height: 9px;
+      border-radius: 2px;
+      flex: none;
+    }
+
+    .foot {
+      margin-top: 8px;
+      padding-top: 7px;
+      border-top: 1px solid #e4e8ec;
+      font-size: 10px;
+      color: #7a8390;
+      line-height: 1.4;
     }
   </style>
 </head>
@@ -67,47 +111,34 @@
 <body>
   <div id="map"></div>
   <div class="controls">
-    <div><strong>Public Transport Accessibility</strong></div>
-    <label>Time bin: <span id="minuteLabel">120</span> min</label>
+    <h1>Public Transport Accessibility</h1>
+
+    <label for="timeSlider">Within <span class="val"><span id="minuteLabel">120</span> min</span></label>
     <input id="timeSlider" type="range" min="0" max="7" step="1" value="7" />
-    <label>Normalization:
-      <select id="normalizationSelect">
-        <option value="max-local">Max (local)</option>
-        <option value="max-global">Max (global)</option>
-        <option value="z-score">Z-score</option>
-        <option value="percentile">Percentile</option>
-      </select>
-    </label>
-    <label><input id="cumulativeToggle" type="checkbox" /> Show cumulative layer</label>
-    <label><input id="sparkToggle" type="checkbox" /> Show sparkline</label>
-    <div style="margin-top:8px">Glyph size: <input id="glyphSize" type="range" min="0.3" max="1.2" step="0.1"
-        value="0.8" /></div>
-    <div class="legend" id="legend">
-      <div><strong>Legend</strong></div>
-      <div class="row">
-        <div class="label">Cells (primary)</div>
-        <div class="bar" id="legend-primary" style="background: linear-gradient(90deg, rgb(0,200,50), rgb(255,0,50));">
-        </div>
-      </div>
-      <div class="row">
-        <div class="label">Cumulative</div>
-        <div class="bar" id="legend-cumulative"
-          style="background: linear-gradient(90deg, rgb(0,120,255), rgb(200,0,0));"></div>
-      </div>
-      <div style="margin-top:6px; font-size:11px; color:#333;">Normalization: <span id="legend-norm">Max (local)</span>
-      </div>
-      <div style="margin-top:4px; font-size:11px; color:#333;">Cumulative = per-feature sum across selected time bins,
-        averaged per cell.</div>
-      <div id="dataNote"
-        style="margin-top:8px; padding-top:7px; border-top:1px solid #e2e6ea; font-size:10.5px; color:#767; line-height:1.45;">
-        Loading data&hellip;
-      </div>
-    </div>
+
+    <label for="cellSize">Cell size <span class="val"><span id="cellSizeLabel">60</span> px</span></label>
+    <input id="cellSize" type="range" min="24" max="140" step="4" value="60" />
+
+    <label for="scaleSelect">Bar scale</label>
+    <select id="scaleSelect">
+      <option value="dataset">Data max, all bands</option>
+      <option value="band">Data max, this band</option>
+      <option value="absolute">Absolute 0&ndash;100%</option>
+    </select>
+
+    <div class="check"><input id="sparkToggle" type="checkbox" /><label for="sparkToggle">Time profile</label></div>
+    <div class="check"><input id="cumulativeToggle" type="checkbox" /><label for="cumulativeToggle">Mean across
+        bands</label></div>
+
+    <div class="legend" id="legend"></div>
+
+    <div class="foot" id="scaleNote"></div>
+    <div class="foot" id="dataNote">Loading data&hellip;</div>
   </div>
 
   <script type="module">
     import { ScreenGridLayerGL } from '../../src/index.js';
-    import '../../src/glyphs/PublicTransportGlyph.js';
+    import PublicTransportGlyph from '../../src/glyphs/PublicTransportGlyph.js';
     import { loadPtal } from '../data/ptal-loader.js';
 
     const MINUTES = [15, 30, 45, 60, 75, 90, 105, 120];
@@ -138,19 +169,86 @@
     const minuteLabel = document.getElementById('minuteLabel');
     const timeSlider = document.getElementById('timeSlider');
     const sparkToggle = document.getElementById('sparkToggle');
-    const glyphSizeInput = document.getElementById('glyphSize');
+    const cumToggle = document.getElementById('cumulativeToggle');
+    const cellSizeInput = document.getElementById('cellSize');
+    const cellSizeLabel = document.getElementById('cellSizeLabel');
+    const scaleSelect = document.getElementById('scaleSelect');
+    const scaleNote = document.getElementById('scaleNote');
+
+    // Glyphs should nearly fill their cell; the cell size slider is what
+    // actually changes how big they look, because it re-aggregates.
+    const GLYPH_FILL = 0.92;
 
     let gridLayer = null;
-    let cumulativeLayer = null;
     let data = null;
-    let currentGlobalMax = null;
+    let bandMax = [];   // observed maximum per time band
+    let overallMax = 1; // observed maximum across all bands
+
+    // Legend swatches come from the glyph itself, so panel and canvas can never
+    // drift apart on category order or colour.
+    (function buildLegend() {
+      const el = document.getElementById('legend');
+      el.innerHTML = PublicTransportGlyph.legend()
+        .map(({ name, color }) => `<div class="item"><span class="sw" style="background:${color}"></span>${
+          name.replace('school_', '').replace('_', ' ')}</div>`)
+        .join('');
+    })();
+
+    // One divisor shared by every cell. Never per-cell: that is the
+    // "local scaling hides differences" failure in the cartographic rubric.
+    // The data is a share of all London services, so its real range is ~0-35%
+    // and dividing by 100 would waste two thirds of every glyph.
+    function currentScale() {
+      const idx = Number(timeSlider.value);
+      switch (scaleSelect.value) {
+        case 'absolute': return 100;
+        case 'band': return bandMax[idx] || 100;
+        default: return overallMax || 100;
+      }
+    }
+
+    function describeScale() {
+      const idx = Number(timeSlider.value);
+      const scale = currentScale();
+      const texts = {
+        absolute: 'Bars are a share of <em>all</em> London services (0&ndash;100%). Honest, but this data only reaches ~35%, so bars stay short.',
+        dataset: `Bars scaled to the highest value in the data across all bands (${scale.toFixed(1)}%). Comparable between cells <em>and</em> between time bands.`,
+        band: `Bars scaled to the highest value at ${MINUTES[idx]} min (${scale.toFixed(1)}%). Fills the glyph at every band, but bands are no longer comparable with each other.`,
+      };
+      scaleNote.innerHTML = `${texts[scaleSelect.value]} Pale outline = the 120-minute value.`;
+    }
+
+    // setConfig replaces glyphConfig wholesale, so always send the full object.
+    function glyphConfig() {
+      return {
+        timeIndex: Number(timeSlider.value),
+        showSparkline: sparkToggle.checked,
+        cumulative: cumToggle.checked,
+        valueScale: currentScale(),
+      };
+    }
 
     async function loadData() {
       try {
         const ptal = await loadPtal();
         data = ptal.data;
+
+        // Observed maxima, computed once, shared by every cell.
+        bandMax = ptal.minutes.map((m) => {
+          let max = 0;
+          for (const f of data) {
+            for (const c of ptal.categories) {
+              const v = f.properties[`${c}_pct_${m}`];
+              if (v > max) max = v;
+            }
+          }
+          return max;
+        });
+        overallMax = Math.max(...bandMax);
+
         const note = document.getElementById('dataNote');
         if (note) note.innerHTML = `<strong>${ptal.label}.</strong> ${ptal.attribution}`;
+        describeScale();
         setupLayer();
       } catch (e) {
         console.error('Failed to load accessibility data', e);
@@ -163,133 +261,55 @@
       if (!data) return;
       if (gridLayer && map.getLayer(gridLayer.id)) map.removeLayer(gridLayer.id);
 
-      const cellSize = 60;
-      const timeIndex = Number(timeSlider.value);
-      const showSpark = sparkToggle.checked;
-      const glyphSize = Number(glyphSizeInput.value);
-      const normalization = document.getElementById('normalizationSelect').value;
-      const cumulativeOn = false; // primary layer is per-time by default
-
       gridLayer = ScreenGridLayerGL.glyphMap({
         id: 'pta-glyph-layer',
         data,
-        // data is expected to be features with a coordinate property named `centroid` or `COORDINATES`
-        getPosition: (d) => {
-          if (!d) return null;
-          // If the feature already provides a centroid array
-          if (Array.isArray(d.centroid) && d.centroid.length >= 2) return d.centroid;
-          // If the feature provides a simple COORDINATES array
-          if (Array.isArray(d.COORDINATES) && d.COORDINATES.length >= 2) return d.COORDINATES;
-          // If GeoJSON geometry is a Point / MultiPoint, extract first coordinate pair
-          if (d.geometry && d.geometry.type === 'Point' && Array.isArray(d.geometry.coordinates)) return d.geometry.coordinates;
-          if (d.geometry && d.geometry.type === 'MultiPoint' && Array.isArray(d.geometry.coordinates) && d.geometry.coordinates[0]) return d.geometry.coordinates[0];
-          // If the properties provide centroids as numbers (e.g., `cent_long` / `cent_lat`), use them
-          if (d.properties && typeof d.properties.cent_long === 'number' && typeof d.properties.cent_lat === 'number') return [d.properties.cent_long, d.properties.cent_lat];
-          // Fallback: try top-level cent_long / cent_lat
-          if (typeof d.cent_long === 'number' && typeof d.cent_lat === 'number') return [d.cent_long, d.cent_lat];
-          return null;
-        },
+        // Records are GeoJSON Point Features built by ptal-loader.js.
+        getPosition: (d) => (d?.geometry?.coordinates)
+          || (typeof d?.properties?.cent_long === 'number' ? [d.properties.cent_long, d.properties.cent_lat] : null),
         getWeight: () => 1,
-        cellSizePixels: cellSize,
-        colorScale: (v) => [255 * v, 200 * (1 - v), 50, 200],
-        glyphSize: glyphSize,
+        cellSizePixels: Number(cellSizeInput.value),
+        // Cell shading is a faint density cue only; the bars carry the measure.
+        colorScale: (v) => [90, 130, 170, 40 + 70 * v],
+        glyphSize: GLYPH_FILL,
         glyph: 'public-transport',
-        glyphConfig: { timeIndex: timeIndex, showSparkline: showSpark, debug: true },
-        normalizationFunction: normalization,
-        normalizationContext: (normalization === 'max-global' && currentGlobalMax) ? { globalMax: currentGlobalMax } : {},
-        showBackground: true,
-        onAggregate: (grid) => {
-          console.log('Aggregated', grid.cols, 'x', grid.rows);
-          // compute global max for max-global normalization
-          try {
-            const values = (grid && grid.grid) ? grid.grid.map(v => (typeof v === 'number' ? v : (v && typeof v === 'object' ? Object.values(v).filter(n => typeof n === 'number').reduce((s, n) => s + n, 0) : 0))) : [];
-            const gm = values.length ? values.reduce((m, v) => (v > m ? v : m), 0) : 0;
-            currentGlobalMax = gm || 0;
-            if (gridLayer) gridLayer.setConfig({ normalizationContext: (document.getElementById('normalizationSelect').value === 'max-global') ? { globalMax: currentGlobalMax } : {} });
-            if (cumulativeLayer) cumulativeLayer.setConfig({ normalizationContext: (document.getElementById('normalizationSelect').value === 'max-global') ? { globalMax: currentGlobalMax } : {} });
-          } catch (e) {
-            console.warn('Failed to compute global max', e);
-          }
-        },
-        onHover: ({ cell }) => {
-          // optional: show hover details
-          // console.log('hover', cell);
-        }
+        glyphConfig: glyphConfig(),
+        normalizationFunction: 'max-local',
+        showBackground: true
       });
 
       map.addLayer(gridLayer);
-
-      // prepare cumulative layer but do not add to map by default
-      cumulativeLayer = ScreenGridLayerGL.glyphMap({
-        id: 'pta-cumulative-layer',
-        data,
-        getPosition: gridLayer.config.getPosition,
-        getWeight: () => 1,
-        cellSizePixels: cellSize,
-        colorScale: (v) => [200 * v, 120 * (1 - v), 255 * (1 - v), 200],
-        glyphSize: glyphSize,
-        glyph: 'public-transport',
-        glyphConfig: { timeIndex: timeIndex, showSparkline: false, cumulative: true },
-        normalizationFunction: document.getElementById('normalizationSelect').value,
-        normalizationContext: (document.getElementById('normalizationSelect').value === 'max-global' && currentGlobalMax) ? { globalMax: currentGlobalMax } : {},
-        showBackground: false,
-        onAggregate: (grid) => { /* reuse global max update via primary layer */ }
-      });
     }
 
     map.on('load', () => {
       loadData();
     });
 
+    function refreshGlyph() {
+      if (gridLayer) gridLayer.setConfig({ glyphConfig: glyphConfig() });
+    }
+
     timeSlider.addEventListener('input', () => {
-      const idx = Number(timeSlider.value);
-      minuteLabel.textContent = MINUTES[idx];
-      if (gridLayer) gridLayer.setConfig({ glyphConfig: { timeIndex: idx, showSparkline: sparkToggle.checked } });
-      if (cumulativeLayer) cumulativeLayer.setConfig({ glyphConfig: { timeIndex: idx, cumulative: true } });
+      minuteLabel.textContent = MINUTES[Number(timeSlider.value)];
+      describeScale();
+      refreshGlyph();
     });
 
-    sparkToggle.addEventListener('change', () => {
-      const idx = Number(timeSlider.value);
-      if (gridLayer) gridLayer.setConfig({ glyphConfig: { timeIndex: idx, showSparkline: sparkToggle.checked } });
+    sparkToggle.addEventListener('change', refreshGlyph);
+    cumToggle.addEventListener('change', refreshGlyph);
+
+    scaleSelect.addEventListener('change', () => {
+      describeScale();
+      refreshGlyph();
     });
 
-    glyphSizeInput.addEventListener('input', () => {
-      const v = Number(glyphSizeInput.value);
-      if (gridLayer) gridLayer.setConfig({ glyphSize: v });
-      if (cumulativeLayer) cumulativeLayer.setConfig({ glyphSize: v });
+    // Changing the cell size re-aggregates: glyphs grow and stay tiled, and the
+    // number of LSOAs summarised by each cell changes with them.
+    cellSizeInput.addEventListener('input', () => {
+      const px = Number(cellSizeInput.value);
+      cellSizeLabel.textContent = px;
+      if (gridLayer) gridLayer.setConfig({ cellSizePixels: px });
     });
-
-    // normalization selector
-    const normSelect = document.getElementById('normalizationSelect');
-    normSelect.addEventListener('change', () => {
-      const val = normSelect.value;
-      if (gridLayer) gridLayer.setConfig({ normalizationFunction: val, normalizationContext: (val === 'max-global' && currentGlobalMax) ? { globalMax: currentGlobalMax } : {} });
-      if (cumulativeLayer) cumulativeLayer.setConfig({ normalizationFunction: val, normalizationContext: (val === 'max-global' && currentGlobalMax) ? { globalMax: currentGlobalMax } : {} });
-      // update legend text
-      const legendNorm = document.getElementById('legend-norm');
-      if (legendNorm) {
-        const mapping = { 'max-local': 'Max (local)', 'max-global': 'Max (global)', 'z-score': 'Z-score', 'percentile': 'Percentile' };
-        legendNorm.textContent = mapping[val] || val;
-      }
-    });
-
-    // cumulative toggle
-    const cumToggle = document.getElementById('cumulativeToggle');
-    cumToggle.addEventListener('change', () => {
-      if (cumToggle.checked) {
-        if (cumulativeLayer && !map.getLayer(cumulativeLayer.id)) map.addLayer(cumulativeLayer);
-        // highlight legend
-        const el = document.getElementById('legend-cumulative'); if (el) el.style.outline = '2px solid rgba(255,255,255,0.12)';
-      } else {
-        if (cumulativeLayer && map.getLayer(cumulativeLayer.id)) map.removeLayer(cumulativeLayer.id);
-        const el = document.getElementById('legend-cumulative'); if (el) el.style.outline = 'none';
-      }
-      // trigger repaint
-      if (gridLayer && map) map.triggerRepaint();
-    });
-
-    // Initialize legend text on load
-    const legendNormInit = document.getElementById('legend-norm'); if (legendNormInit) legendNormInit.textContent = document.getElementById('normalizationSelect').selectedOptions[0].textContent;
   </script>
 </body>
 

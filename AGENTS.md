@@ -173,6 +173,20 @@ failure mode of gridded glyphmaps.
 
 **Beyond the validator (not machine-checked — your judgment):**
 
+- **Expose cell size, not glyph size.** When a user asks to "change the glyph size",
+  what they almost always want is `cellSizePixels` — the aggregation size. `glyphSize`
+  only scales the mark inside a fixed cell, so turning it up makes neighbouring glyphs
+  collide while the aggregation stays identical, and turning it down just wastes the
+  cell. Changing `cellSizePixels` re-aggregates: glyphs grow *and* stay tiled without
+  overlap, and the number of records per cell changes with them. Give controls a cell
+  size slider; keep `glyphSize` fixed near 0.9 so a glyph nearly fills its cell.
+- **Set the value domain from the data, not from the theoretical maximum.** A "share of
+  everything" measure whose real range is 0–35% wastes two thirds of every glyph if you
+  divide by 100. Divide by the observed maximum instead — but take that maximum **once,
+  across all cells**, and apply the same divisor to every cell. A per-cell divisor is
+  the "local scaling hides differences" failure: two cells with different values render
+  identically, and a cell can change encoding between frames. State which domain is in
+  use in the legend.
 - Prefer the **simplest glyph that answers the intent**; complexity is a cost, not a
   feature.
 - Always render a legend; label what the normalization means ("scaled to view maximum"
