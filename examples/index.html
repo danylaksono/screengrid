@@ -128,6 +128,58 @@
   </header>
 
   <main>
+    <h2>Declarative Grammar</h2>
+    <section class="grid">
+      <a class="card" href="grammar/01-density.html">
+        <span class="eyebrow">Grammar</span>
+        <span class="title">01 · Density Pipeline</span>
+        <span class="desc">The full profile → intent → validate → compile → render pipeline on ~40k synthetic London points, with a live validation report.</span>
+      </a>
+      <a class="card" href="grammar/02-suitability-mcda.html">
+        <span class="eyebrow">Grammar</span>
+        <span class="title">02 · Suitability (MCDA)</span>
+        <span class="desc">A parameterised weighted-sum derived measure with live weight sliders and a normalization toggle that makes the comparability warning fire.</span>
+      </a>
+      <a class="card" href="grammar/03-composition.html">
+        <span class="eyebrow">Grammar</span>
+        <span class="title">03 · Composition Glyphs</span>
+        <span class="desc">Pie glyphs whose slices come from each cell's lazy semantic measures, with the category-count guardrail and a sparse-cell cue.</span>
+      </a>
+    </section>
+
+    <h2>Case Studies</h2>
+    <section class="grid">
+      <a class="card" href="case-studies/od-flows.html">
+        <span class="eyebrow">Case Study</span>
+        <span class="title">OD Flow Glyphmap</span>
+        <span class="desc">Origin–destination trips as per-cell flow roses (Slingsby), with global/local reference scaling (Wickham), time-period facets, and mean-trip-length colour.</span>
+      </a>
+      <a class="card" href="case-studies/inter-cell-flows.html">
+        <span class="eyebrow">Case Study</span>
+        <span class="title">Inter-Cell Flow Lines</span>
+        <span class="desc">Cells draw arcs to the cells their trips reach — a flow network that re-forms as you pan and zoom. Declutter, facet, and swap origin/destination.</span>
+      </a>
+      <a class="card" href="case-studies/od-bundling.html">
+        <span class="eyebrow">Case Study</span>
+        <span class="title">Grid-Routed OD Bundling</span>
+        <span class="desc">The inter-cell network with each arc routed through a coarse grid, so parallel flows merge into corridors. A bundling-strength slider trades detail for structure.</span>
+      </a>
+      <a class="card" href="case-studies/edge-bundling.html">
+        <span class="eyebrow">Case Study</span>
+        <span class="title">Force-Directed OD Bundling</span>
+        <span class="desc">Holten &amp; van Wijk force-directed edge bundling over the cell-to-cell arcs — compatible flows attract into organic bundles. Computed on settle; straight while dragging.</span>
+      </a>
+    </section>
+
+    <h2>Rendering At Scale</h2>
+    <section class="grid">
+      <a class="card" href="stress-test/london-stress.html">
+        <span class="eyebrow">Performance</span>
+        <span class="title">Stress Test</span>
+        <span class="desc">How the library holds up rendering up to 500k points: square vs hex tessellation, colour-fill vs per-cell glyph, and a live FPS meter. Re-aggregates every frame on pan/zoom.</span>
+      </a>
+    </section>
+
     <h2>Start Here</h2>
     <section class="grid">
       <a class="card" href="getting-started/basic-density.html">

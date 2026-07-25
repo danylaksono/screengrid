@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grammar 01 — Density (validate → compile → render)</title>
+  <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    :root { --panel: 380px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .app { display: flex; height: 100vh; }
+    #map { flex: 1; }
+    .panel { width: var(--panel); background: #0f1216; color: #d7dde5; overflow-y: auto; padding: 18px; }
+    .panel h1 { font-size: 17px; margin: 0 0 4px; }
+    .panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #8b96a5; margin: 20px 0 8px; }
+    .sub { color: #8b96a5; font-size: 13px; margin: 0 0 8px; line-height: 1.45; }
+    pre { background: #171c22; border: 1px solid #232a32; border-radius: 8px; padding: 12px; font-size: 11.5px; line-height: 1.45; overflow-x: auto; color: #c8d2dd; }
+    .report { border-radius: 8px; padding: 10px 12px; font-size: 13px; margin: 4px 0; }
+    .ok { background: #14301f; border: 1px solid #245c39; color: #7fe0a3; }
+    .warn { background: #33280f; border: 1px solid #6b551f; color: #f2cf7a; }
+    .err { background: #351717; border: 1px solid #6b2a2a; color: #f2908c; }
+    .report ul { margin: 6px 0 0; padding-left: 18px; }
+    .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 20px; background: #1d2530; color: #9fb0c3; border: 1px solid #2a333f; }
+    .stat { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; border-bottom: 1px solid #1c2229; }
+    .stat b { color: #eaf0f6; font-variant-numeric: tabular-nums; }
+    .nav { font-size: 12px; color: #6f7b8a; margin-top: 22px; }
+    .nav a { color: #7fb2e8; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div id="map"></div>
+    <div class="panel">
+      <h1>01 · Density</h1>
+      <p class="sub">The full grammar pipeline on ~40k synthetic Greater-London points:
+        <b>profile → declare intent → validate → compile → render</b>. The spec (below) is
+        the deliverable; the map is one compilation of it.</p>
+
+      <h2>Validation report <span id="checkability" class="badge">—</span></h2>
+      <div id="report"></div>
+
+      <h2>Live stats</h2>
+      <div class="stat"><span>Points</span><b id="s-points">—</b></div>
+      <div class="stat"><span>Grid</span><b id="s-grid">—</b></div>
+      <div class="stat"><span>Populated cells</span><b id="s-cells">—</b></div>
+      <div class="stat"><span>Aggregation</span><b id="s-agg">—</b></div>
+
+      <h2>The spec</h2>
+      <pre id="spec"></pre>
+
+      <div class="nav">
+        Next: <a href="02-suitability-mcda.html">02 · Suitability (MCDA)</a> ·
+        <a href="03-composition.html">03 · Composition</a>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { validateSpec, compileSpec, ScreenGridLayerGL } from '../../src/index.js';
+    import { generateLondonPoints, buildLondonProfile, LONDON_CENTER } from '../data/london.js';
+    import { colorScaleFromPalette } from './grammar-render-bridge.js';
+
+    // 1) Profile the data (embedded in the spec so it is self-describing).
+    const data = generateLondonPoints({ count: 40000, seed: 42 });
+    const datasetProfile = buildLondonProfile(data);
+
+    // 2) Declare intent + write the spec.
+    const spec = {
+      version: '0.2.0',
+      datasetProfile,
+      intent: {
+        task: 'density',
+        comparison: 'across-cells',
+        question: 'Where are records concentrated across the current view?'
+      },
+      parameters: [],
+      screengrid: {
+        coordinateSystem: 'lonlat',
+        coordinateFields: { x: 'lon', y: 'lat' },
+        aggregationMode: 'screen-grid',
+        aggregation: { function: 'count' },
+        derivedMeasures: [],
+        cellSizePixels: 44,
+        summaries: [
+          { name: 'count', role: 'primary', op: 'count', reliability: { warnBelowCount: 5 } }
+        ],
+        normalization: 'max-local'
+      },
+      glyph: {
+        type: 'heatmap',
+        channels: {},
+        scales: { color: 'sequential' },
+        palette: 'ember',
+        legend: { enabled: true }
+      },
+      interaction: { hover: true, click: true }
+    };
+
+    document.getElementById('spec').textContent = JSON.stringify(spec, null, 2);
+
+    // 3) Validate — errors block; warnings are cartographic risks to heed or justify.
+    const report = validateSpec(spec);
+    renderReport(report);
+    if (!report.valid) throw new Error('Spec invalid:\n' + report.errors.join('\n'));
+
+    // 4) Compile — spec becomes ScreenGridLayerGL options (analytical half).
+    const { layerOptions, checkability } = compileSpec(spec);
+    document.getElementById('checkability').textContent = 'checkability: ' + checkability;
+
+    // 5) Supply the visual half (palette → colorScale) and render.
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: darkBasemap(),
+      center: LONDON_CENTER,
+      zoom: 10.5
+    });
+
+    document.getElementById('s-points').textContent = data.length.toLocaleString();
+
+    map.on('load', () => {
+      const layer = ScreenGridLayerGL.density({
+        id: 'density',
+        data,
+        ...layerOptions,
+        colorScale: colorScaleFromPalette(spec.glyph.palette),
+        onAggregate: (grid) => {
+          const t0 = performance.now();
+          const populated = grid.grid.reduce((n, v) => n + (v > 0 ? 1 : 0), 0);
+          document.getElementById('s-grid').textContent = `${grid.cols} × ${grid.rows}`;
+          document.getElementById('s-cells').textContent = populated.toLocaleString();
+          document.getElementById('s-agg').textContent = `${(performance.now() - t0).toFixed(1)} ms (post)`;
+        }
+      });
+      map.addLayer(layer);
+    });
+
+    function renderReport(r) {
+      const el = document.getElementById('report');
+      let html = '';
+      if (r.valid) html += `<div class="report ok">✓ Valid — no blocking errors.</div>`;
+      if (r.errors.length) html += `<div class="report err"><b>${r.errors.length} error(s)</b><ul>${r.errors.map(li).join('')}</ul></div>`;
+      if (r.warnings.length) html += `<div class="report warn"><b>${r.warnings.length} cartographic warning(s)</b> — heed or justify:<ul>${r.warnings.map(li).join('')}</ul></div>`;
+      el.innerHTML = html;
+    }
+    function li(s) { return `<li>${s.replace(/</g, '&lt;')}</li>`; }
+
+    function darkBasemap() {
+      return {
+        version: 8,
+        sources: { dark: { type: 'raster', tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors © CARTO' } },
+        layers: [{ id: 'dark', type: 'raster', source: 'dark' }]
+      };
+    }
+  </script>
+</body>
+</html>

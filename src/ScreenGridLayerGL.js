@@ -443,18 +443,28 @@ export class ScreenGridLayerGL {
    * @private
    */
   _handleHover(e) {
+    // Only a glyph callback can render a cell differently when hovered; the base
+    // colour path ignores hover state. So hover only needs to do work when a
+    // glyph is active or an onHover callback is registered — otherwise every
+    // mouse move would pointlessly query a cell and force a full canvas repaint
+    // (expensive in hex mode, where each cell is a 6-vertex path).
+    const wantsHoverRender = (this.config.enableGlyphs || Boolean(this.config.onDrawCell))
+      && this.config.hoverRepaint !== false;
+    const wantsHoverCallback = typeof this.config.onHover === 'function';
+    if (!wantsHoverRender && !wantsHoverCallback) return;
+
     const cell = this.getCellAt({ x: e.point.x, y: e.point.y });
     const newHoveredIndex = (cell && cell.index !== undefined) ? cell.index : -1;
-    
+
     if (this._hoveredIndex !== newHoveredIndex) {
       this._hoveredIndex = newHoveredIndex;
-      // Trigger repaint to update highlight if needed
-      if (this.map) {
+      // Repaint only when the rendered output depends on hover (glyph highlight).
+      if (wantsHoverRender && this.map) {
         this.map.triggerRepaint();
       }
     }
 
-    if (this.config.onHover && typeof this.config.onHover === 'function') {
+    if (wantsHoverCallback) {
       this.config.onHover({ cell, event: e });
     }
   }

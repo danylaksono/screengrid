@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Case study — grid-routed OD bundling (London)</title>
+  <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    :root { --panel: 372px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .app { display: flex; height: 100vh; }
+    #map { flex: 1; background: #070a0d; }
+    .panel { width: var(--panel); background: #0d1014; color: #d7dde5; overflow-y: auto; padding: 18px; }
+    h1 { font-size: 17px; margin: 0 0 4px; }
+    h2 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: #8b96a5; margin: 18px 0 8px; }
+    .sub { color: #93a0b0; font-size: 13px; line-height: 1.5; margin: 0 0 6px; }
+    .credit { font-size: 11.5px; color: #6f7b8a; line-height: 1.5; }
+    label { display: block; font-size: 13px; margin: 12px 0 5px; color: #c8d2dd; }
+    label b { float: right; color: #eaf0f6; font-variant-numeric: tabular-nums; }
+    input[type=range] { width: 100%; }
+    .seg { display: flex; gap: 5px; flex-wrap: wrap; }
+    .seg button { flex: 1 1 auto; padding: 7px 6px; font-size: 12px; background: #161b21; color: #c8d2dd; border: 1px solid #29323d; border-radius: 6px; cursor: pointer; }
+    .seg button.active { background: #2b6cb0; border-color: #2b6cb0; color: #fff; }
+    .legend-grad { height: 12px; border-radius: 6px; background: linear-gradient(90deg, rgb(38,180,180), rgb(180,200,90), rgb(242,160,60)); }
+    .legend-scale { display: flex; justify-content: space-between; font-size: 11px; color: #8b96a5; margin-top: 3px; }
+    .metric { display: flex; justify-content: space-between; font-size: 12.5px; padding: 3px 0; border-bottom: 1px solid #1b2129; }
+    .metric b { color: #eaf0f6; font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div id="map"></div>
+    <div class="panel">
+      <h1>Grid-routed OD bundling</h1>
+      <p class="sub">The inter-cell flow network, but each arc is <b>routed through a coarse
+        intermediate grid</b> instead of drawn straight. Arcs travelling the same way snap to the
+        same coarse nodes, so they merge into <b>bundles</b> along shared corridors. Raise the
+        bundling grid to gather more flows onto fewer corridors; lower it toward straight lines.</p>
+      <p class="credit">A cheap grid approximation of edge bundling — no cross-cell state: the coarse
+        routing grid is deterministic screen-space, so shared corridors emerge geometrically. Still
+        analytical bins, not real routes; the network re-forms on pan/zoom. <span id="src">…</span></p>
+
+      <h2>Bundling grid <b id="bd-val">3×</b></h2>
+      <input id="bundle" type="range" min="1" max="8" step="1" value="3" />
+
+      <h2>Aggregate by</h2>
+      <div class="seg" id="by">
+        <button data-by="origin" class="active">Origin → destinations</button>
+        <button data-by="destination">Destination → origins</button>
+      </div>
+
+      <h2>Time period</h2>
+      <div class="seg" id="period">
+        <button data-period="all" class="active">All</button>
+        <button data-period="am">AM peak</button>
+        <button data-period="pm">PM peak</button>
+        <button data-period="offpeak">Off-peak</button>
+      </div>
+
+      <h2>Reference scaling</h2>
+      <div class="seg" id="scaling">
+        <button data-scaling="global" class="active">Global</button>
+        <button data-scaling="local">Local</button>
+      </div>
+
+      <h2>Declutter — min trips per arc <b id="mf-val">1</b></h2>
+      <input id="minFlow" type="range" min="1" max="40" step="1" value="1" />
+
+      <h2>Cell size <b id="cs-val">72</b></h2>
+      <input id="cellSize" type="range" min="44" max="140" step="4" value="72" />
+
+      <h2>Arc colour — mean trip length</h2>
+      <div class="legend-grad"></div>
+      <div class="legend-scale"><span>short</span><span>≥ 20 km</span></div>
+
+      <h2>View</h2>
+      <div class="metric"><span>Trips (period)</span><b id="m-trips">—</b></div>
+      <div class="metric"><span>Origin cells</span><b id="m-cells">—</b></div>
+      <div class="metric"><span>Cell-to-cell arcs</span><b id="m-arcs">—</b></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { ScreenGridLayerGL } from '../../src/index.js';
+    import { LONDON_CENTER } from '../data/london.js';
+    import { loadFlows } from '../data/flows-loader.js';
+
+    const DIST_MAX = 20;
+    const view = { by: 'origin', period: 'all', scaling: 'global', minFlow: 1, cellSize: 72, bundle: 3 };
+    let GLOBAL_MAX = 1;
+
+    const { data: allFlows, source, attribution } = await loadFlows({ count: 9000, seed: 99 });
+    document.getElementById('src').textContent = attribution;
+    if (source === 'santander') document.getElementById('src').style.color = '#8fbfe0';
+    const map = new maplibregl.Map({ container: 'map', style: darkBasemap(), center: LONDON_CENTER, zoom: 10.2 });
+    let layer = null;
+
+    const RAMP = [[38, 180, 180], [180, 200, 90], [242, 160, 60]];
+    function distanceColor(meanKm, alpha) {
+      const t = Math.min(1, meanKm / DIST_MAX) * (RAMP.length - 1);
+      const i = Math.min(RAMP.length - 2, Math.floor(t));
+      const f = t - i, a = RAMP[i], b = RAMP[i + 1];
+      return `rgba(${Math.round(a[0] + (b[0] - a[0]) * f)}, ${Math.round(a[1] + (b[1] - a[1]) * f)}, ${Math.round(a[2] + (b[2] - a[2]) * f)}, ${alpha})`;
+    }
+
+    // Bin this cell's trips by the OTHER-END cell (same as the inter-cell example).
+    function binOtherEnd(records) {
+      const cs = view.cellSize;
+      const lonKey = view.by === 'origin' ? 'dlon' : 'olon';
+      const latKey = view.by === 'origin' ? 'dlat' : 'olat';
+      const dest = new Map();
+      let localMax = 0;
+      for (let i = 0; i < records.length; i++) {
+        const d = records[i].data;
+        const p = map.project([d[lonKey], d[latKey]]);
+        const col = Math.floor(p.x / cs), row = Math.floor(p.y / cs);
+        const key = col + ',' + row;
+        let e = dest.get(key);
+        if (!e) { e = { x: (col + 0.5) * cs, y: (row + 0.5) * cs, count: 0, distSum: 0 }; dest.set(key, e); }
+        e.count += 1;
+        e.distSum += d.dist_km;
+      }
+      const destinations = [];
+      for (const e of dest.values()) { destinations.push(e); if (e.count > localMax) localMax = e.count; }
+      return { destinations, localMax, total: records.length };
+    }
+
+    // Route a straight segment through the coarse grid: sample it, snap each
+    // sample to the nearest coarse grid NODE (intersection at multiples of
+    // `coarse`), and keep the distinct node sequence. Parallel arcs snap to the
+    // same nodes → they overlap → bundles. Returns [start, ...nodes, end].
+    function routeThroughGrid(x0, y0, x1, y1, coarse) {
+      const dx = x1 - x0, dy = y1 - y0, dist = Math.hypot(dx, dy);
+      const steps = Math.max(2, Math.ceil(dist / coarse));
+      const pts = [{ x: x0, y: y0 }];
+      let lastKey = null;
+      for (let s = 1; s < steps; s++) {
+        const t = s / steps;
+        const gx = Math.round((x0 + dx * t) / coarse) * coarse;
+        const gy = Math.round((y0 + dy * t) / coarse) * coarse;
+        const key = gx + ',' + gy;
+        if (key !== lastKey) { pts.push({ x: gx, y: gy }); lastKey = key; }
+      }
+      pts.push({ x: x1, y: y1 });
+      return pts;
+    }
+
+    function drawBundled(ctx, x, y, normVal, cell) {
+      const cd = cell.customData;
+      if (!cd) return;
+      const ref = view.scaling === 'global' ? (GLOBAL_MAX || 1) : (cd.localMax || 1);
+      const coarse = view.cellSize * view.bundle;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      const dests = cd.destinations;
+      for (let i = 0; i < dests.length; i++) {
+        const dst = dests[i];
+        if (dst.count < view.minFlow) continue;
+        if (dst.x === x && dst.y === y) continue;
+        const strength = Math.min(1, dst.count / ref);
+        const pts = routeThroughGrid(x, y, dst.x, dst.y, coarse);
+        // Smooth polyline: quadratics with each interior node as a control point
+        // and segment midpoints as on-curve anchors.
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let k = 1; k < pts.length - 1; k++) {
+          ctx.quadraticCurveTo(pts[k].x, pts[k].y, (pts[k].x + pts[k + 1].x) / 2, (pts[k].y + pts[k + 1].y) / 2);
+        }
+        const last = pts[pts.length - 1];
+        ctx.lineTo(last.x, last.y);
+        ctx.strokeStyle = distanceColor(dst.distSum / dst.count, 0.16 + 0.5 * strength);
+        ctx.lineWidth = 0.5 + 3 * Math.sqrt(strength);
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.arc(x, y, 1.4, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.fill();
+    }
+
+    function currentFlows() {
+      return view.period === 'all' ? allFlows : allFlows.filter((f) => f.period === view.period);
+    }
+
+    function rebuild() {
+      if (!map.isStyleLoaded()) { map.once('idle', rebuild); return; }
+      if (layer && map.getLayer('bundled')) map.removeLayer('bundled');
+      const data = currentFlows();
+      const lonKey = view.by === 'origin' ? 'olon' : 'dlon';
+      const latKey = view.by === 'origin' ? 'olat' : 'dlat';
+      document.getElementById('m-trips').textContent = data.length.toLocaleString();
+
+      layer = ScreenGridLayerGL.glyphMap({
+        id: 'bundled',
+        data,
+        getPosition: (d) => [d[lonKey], d[latKey]],
+        getWeight: () => 1,
+        cellSizePixels: view.cellSize,
+        showBackground: false,
+        hoverRepaint: false,
+        glyphSize: 1,
+        colorScale: () => [0, 0, 0, 0],
+        onAfterAggregate: (records) => binOtherEnd(records),
+        onDrawCell: drawBundled,
+        onAggregate: (result) => {
+          const cd = result.customData;
+          let gmax = 1, cells = 0, arcs = 0;
+          for (let i = 0; i < cd.length; i++) {
+            const c = cd[i];
+            if (!c) continue;
+            cells += 1; arcs += c.destinations.length;
+            if (c.localMax > gmax) gmax = c.localMax;
+          }
+          GLOBAL_MAX = gmax;
+          document.getElementById('m-cells').textContent = cells.toLocaleString();
+          document.getElementById('m-arcs').textContent = arcs.toLocaleString();
+        },
+      });
+      map.addLayer(layer);
+    }
+
+    function repaint() { if (map) map.triggerRepaint(); }
+
+    document.getElementById('bundle').addEventListener('input', (e) => {
+      view.bundle = parseInt(e.target.value, 10);
+      document.getElementById('bd-val').textContent = view.bundle + '×';
+      repaint();
+    });
+    document.getElementById('minFlow').addEventListener('input', (e) => {
+      view.minFlow = parseInt(e.target.value, 10);
+      document.getElementById('mf-val').textContent = view.minFlow;
+      repaint();
+    });
+    document.getElementById('cellSize').addEventListener('input', (e) => {
+      view.cellSize = parseInt(e.target.value, 10);
+      document.getElementById('cs-val').textContent = view.cellSize;
+      rebuild();
+    });
+    seg('by', (v) => { view.by = v; rebuild(); });
+    seg('period', (v) => { view.period = v; rebuild(); });
+    seg('scaling', (v) => { view.scaling = v; repaint(); });
+    function seg(id, onPick) {
+      const root = document.getElementById(id);
+      root.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+        root.querySelectorAll('button').forEach((x) => x.classList.remove('active'));
+        b.classList.add('active');
+        onPick(b.dataset[id]);
+      }));
+    }
+
+    map.on('load', rebuild);
+
+    function darkBasemap() {
+      return {
+        version: 8,
+        sources: { dark: { type: 'raster', tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors © CARTO' } },
+        layers: [{ id: 'dark', type: 'raster', source: 'dark' }]
+      };
+    }
+  </script>
+</body>
+</html>

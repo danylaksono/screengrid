@@ -4,7 +4,25 @@
  */
 
 import { Logger } from '../utils/Logger.js';
-import { NormalizationFunctionRegistry, NormalizationFunctions } from '../normalization/functions/index.js';
+import {
+  NormalizationFunctionRegistry,
+  NormalizationFunctions,
+  maxLocalNormalization,
+  maxGlobalNormalization,
+  zScoreNormalization,
+} from '../normalization/functions/index.js';
+
+// Built-in normalizations that never read `context.sortedValues`. When the
+// active normalization is one of these, the renderer skips the per-frame
+// O(n log n) sort entirely (the common max-local/max-global/z-score paths).
+// Percentile — and any custom function that might read sortedValues — is not
+// listed, so it still gets a prepared sorted array (percentile also has its own
+// fallback in PercentileNormalization.js if the array is ever absent).
+const NON_SORTING_NORMALIZATIONS = new Set([
+  maxLocalNormalization,
+  maxGlobalNormalization,
+  zScoreNormalization,
+]);
 
 export class Renderer {
   constructor() {}
@@ -56,9 +74,14 @@ export class Renderer {
    * @param {Array<Array>|null} cellData - Optional per-cell point lists; when
    *   provided, cells are counted as "with data" based on point count rather
    *   than value > 0 (so zero/negative aggregates are not dropped).
+   * @param {Object} [options]
+   * @param {boolean} [options.needsSorted=true] - When false, `sortedValues` is
+   *   left empty so the render loop avoids an O(n log n) sort every frame. Only
+   *   the percentile normalization consumes `sortedValues`; the default paths do
+   *   not, so callers that know the active normalization can opt out.
    * @private
    */
-  static _computeStats(grid, cellData = null) {
+  static _computeStats(grid, cellData = null, { needsSorted = true } = {}) {
     const values = [];
     for (let i = 0; i < grid.length; i++) {
       const points = cellData ? cellData[i] : undefined;
@@ -97,7 +120,7 @@ export class Renderer {
     variance /= values.length;
     const std = Math.sqrt(variance);
 
-    const sortedValues = values.slice().sort((a, b) => a - b);
+    const sortedValues = needsSorted ? values.slice().sort((a, b) => a - b) : [];
 
     return {
       max,
@@ -114,8 +137,16 @@ export class Renderer {
    * Public stats helper for aggregation modes that need renderer-compatible
    * normalization context.
    */
-  static computeStats(grid, cellData = null) {
-    return Renderer._computeStats(grid, cellData);
+  static computeStats(grid, cellData = null, options = {}) {
+    return Renderer._computeStats(grid, cellData, options);
+  }
+
+  /**
+   * Whether a resolved normalization function reads `context.sortedValues`.
+   * Used to decide if `_computeStats` should pay for the per-frame sort.
+   */
+  static _needsSortedValues(normFn) {
+    return !NON_SORTING_NORMALIZATIONS.has(normFn);
   }
 
   /**
@@ -156,18 +187,21 @@ export class Renderer {
       hoveredIndex = -1 // Global hovered index
     } = config;
 
-    // Compute stats for normalization (cell "has data" is based on point
-    // count, so cells that aggregate to 0 or negative values still render)
-    const stats = Renderer._computeStats(grid, cellData);
-
-    if (stats.cellsWithData === 0) {
-      return;
-    }
-
     // Get normalization function (default to max-local for backward compatibility)
     const normFn = normalizationFunction
       ? (NormalizationFunctionRegistry.get(normalizationFunction) || normalizationFunction)
       : NormalizationFunctions.maxLocal;
+
+    // Compute stats for normalization (cell "has data" is based on point
+    // count, so cells that aggregate to 0 or negative values still render).
+    // Only sort cell values when the active normalization actually needs them.
+    const stats = Renderer._computeStats(grid, cellData, {
+      needsSorted: Renderer._needsSortedValues(normFn),
+    });
+
+    if (stats.cellsWithData === 0) {
+      return;
+    }
 
     // Build normalization context
     const normContext = {

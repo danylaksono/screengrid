@@ -29,6 +29,17 @@ export function validateSpec(spec) {
   const warnings = [];
   let checkability = 'full';
 
+  // Structural pre-flight. The cross-field and cartographic rules below
+  // dereference these containers directly (spec.screengrid.coordinateFields.x,
+  // spec.glyph.type, ...), so a partially-built spec must come back as
+  // { valid: false, errors } rather than throwing a TypeError. Specs are often
+  // assembled incrementally (LLM authoring, the demo's patch-validate loop), so
+  // returning actionable errors here is part of the contract.
+  const structuralErrors = preflightStructure(spec);
+  if (structuralErrors.length > 0) {
+    return { valid: false, errors: structuralErrors, warnings, checkability };
+  }
+
   const fields = new Set(spec.datasetProfile?.fields?.map((field) => field.name) || []);
   const numeric = new Set((spec.datasetProfile?.fields || []).filter((field) => field.type === 'number').map((field) => field.name));
   const categoricalProfiles = (spec.datasetProfile?.fields || []).filter((field) => field.type === 'string');
@@ -90,7 +101,7 @@ export function validateSpec(spec) {
 
   const colorField = spec.glyph.channels?.color?.field;
   const colorProfile = spec.datasetProfile.fields.find((field) => field.name === colorField);
-  if (colorProfile?.type === 'string' && spec.glyph.scales.color !== 'categorical') {
+  if (colorProfile?.type === 'string' && spec.glyph.scales?.color !== 'categorical') {
     warnings.push('Categorical color fields should use a categorical color scale.');
   }
   if (spec.glyph.type === 'pie' && !spec.glyph.channels?.segments?.field) {
@@ -103,6 +114,31 @@ export function validateSpec(spec) {
   validateCustomGlyph(spec, fields, numeric, errors, warnings);
 
   return { valid: errors.length === 0, errors, warnings, checkability };
+}
+
+function preflightStructure(spec) {
+  if (!spec || typeof spec !== 'object') {
+    return ['Spec must be an object.'];
+  }
+  const errors = [];
+  const requireObject = (value, name) => {
+    if (!value || typeof value !== 'object') {
+      errors.push(`Spec is missing the "${name}" object.`);
+      return false;
+    }
+    return true;
+  };
+
+  if (requireObject(spec.datasetProfile, 'datasetProfile') && !Array.isArray(spec.datasetProfile.fields)) {
+    errors.push('datasetProfile.fields must be an array (use [] before profiling).');
+  }
+  requireObject(spec.intent, 'intent');
+  if (requireObject(spec.screengrid, 'screengrid')) {
+    requireObject(spec.screengrid.coordinateFields, 'screengrid.coordinateFields');
+    requireObject(spec.screengrid.aggregation, 'screengrid.aggregation');
+  }
+  requireObject(spec.glyph, 'glyph');
+  return errors;
 }
 
 function validateParameters(spec, errors) {

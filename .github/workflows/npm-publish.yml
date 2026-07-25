@@ -27,22 +27,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Cache npm token
-        run: echo "NODE_AUTH_TOKEN=${{ secrets.NPM_TOKEN }}" >> $GITHUB_ENV
-
       - name: Build
         run: npm run build
 
-      - name: Stamp version with build number
-        run: |
-          node - <<'EOF'
-          const fs = require('fs');
-          const pkgPath = './package.json';
-          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-          const coreVersion = pkg.version.split('-')[0];
-          pkg.version = `${coreVersion}-${process.env.GITHUB_RUN_NUMBER}`;
-          fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
-          EOF
+      - name: Test
+        run: node tests/run-unit-tests.js
 
       - name: Determine versions
         id: versions
@@ -59,8 +48,9 @@ jobs:
 
       - name: Publish to npm
         if: steps.versions.outputs.publish == 'true'
-        run: |
-          npm publish --access public --provenance
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Summary
         run: |

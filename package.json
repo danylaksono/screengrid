@@ -27,13 +27,13 @@
   "author": "Dany Laksono",
   "license": "MIT",
   "peerDependencies": {
-    "maplibre-gl": "^4.0.0"
+    "maplibre-gl": ">=4"
   },
   "files": [
     "index.d.ts",
     "dist/",
     "src/grammar/schemas/",
-    "docs/",
+    "docs/*.md",
     "AGENTS.md",
     "README.md",
     "LICENSE"

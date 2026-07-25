@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grammar 02 — Suitability (MCDA, parameterised weighted-sum)</title>
+  <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    :root { --panel: 380px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .app { display: flex; height: 100vh; }
+    #map { flex: 1; }
+    .panel { width: var(--panel); background: #0f1216; color: #d7dde5; overflow-y: auto; padding: 18px; }
+    .panel h1 { font-size: 17px; margin: 0 0 4px; }
+    .panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #8b96a5; margin: 20px 0 8px; }
+    .sub { color: #8b96a5; font-size: 13px; margin: 0 0 8px; line-height: 1.45; }
+    label { display: block; font-size: 13px; margin: 14px 0 4px; color: #c8d2dd; }
+    label b { color: #eaf0f6; font-variant-numeric: tabular-nums; float: right; }
+    input[type=range] { width: 100%; }
+    pre { background: #171c22; border: 1px solid #232a32; border-radius: 8px; padding: 12px; font-size: 11px; line-height: 1.4; overflow-x: auto; color: #c8d2dd; }
+    .report { border-radius: 8px; padding: 10px 12px; font-size: 13px; margin: 4px 0; }
+    .ok { background: #14301f; border: 1px solid #245c39; color: #7fe0a3; }
+    .warn { background: #33280f; border: 1px solid #6b551f; color: #f2cf7a; }
+    .err { background: #351717; border: 1px solid #6b2a2a; color: #f2908c; }
+    .report ul { margin: 6px 0 0; padding-left: 18px; }
+    .row { display: flex; gap: 8px; align-items: center; font-size: 13px; margin-top: 8px; }
+    .nav { font-size: 12px; color: #6f7b8a; margin-top: 22px; }
+    .nav a { color: #7fb2e8; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div id="map"></div>
+    <div class="panel">
+      <h1>02 · Suitability (MCDA)</h1>
+      <p class="sub">A parameterised <b>weighted-sum</b> derived measure: find London cells that
+        are <b>accessible</b> and <b>affordable</b>. Weights are declared grammar
+        <b>parameters</b> — move the sliders to recompile the aggregation, clamped to each
+        parameter's domain. The computation is in the spec, not hidden in code.</p>
+
+      <label>Weight — accessibility (higher is better) <b id="wa-val">0.50</b></label>
+      <input id="w_access" type="range" min="0" max="1" step="0.05" value="0.5" />
+
+      <label>Weight — rent cost (inverted: lower is better) <b id="wc-val">0.50</b></label>
+      <input id="w_cost" type="range" min="0" max="1" step="0.05" value="0.5" />
+
+      <div class="row">
+        <input id="normToggle" type="checkbox" checked />
+        <label for="normToggle" style="margin:0; display:inline;">Global normalization (comparable across cells)</label>
+      </div>
+
+      <h2>Validation report</h2>
+      <div id="report"></div>
+
+      <h2>Compiled aggregation</h2>
+      <pre id="derived"></pre>
+
+      <div class="nav">
+        <a href="01-density.html">← 01 · Density</a> ·
+        Next: <a href="03-composition.html">03 · Composition</a>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { validateSpec, compileSpec, ScreenGridLayerGL } from '../../src/index.js';
+    import { generateLondonPoints, buildLondonProfile, LONDON_CENTER } from '../data/london.js';
+    import { colorScaleFromPalette } from './grammar-render-bridge.js';
+
+    const data = generateLondonPoints({ count: 45000, seed: 7 });
+    const datasetProfile = buildLondonProfile(data);
+
+    function buildSpec(globalNorm) {
+      return {
+        version: '0.2.0',
+        datasetProfile,
+        intent: {
+          task: 'suitability',
+          comparison: 'across-cells',
+          question: 'Which cells best balance accessibility against rent?'
+        },
+        parameters: [
+          { name: 'w_access', domain: [0, 1], default: 0.5 },
+          { name: 'w_cost',   domain: [0, 1], default: 0.5 }
+        ],
+        screengrid: {
+          coordinateSystem: 'lonlat',
+          coordinateFields: { x: 'lon', y: 'lat' },
+          aggregationMode: 'screen-grid',
+          aggregation: { function: 'derived', measure: 'suitability' },
+          derivedMeasures: [{
+            name: 'suitability',
+            op: 'weighted-sum',
+            aggregate: 'mean',
+            terms: [
+              { field: 'access', weight: { param: 'w_access' }, normalize: 'global' },
+              { field: 'rent',   weight: { param: 'w_cost' },   normalize: 'global', invert: true }
+            ]
+          }],
+          cellSizePixels: 48,
+          summaries: [{ name: 'count', role: 'primary', op: 'count', reliability: { warnBelowCount: 5 } }],
+          // Composite scores are only comparable across cells under GLOBAL scaling.
+          // Toggle this to watch the validator flag the mismatch.
+          normalization: globalNorm ? 'max-global' : 'max-local'
+        },
+        glyph: { type: 'heatmap', channels: {}, scales: { color: 'sequential' }, palette: 'viridis', legend: { enabled: true } },
+        interaction: { hover: true, click: true }
+      };
+    }
+
+    const map = new maplibregl.Map({ container: 'map', style: darkBasemap(), center: LONDON_CENTER, zoom: 10.4 });
+    let layer = null;
+
+    map.on('load', rebuild);
+    ['w_access', 'w_cost'].forEach((id) => document.getElementById(id).addEventListener('input', rebuild));
+    document.getElementById('normToggle').addEventListener('change', rebuild);
+
+    function rebuild() {
+      const w_access = parseFloat(document.getElementById('w_access').value);
+      const w_cost = parseFloat(document.getElementById('w_cost').value);
+      document.getElementById('wa-val').textContent = w_access.toFixed(2);
+      document.getElementById('wc-val').textContent = w_cost.toFixed(2);
+
+      const spec = buildSpec(document.getElementById('normToggle').checked);
+      const report = validateSpec(spec);
+      renderReport(report);
+      if (!report.valid) return;
+
+      const { layerOptions } = compileSpec(spec, { parameters: { w_access, w_cost } });
+      document.getElementById('derived').textContent = JSON.stringify(spec.screengrid.derivedMeasures[0], null, 2);
+
+      if (layer && map.getLayer('mcda')) map.removeLayer('mcda');
+      layer = ScreenGridLayerGL.density({
+        id: 'mcda',
+        data,
+        ...layerOptions,
+        colorScale: colorScaleFromPalette(spec.glyph.palette),
+      });
+      map.addLayer(layer);
+    }
+
+    function renderReport(r) {
+      const el = document.getElementById('report');
+      let html = r.valid ? `<div class="report ok">✓ Valid</div>` : '';
+      if (r.errors.length) html += `<div class="report err"><b>${r.errors.length} error(s)</b><ul>${r.errors.map(li).join('')}</ul></div>`;
+      if (r.warnings.length) html += `<div class="report warn"><b>${r.warnings.length} warning(s)</b><ul>${r.warnings.map(li).join('')}</ul></div>`;
+      el.innerHTML = html;
+    }
+    function li(s) { return `<li>${s.replace(/</g, '&lt;')}</li>`; }
+
+    function darkBasemap() {
+      return {
+        version: 8,
+        sources: { dark: { type: 'raster', tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors © CARTO' } },
+        layers: [{ id: 'dark', type: 'raster', source: 'dark' }]
+      };
+    }
+  </script>
+</body>
+</html>

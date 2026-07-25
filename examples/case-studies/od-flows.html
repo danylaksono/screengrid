@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Case study — OD flow glyphmap (London)</title>
+  <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    :root { --panel: 372px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .app { display: flex; height: 100vh; }
+    #map { flex: 1; background: #0a0d10; }
+    .panel { width: var(--panel); background: #0d1014; color: #d7dde5; overflow-y: auto; padding: 18px; }
+    h1 { font-size: 17px; margin: 0 0 4px; }
+    h2 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: #8b96a5; margin: 20px 0 8px; }
+    .sub { color: #93a0b0; font-size: 13px; line-height: 1.5; margin: 0 0 6px; }
+    .credit { font-size: 11.5px; color: #6f7b8a; line-height: 1.5; }
+    .credit a { color: #7fb2e8; text-decoration: none; }
+    label { display: block; font-size: 13px; margin: 12px 0 5px; color: #c8d2dd; }
+    label b { float: right; color: #eaf0f6; font-variant-numeric: tabular-nums; }
+    input[type=range] { width: 100%; }
+    .seg { display: flex; gap: 5px; flex-wrap: wrap; }
+    .seg button { flex: 1 1 auto; padding: 7px 6px; font-size: 12px; background: #161b21; color: #c8d2dd; border: 1px solid #29323d; border-radius: 6px; cursor: pointer; }
+    .seg button.active { background: #2b6cb0; border-color: #2b6cb0; color: #fff; }
+    .readout { background: #161b21; border: 1px solid #232a32; border-radius: 8px; padding: 10px 12px; font-size: 13px; min-height: 48px; line-height: 1.5; }
+    .legend-grad { height: 12px; border-radius: 6px; background: linear-gradient(90deg, rgb(38,180,180), rgb(180,200,90), rgb(242,160,60)); }
+    .legend-scale { display: flex; justify-content: space-between; font-size: 11px; color: #8b96a5; margin-top: 3px; }
+    .compass { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #93a0b0; }
+    .metric { display: flex; justify-content: space-between; font-size: 12.5px; padding: 3px 0; border-bottom: 1px solid #1b2129; }
+    .metric b { color: #eaf0f6; font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div id="map"></div>
+    <div class="panel">
+      <h1>Origin–destination flows as gridded glyphs</h1>
+      <p class="sub">Each screen cell aggregates the trip <b>origins</b> that fall inside it and
+        draws a <b>flow rose</b>: a petal per compass direction, its length the number of trips
+        heading that way, its colour the mean trip length. Pan and zoom — the cells re-bin to the
+        view, so the roses are analytical bins, never fixed zones.</p>
+      <p class="credit">Technique: gridded glyphmaps, <b>Aidan Slingsby</b> (IEEE VIS 2023).
+        The global/local reference scaling follows <b>Wickham, Hofmann, Wickham &amp; Cook</b>,
+        <i>Glyph-maps for visually exploring temporal patterns in climate data</i> (2012).
+        <span id="src">…</span></p>
+
+      <h2>Time period</h2>
+      <div class="seg" id="period">
+        <button data-period="all" class="active">All</button>
+        <button data-period="am">AM peak</button>
+        <button data-period="pm">PM peak</button>
+        <button data-period="offpeak">Off-peak</button>
+      </div>
+
+      <h2>Reference scaling <span style="text-transform:none;color:#6f7b8a">(Wickham)</span></h2>
+      <div class="seg" id="scaling">
+        <button data-scaling="global" class="active">Global — comparable</button>
+        <button data-scaling="local">Local — shape</button>
+      </div>
+
+      <h2>Petal colour</h2>
+      <div class="seg" id="colorby">
+        <button data-colorby="distance" class="active">Mean trip length</button>
+        <button data-colorby="mono">Single hue</button>
+      </div>
+      <div id="distLegend">
+        <div class="legend-grad"></div>
+        <div class="legend-scale"><span>short</span><span>≥ 20 km</span></div>
+      </div>
+
+      <h2>Cell size <b id="cs-val">64</b></h2>
+      <input id="cellSize" type="range" min="40" max="120" step="4" value="64" />
+
+      <h2>Cell under cursor</h2>
+      <div class="readout" id="readout">Hover a cell…</div>
+
+      <h2>View</h2>
+      <div class="metric"><span>Trips (period)</span><b id="m-trips">—</b></div>
+      <div class="metric"><span>Populated cells</span><b id="m-cells">—</b></div>
+      <div class="metric"><span>Busiest direction (cell)</span><b id="m-busiest">—</b></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { ScreenGridLayerGL } from '../../src/index.js';
+    import { LONDON_CENTER } from '../data/london.js';
+    import { loadFlows } from '../data/flows-loader.js';
+
+    // 16-point compass; sectors are aligned to compass points (centre = s*22.5°).
+    const NSECTORS = 16;
+    const SECTOR_DEG = 360 / NSECTORS;
+    const COMPASS = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+    const DIST_MAX = 20; // km, colour-ramp ceiling
+
+    // Render state read by the glyph/onAggregate closures; toggles just repaint.
+    const view = { period: 'all', scaling: 'global', colorBy: 'distance', cellSize: 64 };
+    let GLOBAL_MAX = 1;          // busiest single direction across all cells (this view)
+    let busiestCell = 0;         // for the panel metric
+
+    const { data: allFlows, source, attribution } = await loadFlows({ count: 9000, seed: 99 });
+    document.getElementById('src').textContent = attribution;
+    if (source === 'santander') document.getElementById('src').style.color = '#8fbfe0';
+
+    // --- Per-cell precompute (runs once per cell per aggregation) -------------
+    // Bin each origin's trips by destination bearing into 16 compass sectors.
+    // Stored as customData and read by the glyph — the glyph itself does no
+    // trig and no re-tally (the efficient raw route over cell.cellData).
+    function binFlows(records) {
+      const hist = new Float64Array(NSECTORS);
+      const dist = new Float64Array(NSECTORS);
+      let localMax = 0;
+      for (let i = 0; i < records.length; i++) {
+        const d = records[i].data;
+        let s = Math.floor(((d.bearing + SECTOR_DEG / 2) % 360) / SECTOR_DEG) % NSECTORS;
+        if (s < 0) s += NSECTORS;
+        hist[s] += 1;
+        dist[s] += d.dist_km;
+      }
+      for (let s = 0; s < NSECTORS; s++) if (hist[s] > localMax) localMax = hist[s];
+      return { hist, dist, localMax, total: records.length };
+    }
+
+    // Short→long distance ramp (teal → chartreuse → amber).
+    const RAMP = [[38, 180, 180], [180, 200, 90], [242, 160, 60]];
+    function distanceColor(meanKm) {
+      const t = Math.min(1, meanKm / DIST_MAX) * (RAMP.length - 1);
+      const i = Math.min(RAMP.length - 2, Math.floor(t));
+      const f = t - i, a = RAMP[i], b = RAMP[i + 1];
+      return `rgba(${Math.round(a[0] + (b[0] - a[0]) * f)}, ${Math.round(a[1] + (b[1] - a[1]) * f)}, ${Math.round(a[2] + (b[2] - a[2]) * f)}, 0.92)`;
+    }
+
+    // --- The glyph -----------------------------------------------------------
+    const HALF = (SECTOR_DEG * Math.PI / 180) / 2;
+    function drawFlowRose(ctx, x, y, normVal, cell) {
+      const cd = cell.customData;
+      if (!cd || cd.total === 0) return;
+      const maxR = cell.glyphRadius || 20;
+
+      // Faint reference circle = full scale (Wickham's reference box idea).
+      ctx.beginPath();
+      ctx.arc(x, y, maxR, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      const ref = view.scaling === 'global' ? (GLOBAL_MAX || 1) : (cd.localMax || 1);
+      for (let s = 0; s < NSECTORS; s++) {
+        const count = cd.hist[s];
+        if (!count) continue;
+        // Area-proportional length; sqrt keeps a few huge cells from swamping the rest.
+        const len = maxR * Math.sqrt(Math.min(1, count / ref));
+        // Bearing (0=N, clockwise) → canvas angle (0=E, clockwise since y is down): θ−90°.
+        const centre = (s * SECTOR_DEG) * Math.PI / 180 - Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.arc(x, y, len, centre - HALF, centre + HALF);
+        ctx.closePath();
+        ctx.fillStyle = view.colorBy === 'mono' ? 'rgba(125,184,255,0.9)' : distanceColor(cd.dist[s] / count);
+        ctx.fill();
+      }
+
+      // Sparse-cell cue from the precomputed count (no semantic read in the hot path).
+      if (cd.total < 5) {
+        ctx.beginPath();
+        ctx.arc(x, y, maxR + 1.5, 0, Math.PI * 2);
+        ctx.setLineDash([2, 2]);
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    const map = new maplibregl.Map({ container: 'map', style: darkBasemap(), center: LONDON_CENTER, zoom: 10.2 });
+    let layer = null;
+
+    function currentFlows() {
+      return view.period === 'all' ? allFlows : allFlows.filter((f) => f.period === view.period);
+    }
+
+    function rebuild() {
+      if (!map.isStyleLoaded()) { map.once('idle', rebuild); return; }
+      if (layer && map.getLayer('flows')) map.removeLayer('flows');
+      const data = currentFlows();
+      document.getElementById('m-trips').textContent = data.length.toLocaleString();
+
+      layer = ScreenGridLayerGL.glyphMap({
+        id: 'flows',
+        data,
+        getPosition: (d) => [d.olon, d.olat],   // aggregate by ORIGIN
+        getWeight: () => 1,
+        cellSizePixels: view.cellSize,
+        showBackground: false,
+        hoverRepaint: false,                    // rose doesn't use isHovered
+        glyphSize: 0.9,
+        colorScale: () => [0, 0, 0, 0],
+        onAfterAggregate: (records) => binFlows(records),
+        onDrawCell: drawFlowRose,
+        onAggregate: (result) => {
+          // Global reference: busiest single direction across all cells (runs
+          // before _draw, so the glyph sees a fresh GLOBAL_MAX). Cheap: reads the
+          // per-cell localMax already computed in onAfterAggregate.
+          const cd = result.customData;
+          let gmax = 1, populated = 0, busiestIdx = 0;
+          for (let i = 0; i < cd.length; i++) {
+            const c = cd[i];
+            if (!c) continue;
+            populated += 1;
+            if (c.localMax > gmax) { gmax = c.localMax; busiestIdx = i; }
+          }
+          GLOBAL_MAX = gmax;
+          busiestCell = busiestIdx;
+          document.getElementById('m-cells').textContent = populated.toLocaleString();
+          const bc = cd[busiestIdx];
+          if (bc) document.getElementById('m-busiest').textContent = `${COMPASS[argmax(bc.hist)]} · ${bc.localMax} trips`;
+        },
+        onHover: ({ cell }) => {
+          const cd = cell && cell.customData;
+          if (!cd) { document.getElementById('readout').textContent = 'Empty cell'; return; }
+          const dom = argmax(cd.hist);
+          const meanKm = totalDist(cd) / cd.total;
+          // Interaction is occasional (one cell) — the semantic route is fine here:
+          // read the cell's reliability facet for the sample-size caveat.
+          const rel = cell.reliability;
+          document.getElementById('readout').innerHTML =
+            `<b>${cd.total}</b> trips · busiest <b>${COMPASS[dom]}</b> (${cd.hist[dom]})<br>` +
+            `mean length <b>${meanKm.toFixed(1)} km</b> · sample: <b>${rel.sampleSizeClass}</b>` +
+            (rel.warnings.length ? `<br><span style="color:#f2cf7a">⚠ ${rel.warnings.join(', ')}</span>` : '');
+        },
+      });
+      map.addLayer(layer);
+    }
+
+    function repaint() { if (map) map.triggerRepaint(); }
+    const argmax = (arr) => { let m = 0, mi = 0; for (let i = 0; i < arr.length; i++) if (arr[i] > m) { m = arr[i]; mi = i; } return mi; };
+    const totalDist = (cd) => { let t = 0; for (let s = 0; s < NSECTORS; s++) t += cd.dist[s]; return t; };
+
+    // --- Controls ------------------------------------------------------------
+    seg('period', (v) => { view.period = v; rebuild(); });
+    seg('scaling', (v) => { view.scaling = v; repaint(); });
+    seg('colorby', (v) => {
+      view.colorBy = v;
+      document.getElementById('distLegend').style.opacity = v === 'distance' ? '1' : '0.35';
+      repaint();
+    });
+    document.getElementById('cellSize').addEventListener('input', (e) => {
+      view.cellSize = parseInt(e.target.value, 10);
+      document.getElementById('cs-val').textContent = view.cellSize;
+      rebuild();
+    });
+    function seg(id, onPick) {
+      const root = document.getElementById(id);
+      root.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+        root.querySelectorAll('button').forEach((x) => x.classList.remove('active'));
+        b.classList.add('active');
+        onPick(b.dataset[id === 'colorby' ? 'colorby' : id]);
+      }));
+    }
+
+    map.on('load', rebuild);
+
+    function darkBasemap() {
+      return {
+        version: 8,
+        sources: { dark: { type: 'raster', tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors © CARTO' } },
+        layers: [{ id: 'dark', type: 'raster', source: 'dark' }]
+      };
+    }
+  </script>
+</body>
+</html>

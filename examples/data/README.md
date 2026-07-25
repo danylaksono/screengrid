@@ -39,6 +39,46 @@ accessibility values for six categories × eight travel-time cuts:
 - fields: `${category}_${minutes}` (synthetic count) and `${category}_pct_${minutes}` (0–1, cumulative/monotonic) — the glyph reads the `_pct_` fields
 - positioning: `properties.cent_long`, `properties.cent_lat`
 
+## `london.js` (generated at runtime, not committed as JSON)
+
+A dependency-free ES module that generates synthetic multivariate **Greater
+London** points on demand, used by the grammar examples (`examples/grammar/`) and
+the stress test (`examples/stress-test/`). Nothing is committed as data — the
+pages call `generateLondonPoints({ count, seed })` in the browser, so the same
+`(count, seed)` always yields the same points and the stress test can scale to
+500k without a large file in the repo.
+
+Only public geography drives it: a Greater London bounding box and approximate
+town-centre coordinates seed the clustering; every attribute is invented.
+
+- `generateLondonPoints({ count, seed, scatter })` → records with `lon`, `lat`,
+  `borough`, `land_use` (`residential`/`retail`/`office`/`greenspace`/`industrial`),
+  `price`, `access`, `rent`, `pm25`, `year`.
+- `buildLondonProfile(records)` → the `datasetProfile` the grammar validates and
+  compiles against, with real numeric `min`/`max` (global term normalization
+  needs them) and categorical `distinctCount`s (the category guardrail uses them).
+- `generateLondonFlows({ count, seed })` → synthetic origin–destination trips for
+  the flow-glyph case study (`examples/case-studies/od-flows.html`): each trip has
+  an origin/destination, precomputed `bearing` and `dist_km`, a `period`
+  (`am`/`pm`/`offpeak`) and a `purpose`. Commutes flow residential → employment in
+  the AM peak and reverse in the PM peak. Aggregate by the origin (`[olon, olat]`).
+
+## Real data — `santander-flows.json` (optional, not committed)
+
+The flow case studies load real **Santander Cycle Hire** journeys when this file
+is present, and fall back to `generateLondonFlows` otherwise (via
+`flows-loader.js`). It is produced by
+[`scripts/santander/fetch-santander-flows.mjs`](../../scripts/santander/), which
+downloads TfL Open Data journeys and joins them to BikePoint station
+coordinates. The file (and its `-meta.json`) are git-ignored — regenerate
+locally:
+
+```bash
+node scripts/santander/fetch-santander-flows.mjs --months=1 --max-rows=20000  # quick trial
+```
+
+> Powered by TfL Open Data. Cycle hire data © Transport for London.
+
 ## Regenerating
 
 These files are produced by a small deterministic generator (seeded PRNG). If

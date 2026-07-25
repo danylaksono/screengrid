@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Case study — force-directed OD edge bundling (London)</title>
+  <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    :root { --panel: 372px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .app { display: flex; height: 100vh; }
+    #map { flex: 1; background: #070a0d; }
+    .panel { width: var(--panel); background: #0d1014; color: #d7dde5; overflow-y: auto; padding: 18px; }
+    h1 { font-size: 17px; margin: 0 0 4px; }
+    h2 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: #8b96a5; margin: 18px 0 8px; }
+    .sub { color: #93a0b0; font-size: 13px; line-height: 1.5; margin: 0 0 6px; }
+    .credit { font-size: 11.5px; color: #6f7b8a; line-height: 1.5; }
+    label { display: block; font-size: 13px; margin: 12px 0 5px; color: #c8d2dd; }
+    label b { float: right; color: #eaf0f6; font-variant-numeric: tabular-nums; }
+    input[type=range] { width: 100%; }
+    .seg { display: flex; gap: 5px; flex-wrap: wrap; }
+    .seg button { flex: 1 1 auto; padding: 7px 6px; font-size: 12px; background: #161b21; color: #c8d2dd; border: 1px solid #29323d; border-radius: 6px; cursor: pointer; }
+    .seg button.active { background: #2b6cb0; border-color: #2b6cb0; color: #fff; }
+    .legend-grad { height: 12px; border-radius: 6px; background: linear-gradient(90deg, rgb(38,180,180), rgb(180,200,90), rgb(242,160,60)); }
+    .legend-scale { display: flex; justify-content: space-between; font-size: 11px; color: #8b96a5; margin-top: 3px; }
+    .metric { display: flex; justify-content: space-between; font-size: 12.5px; padding: 3px 0; border-bottom: 1px solid #1b2129; }
+    .metric b { color: #eaf0f6; font-variant-numeric: tabular-nums; }
+    .hint { font-size: 11.5px; color: #6f7b8a; line-height: 1.5; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div id="map"></div>
+    <div class="panel">
+      <h1>Force-directed OD edge bundling</h1>
+      <p class="sub">The cell-to-cell flow network with <b>force-directed edge bundling</b>:
+        compatible arcs (similar direction, length, position) attract each other and merge into
+        organic bundles. Bundling is computed when the map settles; while you drag, arcs are drawn
+        straight for speed.</p>
+      <p class="credit">Edge bundling after <b>Holten &amp; van Wijk</b>, <i>Force-Directed Edge
+        Bundling for Graph Visualization</i> (2009), run over the screen-space cell-to-cell arcs.
+        Gridded glyphmap technique: <b>Slingsby</b>. <span id="src">…</span></p>
+
+      <h2>Bundling strength <b id="bs-val">3</b></h2>
+      <input id="strength" type="range" min="0" max="5" step="1" value="3" />
+      <div class="hint" id="bstate">0 = off (straight arcs). Recomputes on release.</div>
+
+      <h2>Aggregate by</h2>
+      <div class="seg" id="by">
+        <button data-by="origin" class="active">Origin → destinations</button>
+        <button data-by="destination">Destination → origins</button>
+      </div>
+
+      <h2>Time period</h2>
+      <div class="seg" id="period">
+        <button data-period="all" class="active">All</button>
+        <button data-period="am">AM peak</button>
+        <button data-period="pm">PM peak</button>
+        <button data-period="offpeak">Off-peak</button>
+      </div>
+
+      <h2>Width scaling</h2>
+      <div class="seg" id="scaling">
+        <button data-scaling="global" class="active">Global</button>
+        <button data-scaling="local">Local</button>
+      </div>
+
+      <h2>Declutter — min trips per arc <b id="mf-val">2</b></h2>
+      <input id="minFlow" type="range" min="1" max="40" step="1" value="2" />
+
+      <h2>Cell size <b id="cs-val">80</b></h2>
+      <input id="cellSize" type="range" min="48" max="140" step="4" value="80" />
+
+      <h2>Arc colour — mean trip length</h2>
+      <div class="legend-grad"></div>
+      <div class="legend-scale"><span>short</span><span>≥ 20 km</span></div>
+
+      <h2>View</h2>
+      <div class="metric"><span>Trips (period)</span><b id="m-trips">—</b></div>
+      <div class="metric"><span>Arcs (drawn / total)</span><b id="m-arcs">—</b></div>
+      <div class="metric"><span>Bundled</span><b id="m-bundled">—</b></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { ScreenGridLayerGL } from '../../src/index.js';
+    import { LONDON_CENTER } from '../data/london.js';
+    import { loadFlows } from '../data/flows-loader.js';
+    import { bundleEdges } from './fdeb.js';
+
+    const DIST_MAX = 20;
+    const CAP = 200; // hard cap on bundled edges (FDEB is O(E²) — keep it bounded)
+    const view = { by: 'origin', period: 'all', scaling: 'global', minFlow: 2, cellSize: 80, strength: 3 };
+    const compatFor = (s) => 0.85 - s * 0.1; // higher strength → lower threshold → more bundling
+
+    let GLOBAL_MAX = 1;
+    let edgesByCell = new Map();       // cellIndex -> { edges, localMax }
+    let bundleCache = new Map();       // edgeKey -> points[]   (valid for bundleSig)
+    let bundleSig = null;
+    let bundleNow = false;
+
+    const { data: allFlows, source, attribution } = await loadFlows({ count: 9000, seed: 99 });
+    document.getElementById('src').textContent = attribution;
+    if (source === 'santander') document.getElementById('src').style.color = '#8fbfe0';
+
+    const map = new maplibregl.Map({ container: 'map', style: darkBasemap(), center: LONDON_CENTER, zoom: 10.2 });
+    let layer = null;
+
+    const RAMP = [[38, 180, 180], [180, 200, 90], [242, 160, 60]];
+    function distanceColor(meanKm, alpha) {
+      const t = Math.min(1, meanKm / DIST_MAX) * (RAMP.length - 1);
+      const i = Math.min(RAMP.length - 2, Math.floor(t));
+      const f = t - i, a = RAMP[i], b = RAMP[i + 1];
+      return `rgba(${Math.round(a[0] + (b[0] - a[0]) * f)}, ${Math.round(a[1] + (b[1] - a[1]) * f)}, ${Math.round(a[2] + (b[2] - a[2]) * f)}, ${alpha})`;
+    }
+
+    // Bin this cell's trips by the OTHER-END cell (col/row kept for a stable key).
+    function binOtherEnd(records) {
+      const cs = view.cellSize;
+      const lonKey = view.by === 'origin' ? 'dlon' : 'olon';
+      const latKey = view.by === 'origin' ? 'dlat' : 'olat';
+      const dest = new Map();
+      for (let i = 0; i < records.length; i++) {
+        const d = records[i].data;
+        const p = map.project([d[lonKey], d[latKey]]);
+        const col = Math.floor(p.x / cs), row = Math.floor(p.y / cs);
+        const key = col + ',' + row;
+        let e = dest.get(key);
+        if (!e) { e = { col, row, x: (col + 0.5) * cs, y: (row + 0.5) * cs, count: 0, distSum: 0 }; dest.set(key, e); }
+        e.count += 1; e.distSum += d.dist_km;
+      }
+      return { destinations: [...dest.values()], total: records.length };
+    }
+
+    // Identity of the current view: bundling stays valid while this is unchanged,
+    // so control repaints (e.g. width scaling) reuse the cached polylines instead
+    // of reverting to straight.
+    function viewSig() {
+      const c = map.getCenter();
+      return [map.getZoom().toFixed(2), c.lng.toFixed(4), c.lat.toFixed(4), view.cellSize, view.by, view.period, view.minFlow, view.strength].join('|');
+    }
+
+    function drawEdges(ctx, x, y, normVal, cell) {
+      const g = edgesByCell.get(cell.index);
+      if (!g) return;
+      const ref = view.scaling === 'global' ? (GLOBAL_MAX || 1) : (g.localMax || 1);
+      ctx.lineJoin = 'round';
+      for (const e of g.edges) {
+        const strength = Math.min(1, e.w / ref);
+        const pts = e.points || [{ x: e.x0, y: e.y0 }, { x: e.x1, y: e.y1 }];
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k].x, pts[k].y);
+        ctx.strokeStyle = distanceColor(e.dist, 0.14 + 0.5 * strength);
+        ctx.lineWidth = 0.5 + 3 * Math.sqrt(strength);
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.arc(x, y, 1.4, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.fill();
+    }
+
+    function onAggregate(result) {
+      const cd = result.customData, cols = result.cols, cs = result.cellSizePixels;
+      const edges = [];
+      for (let i = 0; i < cd.length; i++) {
+        const c = cd[i];
+        if (!c) continue;
+        const x0 = ((i % cols) + 0.5) * cs, y0 = (Math.floor(i / cols) + 0.5) * cs;
+        for (const dst of c.destinations) {
+          if (dst.count < view.minFlow) continue;
+          if (dst.x === x0 && dst.y === y0) continue;
+          edges.push({ x0, y0, x1: dst.x, y1: dst.y, w: dst.count, dist: dst.distSum / dst.count, cellIndex: i, key: i + '>' + dst.col + ',' + dst.row });
+        }
+      }
+      edges.sort((a, b) => b.w - a.w);
+      const capped = edges.slice(0, CAP);
+
+      GLOBAL_MAX = 1;
+      edgesByCell = new Map();
+      for (const e of capped) {
+        if (e.w > GLOBAL_MAX) GLOBAL_MAX = e.w;
+        let g = edgesByCell.get(e.cellIndex);
+        if (!g) { g = { edges: [], localMax: 0 }; edgesByCell.set(e.cellIndex, g); }
+        g.edges.push(e);
+        if (e.w > g.localMax) g.localMax = e.w;
+      }
+
+      const sig = viewSig();
+      const bundlingOn = view.strength > 0;
+      if (!bundlingOn) {
+        for (const e of capped) e.points = null;
+      } else if (sig === bundleSig && bundleCache.size) {
+        for (const e of capped) e.points = bundleCache.get(e.key) || null;  // reuse
+      } else if (bundleNow) {
+        bundleEdges(capped, { compatibility: compatFor(view.strength) });
+        bundleCache = new Map(capped.map((e) => [e.key, e.points]));
+        bundleSig = sig;
+      } else {
+        for (const e of capped) e.points = null; // moving, or awaiting settle
+      }
+      bundleNow = false;
+
+      const bundledDrawn = bundlingOn && capped.length > 0 && !!capped[0].points;
+      document.getElementById('m-arcs').textContent = capped.length < edges.length ? `${capped.length} / ${edges.length}` : `${capped.length}`;
+      document.getElementById('m-bundled').textContent = bundlingOn ? (bundledDrawn ? 'yes' : 'on release…') : 'off';
+    }
+
+    function currentFlows() {
+      return view.period === 'all' ? allFlows : allFlows.filter((f) => f.period === view.period);
+    }
+
+    function rebuild() {
+      if (!map.isStyleLoaded()) { map.once('idle', rebuild); return; }
+      if (layer && map.getLayer('flows')) map.removeLayer('flows');
+      bundleCache = new Map(); bundleSig = null;
+      const data = currentFlows();
+      document.getElementById('m-trips').textContent = data.length.toLocaleString();
+
+      layer = ScreenGridLayerGL.glyphMap({
+        id: 'flows',
+        data,
+        getPosition: (d) => [view.by === 'origin' ? d.olon : d.dlon, view.by === 'origin' ? d.olat : d.dlat],
+        getWeight: () => 1,
+        cellSizePixels: view.cellSize,
+        showBackground: false,
+        hoverRepaint: false,       // no hover-dependent drawing → don't repaint (would drop the bundle)
+        glyphSize: 1,
+        colorScale: () => [0, 0, 0, 0],
+        onAfterAggregate: (records) => binOtherEnd(records),
+        onDrawCell: drawEdges,
+        onAggregate,
+      });
+      map.addLayer(layer);
+      scheduleBundle();
+    }
+
+    // Ask for a (re)bundle on the next render.
+    function scheduleBundle() { bundleNow = view.strength > 0; if (map) map.triggerRepaint(); }
+    // Redraw without recomputing the bundle (reuses the cache for the same view).
+    function repaint() { if (map) map.triggerRepaint(); }
+
+    document.getElementById('strength').addEventListener('input', (e) => {
+      view.strength = parseInt(e.target.value, 10);
+      document.getElementById('bs-val').textContent = view.strength;
+      document.getElementById('bstate').textContent = view.strength === 0 ? 'Off — straight arcs.' : 'Recomputes on release / when you change this.';
+      scheduleBundle();
+    });
+    document.getElementById('minFlow').addEventListener('input', (e) => {
+      view.minFlow = parseInt(e.target.value, 10);
+      document.getElementById('mf-val').textContent = view.minFlow;
+      scheduleBundle();
+    });
+    document.getElementById('cellSize').addEventListener('input', (e) => {
+      view.cellSize = parseInt(e.target.value, 10);
+      document.getElementById('cs-val').textContent = view.cellSize;
+      rebuild();
+    });
+    seg('by', (v) => { view.by = v; rebuild(); });
+    seg('period', (v) => { view.period = v; rebuild(); });
+    seg('scaling', (v) => { view.scaling = v; repaint(); }); // width only — keep the bundle
+    function seg(id, onPick) {
+      const root = document.getElementById(id);
+      root.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+        root.querySelectorAll('button').forEach((x) => x.classList.remove('active'));
+        b.classList.add('active');
+        onPick(b.dataset[id]);
+      }));
+    }
+
+    // Straight while moving; rebundle once the view settles.
+    map.on('moveend', scheduleBundle);
+    map.on('load', rebuild);
+
+    function darkBasemap() {
+      return {
+        version: 8,
+        sources: { dark: { type: 'raster', tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors © CARTO' } },
+        layers: [{ id: 'dark', type: 'raster', source: 'dark' }]
+      };
+    }
+  </script>
+</body>
+</html>

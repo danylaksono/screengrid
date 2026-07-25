@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grammar 03 — Composition (pie glyphs from semantic cells)</title>
+  <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    :root { --panel: 380px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .app { display: flex; height: 100vh; }
+    #map { flex: 1; }
+    .panel { width: var(--panel); background: #0f1216; color: #d7dde5; overflow-y: auto; padding: 18px; }
+    .panel h1 { font-size: 17px; margin: 0 0 4px; }
+    .panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #8b96a5; margin: 20px 0 8px; }
+    .sub { color: #8b96a5; font-size: 13px; margin: 0 0 8px; line-height: 1.45; }
+    label { display: block; font-size: 13px; margin: 12px 0 4px; }
+    label b { float: right; color: #eaf0f6; }
+    input[type=range] { width: 100%; }
+    .legend div { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; }
+    .sw { width: 14px; height: 14px; border-radius: 3px; }
+    .report { border-radius: 8px; padding: 10px 12px; font-size: 13px; margin: 4px 0; }
+    .ok { background: #14301f; border: 1px solid #245c39; color: #7fe0a3; }
+    .warn { background: #33280f; border: 1px solid #6b551f; color: #f2cf7a; }
+    .readout { background: #171c22; border: 1px solid #232a32; border-radius: 8px; padding: 10px 12px; font-size: 13px; min-height: 42px; }
+    .nav { font-size: 12px; color: #6f7b8a; margin-top: 22px; }
+    .nav a { color: #7fb2e8; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div id="map"></div>
+    <div class="panel">
+      <h1>03 · Composition</h1>
+      <p class="sub">Each cell draws a <b>pie</b> of its <b>land-use</b> mix. Slices come from the
+        semantic cell's lazy <code>measures.fields.land_use</code> distribution — not a hand
+        re-tally. Sparse cells (&lt;5 points) get a dashed outline so they are not over-read.</p>
+
+      <label>Cell size (px) <b id="cs-val">56</b></label>
+      <input id="cellSize" type="range" min="28" max="96" step="4" value="56" />
+
+      <h2>Legend — land use</h2>
+      <div class="legend" id="legend"></div>
+
+      <h2>Hovered cell</h2>
+      <div class="readout" id="readout">Hover a cell…</div>
+
+      <h2>Validation report</h2>
+      <div id="report"></div>
+
+      <div class="nav">
+        <a href="01-density.html">← 01 · Density</a> ·
+        <a href="02-suitability-mcda.html">02 · Suitability</a>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { validateSpec, compileSpec, ScreenGridLayerGL } from '../../src/index.js';
+    import { generateLondonPoints, buildLondonProfile, LONDON_CENTER } from '../data/london.js';
+    import { colorScaleFromPalette, pieGlyphFor, categoriesFromRecords, CATEGORICAL_COLORS } from './grammar-render-bridge.js';
+
+    const data = generateLondonPoints({ count: 38000, seed: 19 });
+    const datasetProfile = buildLondonProfile(data);
+    const categories = categoriesFromRecords(data, 'land_use');
+
+    // Build the legend from the fixed category order (stable colours).
+    document.getElementById('legend').innerHTML = categories.map((c, i) =>
+      `<div><span class="sw" style="background:${CATEGORICAL_COLORS[i % CATEGORICAL_COLORS.length]}"></span>${c}</div>`
+    ).join('');
+
+    function buildSpec(cellSizePixels) {
+      return {
+        version: '0.2.0',
+        datasetProfile,
+        intent: { task: 'composition', comparison: 'within-cell', question: 'How does land-use mix vary across the city?' },
+        parameters: [],
+        screengrid: {
+          coordinateSystem: 'lonlat',
+          coordinateFields: { x: 'lon', y: 'lat' },
+          aggregationMode: 'screen-grid',
+          aggregation: { function: 'count' },
+          cellSizePixels,
+          summaries: [{ name: 'count', role: 'primary', op: 'count', reliability: { warnBelowCount: 5 } }],
+          normalization: 'max-local'
+        },
+        glyph: {
+          type: 'pie',
+          channels: { segments: { field: 'land_use', aggregate: 'mode' } },
+          scales: { color: 'categorical' },
+          palette: 'categorical',
+          legend: { enabled: true },
+          limits: { maxCategories: 6, minSizePixels: 18 }
+        },
+        interaction: { hover: true, click: true }
+      };
+    }
+
+    const drawPie = pieGlyphFor('land_use', { categories });
+    const map = new maplibregl.Map({ container: 'map', style: darkBasemap(), center: LONDON_CENTER, zoom: 11 });
+    let layer = null;
+
+    map.on('load', rebuild);
+    document.getElementById('cellSize').addEventListener('input', rebuild);
+
+    function rebuild() {
+      const cellSizePixels = parseInt(document.getElementById('cellSize').value, 10);
+      document.getElementById('cs-val').textContent = cellSizePixels;
+
+      const spec = buildSpec(cellSizePixels);
+      const report = validateSpec(spec);
+      renderReport(report);
+      if (!report.valid) return;
+
+      const { layerOptions } = compileSpec(spec);
+      if (layer && map.getLayer('composition')) map.removeLayer('composition');
+      layer = ScreenGridLayerGL.glyphMap({
+        id: 'composition',
+        data,
+        ...layerOptions,
+        glyphSize: 0.82,
+        colorScale: colorScaleFromPalette('slate'),
+        onDrawCell: drawPie,
+        onHover: ({ cell }) => {
+          const cats = cell?.measures?.fields?.land_use?.categories;
+          if (!cats) { document.getElementById('readout').textContent = 'Empty cell'; return; }
+          const n = cell.records?.count ?? cell.cellData?.length ?? 0;
+          const cls = cell.reliability?.sampleSizeClass ?? '—';
+          const top = cats.slice(0, 3).map((c) => `${c.value} ${Math.round((c.count / n) * 100)}%`).join(' · ');
+          document.getElementById('readout').innerHTML =
+            `<b>${n}</b> points · sample: <b>${cls}</b><br>${top}` +
+            (cell.reliability?.warnings?.length ? `<br><span style="color:#f2cf7a">⚠ ${cell.reliability.warnings.join(', ')}</span>` : '');
+        }
+      });
+      map.addLayer(layer);
+    }
+
+    function renderReport(r) {
+      const el = document.getElementById('report');
+      let html = r.valid ? `<div class="report ok">✓ Valid</div>` : '';
+      if (r.warnings.length) html += `<div class="report warn"><b>${r.warnings.length} warning(s)</b><ul>${r.warnings.map((s) => `<li>${s.replace(/</g, '&lt;')}</li>`).join('')}</ul></div>`;
+      el.innerHTML = html;
+    }
+
+    function darkBasemap() {
+      return {
+        version: 8,
+        sources: { dark: { type: 'raster', tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors © CARTO' } },
+        layers: [{ id: 'dark', type: 'raster', source: 'dark' }]
+      };
+    }
+  </script>
+</body>
+</html>

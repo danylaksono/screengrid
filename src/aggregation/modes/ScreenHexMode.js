@@ -11,6 +11,17 @@ import { NormalizationFunctionRegistry, NormalizationFunctions } from '../../nor
 import { Renderer } from '../../canvas/Renderer.js';
 import { SemanticCellSummarizer } from '../../core/SemanticCellSummarizer.js';
 
+// Pack axial hex coords (q, r) into a single NUMERIC key. Screen-space panning
+// re-aggregates every frame, and a numeric Map key avoids the per-point string
+// allocation + string hashing the old `${q},${r}` key incurred (measurably
+// cheaper on dense datasets). OFFSET keeps negative q/r non-negative; STRIDE is
+// wider than any on-screen hex-coordinate range, so packing is collision-free
+// and the result stays a safe integer.
+const HEX_OFFSET = 1 << 15;   // 32768
+const HEX_STRIDE = 1 << 16;   // 65536
+const packHex = (q, r) => (q + HEX_OFFSET) * HEX_STRIDE + (r + HEX_OFFSET);
+const unpackHex = (key) => ({ q: Math.floor(key / HEX_STRIDE) - HEX_OFFSET, r: (key % HEX_STRIDE) - HEX_OFFSET });
+
 export const ScreenHexMode = {
   name: 'screen-hex',
   type: 'screen-space',
@@ -53,26 +64,21 @@ export const ScreenHexMode = {
       ? (AggregationFunctionRegistry.get(config.aggregationFunction) || config.aggregationFunction)
       : AggregationFunctions.sum;
 
-    // Use Map for sparse storage (more efficient for hex grids)
-    const hexCellData = new Map(); // hexKey -> array of cell data
+    // Sparse storage keyed by a numeric hex key (see packHex). One pass over
+    // points; reuse the bucket reference instead of has()+get().
+    const hexCellData = new Map(); // numericKey -> array of records
 
-    // First pass: collect all points into cellData
     for (let i = 0; i < projectedPoints.length; i++) {
       const p = projectedPoints[i];
-      
-      // Convert pixel coordinates to axial hex coordinates (q, r)
-      // Using flat-top hexagon layout
+
+      // Convert pixel coordinates to axial hex coordinates (q, r), flat-top.
       const q = Math.round((Math.sqrt(3) / 3 * p.x - 1 / 3 * p.y) / hexRadius);
       const r = Math.round((2 / 3 * p.y) / hexRadius);
-      
-      const hexKey = `${q},${r}`;
+      const hexKey = packHex(q, r);
 
-      // Store original data point
-      if (!hexCellData.has(hexKey)) {
-        hexCellData.set(hexKey, []);
-      }
-      
-      hexCellData.get(hexKey).push({
+      let bucket = hexCellData.get(hexKey);
+      if (bucket === undefined) { bucket = []; hexCellData.set(hexKey, bucket); }
+      bucket.push({
         data: data[i],
         weight: p.w,
         projectedX: p.x,
@@ -80,36 +86,40 @@ export const ScreenHexMode = {
       });
     }
 
-    // Second pass: apply aggregation function to each cell
-    const hexGrid = new Map(); // hexKey -> aggregated value
-    const customDataMap = new Map();
-    for (const [hexKey, cellDataArray] of hexCellData.entries()) {
-      if (cellDataArray.length > 0) {
-        const aggregatedValue = aggFn(cellDataArray);
-        hexGrid.set(hexKey, aggregatedValue);
-        if (typeof config.onAfterAggregate === 'function') {
-          customDataMap.set(hexKey, config.onAfterAggregate(cellDataArray, aggregatedValue, hexKey, hexGrid));
-        }
-      }
+    // Single pass over populated cells: aggregate and build the parallel output
+    // arrays, the hexCoords, and the O(1) key->index map together (no
+    // intermediate entries array or repeated .map() passes). `maxValue` (numeric
+    // max) is captured here so getCellAt need not rescan the grid.
+    const grid = [];
+    const cellData = [];
+    const customData = [];
+    const hexCoords = [];
+    const hexIndex = new Map();
+    const hasAfter = typeof config.onAfterAggregate === 'function';
+    let maxValue = 0;
+
+    for (const [hexKey, bucket] of hexCellData.entries()) {
+      if (bucket.length === 0) continue;
+      const value = aggFn(bucket);
+      const idx = grid.length;
+      const coords = unpackHex(hexKey);
+      grid.push(value);
+      cellData.push(bucket);
+      hexCoords.push(coords);
+      hexIndex.set(hexKey, idx);
+      // Preserve the onAfterAggregate contract: pass the string "q,r" key (as
+      // before) rather than leaking the internal numeric key.
+      customData.push(hasAfter ? config.onAfterAggregate(bucket, value, `${coords.q},${coords.r}`, grid) : null);
+      if (typeof value === 'number' && value > maxValue) maxValue = value;
     }
-
-    // Convert Map to arrays for compatibility
-    const cells = Array.from(hexGrid.entries());
-    const grid = cells.map(([_, value]) => value);
-    const cellData = cells.map(([key, _]) => hexCellData.get(key));
-    const customData = cells.map(([key]) => customDataMap.get(key) ?? null);
-
-    // Store hex coordinates for rendering and querying
-    const hexCoords = cells.map(([key]) => {
-      const [q, r] = key.split(',').map(Number);
-      return { q, r };
-    });
 
     const result = {
       grid,
       cellData,
       customData,
       hexCoords,
+      hexIndex,
+      maxValue,
       hexSize,
       hexRadius,
       width,
@@ -154,8 +164,11 @@ export const ScreenHexMode = {
       : NormalizationFunctions.maxLocal;
 
     // Compute stats for normalization context (point-count based, so cells
-    // that aggregate to 0 or negative values still render)
-    const stats = Renderer.computeStats(grid, cellData);
+    // that aggregate to 0 or negative values still render). Skip the per-frame
+    // sort unless the active normalization consumes sortedValues (percentile).
+    const stats = Renderer.computeStats(grid, cellData, {
+      needsSorted: Renderer._needsSortedValues(normFn),
+    });
     const normContext = {
       ...stats,
       ...(config.normalizationContext || {}),
@@ -280,16 +293,19 @@ export const ScreenHexMode = {
    * @returns {Object|null} Cell information or null
    */
   getCellAt(point, aggregationResult, map) {
-    const { hexCoords, hexRadius } = aggregationResult;
+    const { hexCoords, hexRadius, hexIndex } = aggregationResult;
     const { x, y } = point;
 
     // Convert screen coordinates to hex coordinates (matching aggregate formula)
     const q = Math.round((Math.sqrt(3) / 3 * x - 1 / 3 * y) / hexRadius);
     const r = Math.round((2 / 3 * y) / hexRadius);
-    const hexKey = `${q},${r}`;
+    const hexKey = packHex(q, r);
 
-    // Find matching cell
-    const index = hexCoords.findIndex(c => `${c.q},${c.r}` === hexKey);
+    // O(1) lookup via the precomputed key->index map (falls back to a linear
+    // scan only for results produced before hexIndex existed).
+    const index = hexIndex
+      ? (hexIndex.has(hexKey) ? hexIndex.get(hexKey) : -1)
+      : hexCoords.findIndex((c) => c.q === q && c.r === r);
     if (index === -1) return null;
 
     const points = aggregationResult.cellData[index];
@@ -299,10 +315,14 @@ export const ScreenHexMode = {
     const centerX = hexRadius * (Math.sqrt(3) * cellQ + Math.sqrt(3) / 2 * cellR);
     const centerY = hexRadius * (3 / 2 * cellR);
 
-    // Loop instead of Math.max(...grid) to avoid stack overflow on large grids
-    let maxValue = 0;
-    for (const v of aggregationResult.grid) {
-      if (typeof v === 'number' && v > maxValue) maxValue = v;
+    // Use the precomputed numeric max (O(1)); loop only as a fallback for
+    // older results. Avoids Math.max(...grid) (stack overflow on large grids).
+    let maxValue = aggregationResult.maxValue;
+    if (maxValue === undefined) {
+      maxValue = 0;
+      for (const v of aggregationResult.grid) {
+        if (typeof v === 'number' && v > maxValue) maxValue = v;
+      }
     }
 
     // Use the per-cell lazy accessor, not `cells` — that would build a
@@ -310,15 +330,18 @@ export const ScreenHexMode = {
     // single-point query, which is expensive on every hover/click.
     const semanticCell = aggregationResult.cellAt ? aggregationResult.cellAt(index) : null;
 
-    return {
-      ...(semanticCell || {}),
+    // Inherit from the semantic cell via Object.create rather than spreading it:
+    // its `measures`/`reliability` are prototype getters (see
+    // SemanticCellSummarizer), and a spread would silently drop them — the exact
+    // anti-pattern AGENTS.md forbids. Query-specific fields are layered on top.
+    return Object.assign(Object.create(semanticCell || null), {
       index,
       value: aggregationResult.grid[index],
       normalizedValue: aggregationResult.grid[index] / (maxValue || 1),
       cellData: points,
       hexCoords: { q: cellQ, r: cellR },
       center: { x: centerX, y: centerY },
-    };
+    });
   },
 
   /**

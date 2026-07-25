@@ -114,3 +114,8 @@ demo/IMPLEMENTATION_PLAN.md
 
 # Demo build output (now built/hosted from a dedicated repo)
 dist-demo/
+
+# Preprocessed real data (openly licensed TfL data, but regenerated locally via
+# scripts/santander/ — not committed; examples fall back to synthetic without it)
+examples/data/santander-flows.json
+examples/data/santander-flows-meta.json
