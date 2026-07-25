@@ -63,6 +63,25 @@ town-centre coordinates seed the clustering; every attribute is invented.
   (`am`/`pm`/`offpeak`) and a `purpose`. Commutes flow residential → employment in
   the AM peak and reverse in the PM peak. Aggregate by the origin (`[olon, olat]`).
 
+## Real data — London borough boundaries (fetched live, not committed)
+
+`examples/geometry/feature-anchors-london-boroughs.html` loads the 33 London
+boroughs straight from the ONS Open Geography Portal at runtime — no committed
+copy, because the service sends `Access-Control-Allow-Origin: *`:
+
+```text
+Local_Authority_Districts_December_2023_Boundaries_UK_BSC/FeatureServer/0/query
+  ?where=LAD23CD LIKE 'E09%'&outFields=LAD23CD,LAD23NM,Shape__Area&outSR=4326&f=geojson
+```
+
+Real polygons and a real measured attribute (`Shape__Area`, square metres —
+divide by 1e6 for km²), so the glyph encodes something verifiable rather than an
+invented value. If the portal is unreachable the page reports the failure in its
+readout instead of silently rendering nothing.
+
+> Boundaries: Office for National Statistics licensed under the Open Government
+> Licence v3.0. Contains OS data © Crown copyright and database right 2024.
+
 ## Real data — `santander-flows.json` (optional, not committed)
 
 The flow case studies load real **Santander Cycle Hire** journeys when this file

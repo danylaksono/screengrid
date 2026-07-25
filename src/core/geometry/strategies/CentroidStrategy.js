@@ -29,6 +29,11 @@ export class CentroidStrategy {
       const props = feature.properties || {};
 
       try {
+        // `positions` is a flat list of [lng, lat] pairs. The centroidOf*
+        // helpers already return a single pair, so they must not be wrapped in
+        // an extra array -- doing so made the destructuring below yield
+        // lng=[lng,lat], lat=undefined, silently dropping every anchor for all
+        // geometry types except Point.
         let positions = [];
 
         switch (geometry.type) {
@@ -41,38 +46,38 @@ export class CentroidStrategy {
               positions = geometry.coordinates.map(coord => coord);
             } else {
               // Union: use centroid of all points
-              positions = [[GeometryUtils.centroidOfPoints(geometry.coordinates)]];
+              positions = [GeometryUtils.centroidOfPoints(geometry.coordinates)];
             }
             break;
 
           case 'LineString':
-            positions = [[GeometryUtils.centroidOfLine(geometry.coordinates)]];
+            positions = [GeometryUtils.centroidOfLine(geometry.coordinates)];
             break;
 
           case 'MultiLineString':
             if (partition === 'per-part') {
-              positions = geometry.coordinates.map(coords => [GeometryUtils.centroidOfLine(coords)]);
+              positions = geometry.coordinates.map(coords => GeometryUtils.centroidOfLine(coords));
             } else {
               // Union: combine all lines and compute centroid
               const allCoords = geometry.coordinates.flat();
-              positions = [[GeometryUtils.centroidOfLine(allCoords)]];
+              positions = [GeometryUtils.centroidOfLine(allCoords)];
             }
             break;
 
           case 'Polygon':
-            positions = [[GeometryUtils.centroidOfPolygon(geometry.coordinates[0])]];
+            positions = [GeometryUtils.centroidOfPolygon(geometry.coordinates[0])];
             break;
 
           case 'MultiPolygon':
             if (partition === 'per-part') {
-              positions = geometry.coordinates.map(polygon => [
+              positions = geometry.coordinates.map(polygon =>
                 GeometryUtils.centroidOfPolygon(polygon[0])
-              ]);
+              );
             } else {
               // Union: compute centroid of all polygons combined
               // For simplicity, use centroid of first polygon's exterior ring
               // A more accurate approach would compute weighted centroid by area
-              positions = [[GeometryUtils.centroidOfPolygon(geometry.coordinates[0][0])]];
+              positions = [GeometryUtils.centroidOfPolygon(geometry.coordinates[0][0])];
             }
             break;
 

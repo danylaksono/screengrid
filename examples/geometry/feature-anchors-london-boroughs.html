@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ScreenGrid Feature Anchors - London Boroughs</title>
+    <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+    <style>
+      html, body, #map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; margin: 0; }
+      .panel {
+        position: absolute; z-index: 10; top: 10px; left: 10px;
+        background: rgba(255,255,255,0.96); padding: 12px 14px; border-radius: 6px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; font-size: 13px;
+        max-width: 340px;
+      }
+      .panel h3 { margin: 0 0 4px 0; font-size: 15px; }
+      .panel .sub { margin: 0 0 10px 0; color: #667; font-size: 12px; }
+      .row { margin: 7px 0; }
+      .row label { display: inline-block; min-width: 104px; }
+      .row select, .row button { font-size: 13px; }
+      .hint { margin-top: 4px; color: #667; font-size: 11.5px; line-height: 1.45; }
+      .readout {
+        margin-top: 10px; padding-top: 9px; border-top: 1px solid #e2e6ea;
+        font-size: 12px; min-height: 32px;
+      }
+      .readout strong { font-size: 13px; }
+      .attrib { margin-top: 9px; color: #778; font-size: 10.5px; line-height: 1.45; }
+      .attrib a { color: #4a6572; }
+      code { background: #f2f4f6; padding: 1px 4px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div class="panel">
+      <h3>London Boroughs — Geometry Placement</h3>
+      <p class="sub">One glyph per borough polygon, sized by its real area.</p>
+
+      <div class="row"><label for="placementSelect">Placement:</label>
+        <select id="placementSelect">
+          <option value="centroid">centroid</option>
+          <option value="polylabel">polylabel</option>
+          <option value="grid-screen">grid-screen</option>
+        </select>
+      </div>
+      <div class="row"><label for="spacingSelect">Spacing:</label>
+        <select id="spacingSelect">
+          <option value="60">60 px</option>
+          <option value="40">40 px</option>
+          <option value="80">80 px</option>
+        </select>
+        <span class="hint">grid-screen only</span>
+      </div>
+
+      <div class="hint">
+        <code>centroid</code> averages the ring vertices — it can fall outside a
+        concave borough. <code>polylabel</code> finds the pole of inaccessibility,
+        which always sits inside. <code>grid-screen</code> tiles each polygon with
+        screen-spaced anchors and recomputes as you zoom.
+      </div>
+
+      <div class="readout" id="readout">Hover a glyph for borough details.</div>
+
+      <p class="attrib">
+        Boundaries: Office for National Statistics licensed under the
+        <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener">Open Government Licence v3.0</a>.
+        Contains OS data &copy; Crown copyright and database right 2024.
+      </p>
+    </div>
+
+    <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+    <script type="module">
+      import { ScreenGridLayerGL } from '../../src/index.js';
+
+      // Local Authority Districts (Dec 2023), filtered to the 33 London
+      // boroughs (ONS codes beginning E09). The ONS Open Geography Portal
+      // serves GeoJSON with `Access-Control-Allow-Origin: *`, so this loads
+      // straight from the browser with no proxy or committed copy.
+      const ONS = 'https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/'
+        + 'Local_Authority_Districts_December_2023_Boundaries_UK_BSC/FeatureServer/0/query';
+      const BOROUGHS_URL = ONS
+        + '?where=' + encodeURIComponent("LAD23CD LIKE 'E09%'")
+        + '&outFields=' + encodeURIComponent('LAD23CD,LAD23NM,Shape__Area')
+        + '&outSR=4326&f=geojson';
+
+      const map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://tiles.openfreemap.org/styles/liberty',
+        center: [-0.118, 51.509],
+        zoom: 8.6
+      });
+
+      let boroughs = null;
+      let layer = null;
+      let areaRange = [0, 1];
+
+      const readout = document.getElementById('readout');
+      const placementSelect = document.getElementById('placementSelect');
+      const spacingSelect = document.getElementById('spacingSelect');
+
+      // Shape__Area is square metres; km² is the readable unit.
+      const km2 = (f) => (f.properties?.Shape__Area || 0) / 1e6;
+
+      async function loadBoroughs() {
+        const res = await fetch(BOROUGHS_URL);
+        if (!res.ok) throw new Error(`ONS request failed: ${res.status}`);
+        const geo = await res.json();
+        if (!geo.features?.length) throw new Error('ONS returned no features');
+
+        const areas = geo.features.map(km2);
+        areaRange = [Math.min(...areas), Math.max(...areas)];
+        return geo;
+      }
+
+      function buildConfig() {
+        const strategy = placementSelect.value;
+        const spacingPx = parseInt(spacingSelect.value, 10);
+
+        const placement = strategy === 'grid-screen'
+          ? { strategy: 'grid-screen', spacing: { pixels: spacingPx }, maxPerFeature: 300 }
+          : { strategy };
+
+        return {
+          source: boroughs,
+          placement,
+          cellSizePixels: 60,
+          enableGlyphs: true,
+          onDrawCell: (ctx, x, y, normVal, cellInfo) => {
+            // Size by real borough area, not by anchor count: with one anchor
+            // per borough, normVal is 1 everywhere and every glyph would look
+            // identical. In feature-anchors mode cellInfo.props is the source
+            // feature's properties.
+            const props = cellInfo.props || {};
+            const area = (props.Shape__Area || 0) / 1e6;
+            const [lo, hi] = areaRange;
+            const t = hi > lo ? (area - lo) / (hi - lo) : 0.5;
+            const radius = 5 + t * 16;
+
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, 2 * Math.PI);
+            ctx.fillStyle = `rgba(23, 107, 135, ${0.45 + 0.4 * t})`;
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          },
+          onHover: ({ cell }) => {
+            map.getCanvas().style.cursor = cell ? 'pointer' : '';
+            if (!cell) return;
+            const props = cell.props || {};
+            if (!props.LAD23NM) return;
+            readout.innerHTML =
+              `<strong>${props.LAD23NM}</strong><br>`
+              + `${props.LAD23CD} · ${((props.Shape__Area || 0) / 1e6).toFixed(1)} km²`;
+          }
+        };
+      }
+
+      function apply() {
+        const strategy = placementSelect.value;
+        spacingSelect.disabled = strategy !== 'grid-screen';
+        if (layer) layer.setConfig(buildConfig());
+      }
+
+      placementSelect.addEventListener('change', apply);
+      spacingSelect.addEventListener('change', apply);
+
+      map.on('load', async () => {
+        try {
+          boroughs = await loadBoroughs();
+        } catch (err) {
+          readout.innerHTML = `<strong>Could not load boundaries.</strong><br>${err.message}`;
+          return;
+        }
+
+        // Outline the boroughs so the anchor placement is readable against the
+        // polygons it is derived from.
+        map.addSource('boroughs', { type: 'geojson', data: boroughs });
+        map.addLayer({
+          id: 'borough-fill', type: 'fill', source: 'boroughs',
+          paint: { 'fill-color': '#176b87', 'fill-opacity': 0.06 }
+        });
+        map.addLayer({
+          id: 'borough-line', type: 'line', source: 'boroughs',
+          paint: { 'line-color': '#176b87', 'line-width': 0.8, 'line-opacity': 0.5 }
+        });
+
+        layer = ScreenGridLayerGL.featureGlyphs(buildConfig());
+        map.addLayer(layer);
+
+        spacingSelect.disabled = true;
+        readout.textContent = `${boroughs.features.length} boroughs loaded. Hover a glyph for details.`;
+      });
+    </script>
+  </body>
+</html>

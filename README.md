@@ -143,7 +143,7 @@ Available examples:
 - **glyphs/plugin-glyph.html** - Custom plugin glyph
 - **glyphs/legend.html** - Legend patterns
 - **temporal/time-series.html** - Time-series glyphs
-- **geometry/feature-anchors-us-states.html** - Geometry input and feature anchors
+- **geometry/feature-anchors-london-boroughs.html** - Geometry input and feature anchors
 - **domain/public-transport-accessibility.html** - Domain-specific glyph map
 - **utilities/data-utilities.html** - Data processing utilities
 

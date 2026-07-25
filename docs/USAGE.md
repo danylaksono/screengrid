@@ -33,7 +33,7 @@ npm start
 - **Hex Density**: http://localhost:8000/examples/aggregation/hex-density.html
 - **Plugin Glyph**: http://localhost:8000/examples/glyphs/plugin-glyph.html
 - **Time Series**: http://localhost:8000/examples/temporal/time-series.html
-- **Geometry Input**: http://localhost:8000/examples/geometry/feature-anchors-us-states.html
+- **Geometry Input**: http://localhost:8000/examples/geometry/feature-anchors-london-boroughs.html
 
 ## Preset Constructors
 
@@ -146,7 +146,7 @@ screengrid/
 - `temporal/multivariate-time-series.html`: Multi-attribute temporal data
 
 ### Geometry Input Examples
-- `geometry/feature-anchors-us-states.html`: Polygon features with centroid, polylabel, and grid-screen anchors
+- `geometry/feature-anchors-london-boroughs.html`: Polygon features with centroid, polylabel, and grid-screen anchors
 
 ### Domain And Utility Examples
 - `domain/public-transport-accessibility.html`: Public transport accessibility glyph map

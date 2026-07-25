@@ -146,7 +146,10 @@ const PublicTransportGlyph = {
         for (let col = 0; col < 3; col++) {
           const index = row * 3 + col;
           const rawSize = sizes[index] || 0;
-          const size = (rawSize / 100) * Math.min(cellWidth, cellHeight);
+          // normalizeFactor adapts to whichever scale the source uses: 1 for
+          // 0-1 proportions, 100 for 0-100 percentages. Dividing by a hardcoded
+          // 100 made 0-1 data paint sub-pixel squares.
+          const size = (rawSize / normalizeFactor) * Math.min(cellWidth, cellHeight);
 
           const centerX = col * cellWidth + cellWidth / 2 - size / 2;
           const centerY = row * cellHeight + cellHeight / 2 - size / 2;
