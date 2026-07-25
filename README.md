@@ -225,7 +225,11 @@ See [USAGE.md](docs/USAGE.md) for development workflow details.
 
 ## Changelog
 
-### v3.1.0 (Current)
+### v3.1.1 (Current)
+- **FIXED**: `exports` now exposes `./package.json`, which build tools and bundlers commonly resolve.
+- **BUILD**: Toolchain updated to `@rollup/plugin-terser` v1 (clears 4 advisories, 2 high). Build-time only — the package has no runtime dependencies.
+
+### v3.1.0
 - **NEW**: Aggregation results expose semantic cells via `cells`, `populatedCells`, and `cellSemantics`. These are computed lazily on first access, so the render loop pays no per-frame cost unless a consumer reads them.
 - **NEW**: Cell-level spatial metadata, measures, reliability, and comparability contracts.
 - **NEW**: Declarative grammar (`src/grammar/`): `validateSpec`, `compileSpec`, `compileDerivedMeasure`, `resolveParameters`, `validateAssistantProposal`, and `SPEC_VERSION`. JSON Schema contracts ship in `src/grammar/schemas/`.
