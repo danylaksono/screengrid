@@ -20,9 +20,15 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
+
+      # Trusted publishing (OIDC) requires npm >= 11.5.1; Node 22 ships npm 10.x.
+      - name: Upgrade npm
+        run: |
+          npm install -g npm@latest
+          npm --version
 
       - name: Install dependencies
         run: npm ci
@@ -46,6 +52,13 @@ jobs:
             echo "publish=true" >> $GITHUB_OUTPUT
           fi
 
+      # Prefers trusted publishing: with npm >= 11.5.1 and `id-token: write`, npm
+      # exchanges the workflow's OIDC identity for a short-lived registry token,
+      # provided danylaksono/screengrid + this workflow are registered as a
+      # trusted publisher on the package's npm settings. If that exchange is not
+      # available, npm falls back to NODE_AUTH_TOKEN, so this step works either
+      # way. Once trusted publishing is confirmed working, NPM_TOKEN can be
+      # deleted and the `env:` block dropped.
       - name: Publish to npm
         if: steps.versions.outputs.publish == 'true'
         run: npm publish --access public --provenance
