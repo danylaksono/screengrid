@@ -100,3 +100,28 @@ node examples/case-studies/od-bundling-smoke.mjs
 
 checks the router: endpoints preserved, interior waypoints on coarse-grid nodes,
 and parallel arcs sharing nodes (which is what makes them bundle).
+
+## `edge-bundling.html` — force-directed OD edge bundling
+
+The cell-to-cell arc set bundled with **force-directed edge bundling** (Holten &
+van Wijk, 2009): compatible edges — similar in angle, length, position and
+visibility — attract each other, subdivision point by subdivision point, and
+relax into organic bundles. The algorithm lives in
+[`fdeb.js`](fdeb.js) (`bundleEdges(edges, opts)`), a compact self-contained port.
+
+Because FDEB is global and O(E²), two things keep it usable inside a screen-space
+layer that re-aggregates every frame:
+
+- **Bundle on settle.** While the map moves, arcs draw straight (fast). On
+  `moveend` a `bundleNow` flag lets FDEB run **once**, and the result is cached
+  against a *view signature* (zoom, centre, cell size, facet, threshold) so
+  unrelated repaints — e.g. toggling width scaling — reuse the cached polylines
+  instead of reverting to straight.
+- **Bounded edge count.** A min-trips declutter plus a hard cap (top 200 by
+  volume) keep the pairwise force computation cheap. A *bundling strength* slider
+  lowers the compatibility threshold to bundle more aggressively (0 = off).
+
+```bash
+node examples/case-studies/fdeb-test.mjs            # the bundling core (convergence, fixed endpoints, stability)
+node examples/case-studies/edge-bundling-smoke.mjs  # real aggregation → edge set → FDEB, endpoints pinned
+```

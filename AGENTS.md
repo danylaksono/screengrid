@@ -248,7 +248,7 @@ draw them in `onDrawCell`. Because both ends are cells, the network re-forms und
 This lives in application code (the generic hooks), not in `validateSpec`/`compileSpec`, so its
 guarantees are the application's — and the honesty rules still hold: these arcs connect *analytical
 bins*, not places, and imply no real route (say so, as with `flow-balance` in §6).
-`examples/case-studies/` shows OD roses, inter-cell lines, and grid-routed bundling.
+`examples/case-studies/` shows OD roses, inter-cell lines, and grid-routed / force-directed bundling.
 
 ## 8. Out of scope — do not fake
 

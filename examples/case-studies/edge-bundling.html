@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Case study — grid-routed OD bundling (London)</title>
+  <title>Case study — force-directed OD edge bundling (London)</title>
   <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
   <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
   <style>
@@ -27,23 +27,25 @@
     .legend-scale { display: flex; justify-content: space-between; font-size: 11px; color: #8b96a5; margin-top: 3px; }
     .metric { display: flex; justify-content: space-between; font-size: 12.5px; padding: 3px 0; border-bottom: 1px solid #1b2129; }
     .metric b { color: #eaf0f6; font-variant-numeric: tabular-nums; }
+    .hint { font-size: 11.5px; color: #6f7b8a; line-height: 1.5; margin-top: 8px; }
   </style>
 </head>
 <body>
   <div class="app">
     <div id="map"></div>
     <div class="panel">
-      <h1>Grid-routed OD bundling</h1>
-      <p class="sub">The inter-cell flow network, but each arc is <b>routed through a coarse
-        intermediate grid</b> instead of drawn straight. Arcs travelling the same way snap to the
-        same coarse nodes, so they merge into <b>bundles</b> along shared corridors. Raise the
-        bundling grid to gather more flows onto fewer corridors; lower it toward straight lines.</p>
-      <p class="credit">A cheap grid approximation of edge bundling — no cross-cell state: the coarse
-        routing grid is deterministic screen-space, so shared corridors emerge geometrically. Still
-        analytical bins, not real routes; the network re-forms on pan/zoom. <span id="src">…</span></p>
+      <h1>Force-directed OD edge bundling</h1>
+      <p class="sub">The cell-to-cell flow network with <b>force-directed edge bundling</b>:
+        compatible arcs (similar direction, length, position) attract each other and merge into
+        organic bundles. Bundling is computed when the map settles; while you drag, arcs are drawn
+        straight for speed.</p>
+      <p class="credit">Edge bundling after <b>Holten &amp; van Wijk</b>, <i>Force-Directed Edge
+        Bundling for Graph Visualization</i> (2009), run over the screen-space cell-to-cell arcs.
+        Gridded glyphmap technique: <b>Slingsby</b>. <span id="src">…</span></p>
 
-      <h2>Bundling grid <b id="bd-val">3×</b></h2>
-      <input id="bundle" type="range" min="1" max="8" step="1" value="3" />
+      <h2>Bundling strength <b id="bs-val">3</b></h2>
+      <input id="strength" type="range" min="0" max="5" step="1" value="3" />
+      <div class="hint" id="bstate">0 = off (straight arcs). Recomputes on release.</div>
 
       <h2>Aggregate by</h2>
       <div class="seg" id="by">
@@ -59,17 +61,17 @@
         <button data-period="offpeak">Off-peak</button>
       </div>
 
-      <h2>Reference scaling</h2>
+      <h2>Width scaling</h2>
       <div class="seg" id="scaling">
         <button data-scaling="global" class="active">Global</button>
         <button data-scaling="local">Local</button>
       </div>
 
-      <h2>Declutter — min trips per arc <b id="mf-val">1</b></h2>
-      <input id="minFlow" type="range" min="1" max="40" step="1" value="1" />
+      <h2>Declutter — min trips per arc <b id="mf-val">2</b></h2>
+      <input id="minFlow" type="range" min="1" max="40" step="1" value="2" />
 
-      <h2>Cell size <b id="cs-val">72</b></h2>
-      <input id="cellSize" type="range" min="44" max="140" step="4" value="72" />
+      <h2>Cell size <b id="cs-val">80</b></h2>
+      <input id="cellSize" type="range" min="48" max="140" step="4" value="80" />
 
       <h2>Arc colour — mean trip length</h2>
       <div class="legend-grad"></div>
@@ -77,8 +79,8 @@
 
       <h2>View</h2>
       <div class="metric"><span>Trips (period)</span><b id="m-trips">—</b></div>
-      <div class="metric"><span>Origin cells</span><b id="m-cells">—</b></div>
-      <div class="metric"><span>Cell-to-cell arcs</span><b id="m-arcs">—</b></div>
+      <div class="metric"><span>Arcs (drawn / total)</span><b id="m-arcs">—</b></div>
+      <div class="metric"><span>Bundled</span><b id="m-bundled">—</b></div>
     </div>
   </div>
 
@@ -86,14 +88,23 @@
     import { ScreenGridLayerGL } from '../../src/index.js';
     import { LONDON_CENTER } from '../data/london.js';
     import { loadFlows } from '../data/flows-loader.js';
+    import { bundleEdges } from './fdeb.js';
 
     const DIST_MAX = 20;
-    const view = { by: 'origin', period: 'all', scaling: 'global', minFlow: 1, cellSize: 72, bundle: 3 };
+    const CAP = 200; // hard cap on bundled edges (FDEB is O(E²) — keep it bounded)
+    const view = { by: 'origin', period: 'all', scaling: 'global', minFlow: 2, cellSize: 80, strength: 3 };
+    const compatFor = (s) => 0.85 - s * 0.1; // higher strength → lower threshold → more bundling
+
     let GLOBAL_MAX = 1;
+    let edgesByCell = new Map();       // cellIndex -> { edges, localMax }
+    let bundleCache = new Map();       // edgeKey -> points[]   (valid for bundleSig)
+    let bundleSig = null;
+    let bundleNow = false;
 
     const { data: allFlows, source, attribution } = await loadFlows({ count: 9000, seed: 99 });
     document.getElementById('src').textContent = attribution;
     if (source === 'santander') document.getElementById('src').style.color = '#8fbfe0';
+
     const map = new maplibregl.Map({ container: 'map', style: darkBasemap(), center: LONDON_CENTER, zoom: 10.2 });
     let layer = null;
 
@@ -105,72 +116,44 @@
       return `rgba(${Math.round(a[0] + (b[0] - a[0]) * f)}, ${Math.round(a[1] + (b[1] - a[1]) * f)}, ${Math.round(a[2] + (b[2] - a[2]) * f)}, ${alpha})`;
     }
 
-    // Bin this cell's trips by the OTHER-END cell (same as the inter-cell example).
+    // Bin this cell's trips by the OTHER-END cell (col/row kept for a stable key).
     function binOtherEnd(records) {
       const cs = view.cellSize;
       const lonKey = view.by === 'origin' ? 'dlon' : 'olon';
       const latKey = view.by === 'origin' ? 'dlat' : 'olat';
       const dest = new Map();
-      let localMax = 0;
       for (let i = 0; i < records.length; i++) {
         const d = records[i].data;
         const p = map.project([d[lonKey], d[latKey]]);
         const col = Math.floor(p.x / cs), row = Math.floor(p.y / cs);
         const key = col + ',' + row;
         let e = dest.get(key);
-        if (!e) { e = { x: (col + 0.5) * cs, y: (row + 0.5) * cs, count: 0, distSum: 0 }; dest.set(key, e); }
-        e.count += 1;
-        e.distSum += d.dist_km;
+        if (!e) { e = { col, row, x: (col + 0.5) * cs, y: (row + 0.5) * cs, count: 0, distSum: 0 }; dest.set(key, e); }
+        e.count += 1; e.distSum += d.dist_km;
       }
-      const destinations = [];
-      for (const e of dest.values()) { destinations.push(e); if (e.count > localMax) localMax = e.count; }
-      return { destinations, localMax, total: records.length };
+      return { destinations: [...dest.values()], total: records.length };
     }
 
-    // Route a straight segment through the coarse grid: sample it, snap each
-    // sample to the nearest coarse grid NODE (intersection at multiples of
-    // `coarse`), and keep the distinct node sequence. Parallel arcs snap to the
-    // same nodes → they overlap → bundles. Returns [start, ...nodes, end].
-    function routeThroughGrid(x0, y0, x1, y1, coarse) {
-      const dx = x1 - x0, dy = y1 - y0, dist = Math.hypot(dx, dy);
-      const steps = Math.max(2, Math.ceil(dist / coarse));
-      const pts = [{ x: x0, y: y0 }];
-      let lastKey = null;
-      for (let s = 1; s < steps; s++) {
-        const t = s / steps;
-        const gx = Math.round((x0 + dx * t) / coarse) * coarse;
-        const gy = Math.round((y0 + dy * t) / coarse) * coarse;
-        const key = gx + ',' + gy;
-        if (key !== lastKey) { pts.push({ x: gx, y: gy }); lastKey = key; }
-      }
-      pts.push({ x: x1, y: y1 });
-      return pts;
+    // Identity of the current view: bundling stays valid while this is unchanged,
+    // so control repaints (e.g. width scaling) reuse the cached polylines instead
+    // of reverting to straight.
+    function viewSig() {
+      const c = map.getCenter();
+      return [map.getZoom().toFixed(2), c.lng.toFixed(4), c.lat.toFixed(4), view.cellSize, view.by, view.period, view.minFlow, view.strength].join('|');
     }
 
-    function drawBundled(ctx, x, y, normVal, cell) {
-      const cd = cell.customData;
-      if (!cd) return;
-      const ref = view.scaling === 'global' ? (GLOBAL_MAX || 1) : (cd.localMax || 1);
-      const coarse = view.cellSize * view.bundle;
+    function drawEdges(ctx, x, y, normVal, cell) {
+      const g = edgesByCell.get(cell.index);
+      if (!g) return;
+      const ref = view.scaling === 'global' ? (GLOBAL_MAX || 1) : (g.localMax || 1);
       ctx.lineJoin = 'round';
-      ctx.lineCap = 'round';
-      const dests = cd.destinations;
-      for (let i = 0; i < dests.length; i++) {
-        const dst = dests[i];
-        if (dst.count < view.minFlow) continue;
-        if (dst.x === x && dst.y === y) continue;
-        const strength = Math.min(1, dst.count / ref);
-        const pts = routeThroughGrid(x, y, dst.x, dst.y, coarse);
-        // Smooth polyline: quadratics with each interior node as a control point
-        // and segment midpoints as on-curve anchors.
+      for (const e of g.edges) {
+        const strength = Math.min(1, e.w / ref);
+        const pts = e.points || [{ x: e.x0, y: e.y0 }, { x: e.x1, y: e.y1 }];
         ctx.beginPath();
         ctx.moveTo(pts[0].x, pts[0].y);
-        for (let k = 1; k < pts.length - 1; k++) {
-          ctx.quadraticCurveTo(pts[k].x, pts[k].y, (pts[k].x + pts[k + 1].x) / 2, (pts[k].y + pts[k + 1].y) / 2);
-        }
-        const last = pts[pts.length - 1];
-        ctx.lineTo(last.x, last.y);
-        ctx.strokeStyle = distanceColor(dst.distSum / dst.count, 0.16 + 0.5 * strength);
+        for (let k = 1; k < pts.length; k++) ctx.lineTo(pts[k].x, pts[k].y);
+        ctx.strokeStyle = distanceColor(e.dist, 0.14 + 0.5 * strength);
         ctx.lineWidth = 0.5 + 3 * Math.sqrt(strength);
         ctx.stroke();
       }
@@ -180,58 +163,96 @@
       ctx.fill();
     }
 
+    function onAggregate(result) {
+      const cd = result.customData, cols = result.cols, cs = result.cellSizePixels;
+      const edges = [];
+      for (let i = 0; i < cd.length; i++) {
+        const c = cd[i];
+        if (!c) continue;
+        const x0 = ((i % cols) + 0.5) * cs, y0 = (Math.floor(i / cols) + 0.5) * cs;
+        for (const dst of c.destinations) {
+          if (dst.count < view.minFlow) continue;
+          if (dst.x === x0 && dst.y === y0) continue;
+          edges.push({ x0, y0, x1: dst.x, y1: dst.y, w: dst.count, dist: dst.distSum / dst.count, cellIndex: i, key: i + '>' + dst.col + ',' + dst.row });
+        }
+      }
+      edges.sort((a, b) => b.w - a.w);
+      const capped = edges.slice(0, CAP);
+
+      GLOBAL_MAX = 1;
+      edgesByCell = new Map();
+      for (const e of capped) {
+        if (e.w > GLOBAL_MAX) GLOBAL_MAX = e.w;
+        let g = edgesByCell.get(e.cellIndex);
+        if (!g) { g = { edges: [], localMax: 0 }; edgesByCell.set(e.cellIndex, g); }
+        g.edges.push(e);
+        if (e.w > g.localMax) g.localMax = e.w;
+      }
+
+      const sig = viewSig();
+      const bundlingOn = view.strength > 0;
+      if (!bundlingOn) {
+        for (const e of capped) e.points = null;
+      } else if (sig === bundleSig && bundleCache.size) {
+        for (const e of capped) e.points = bundleCache.get(e.key) || null;  // reuse
+      } else if (bundleNow) {
+        bundleEdges(capped, { compatibility: compatFor(view.strength) });
+        bundleCache = new Map(capped.map((e) => [e.key, e.points]));
+        bundleSig = sig;
+      } else {
+        for (const e of capped) e.points = null; // moving, or awaiting settle
+      }
+      bundleNow = false;
+
+      const bundledDrawn = bundlingOn && capped.length > 0 && !!capped[0].points;
+      document.getElementById('m-arcs').textContent = capped.length < edges.length ? `${capped.length} / ${edges.length}` : `${capped.length}`;
+      document.getElementById('m-bundled').textContent = bundlingOn ? (bundledDrawn ? 'yes' : 'on release…') : 'off';
+    }
+
     function currentFlows() {
       return view.period === 'all' ? allFlows : allFlows.filter((f) => f.period === view.period);
     }
 
     function rebuild() {
       if (!map.isStyleLoaded()) { map.once('idle', rebuild); return; }
-      if (layer && map.getLayer('bundled')) map.removeLayer('bundled');
+      if (layer && map.getLayer('flows')) map.removeLayer('flows');
+      bundleCache = new Map(); bundleSig = null;
       const data = currentFlows();
-      const lonKey = view.by === 'origin' ? 'olon' : 'dlon';
-      const latKey = view.by === 'origin' ? 'olat' : 'dlat';
       document.getElementById('m-trips').textContent = data.length.toLocaleString();
 
       layer = ScreenGridLayerGL.glyphMap({
-        id: 'bundled',
+        id: 'flows',
         data,
-        getPosition: (d) => [d[lonKey], d[latKey]],
+        getPosition: (d) => [view.by === 'origin' ? d.olon : d.dlon, view.by === 'origin' ? d.olat : d.dlat],
         getWeight: () => 1,
         cellSizePixels: view.cellSize,
         showBackground: false,
-        hoverRepaint: false,
+        hoverRepaint: false,       // no hover-dependent drawing → don't repaint (would drop the bundle)
         glyphSize: 1,
         colorScale: () => [0, 0, 0, 0],
         onAfterAggregate: (records) => binOtherEnd(records),
-        onDrawCell: drawBundled,
-        onAggregate: (result) => {
-          const cd = result.customData;
-          let gmax = 1, cells = 0, arcs = 0;
-          for (let i = 0; i < cd.length; i++) {
-            const c = cd[i];
-            if (!c) continue;
-            cells += 1; arcs += c.destinations.length;
-            if (c.localMax > gmax) gmax = c.localMax;
-          }
-          GLOBAL_MAX = gmax;
-          document.getElementById('m-cells').textContent = cells.toLocaleString();
-          document.getElementById('m-arcs').textContent = arcs.toLocaleString();
-        },
+        onDrawCell: drawEdges,
+        onAggregate,
       });
       map.addLayer(layer);
+      scheduleBundle();
     }
 
+    // Ask for a (re)bundle on the next render.
+    function scheduleBundle() { bundleNow = view.strength > 0; if (map) map.triggerRepaint(); }
+    // Redraw without recomputing the bundle (reuses the cache for the same view).
     function repaint() { if (map) map.triggerRepaint(); }
 
-    document.getElementById('bundle').addEventListener('input', (e) => {
-      view.bundle = parseInt(e.target.value, 10);
-      document.getElementById('bd-val').textContent = view.bundle + '×';
-      repaint();
+    document.getElementById('strength').addEventListener('input', (e) => {
+      view.strength = parseInt(e.target.value, 10);
+      document.getElementById('bs-val').textContent = view.strength;
+      document.getElementById('bstate').textContent = view.strength === 0 ? 'Off — straight arcs.' : 'Recomputes on release / when you change this.';
+      scheduleBundle();
     });
     document.getElementById('minFlow').addEventListener('input', (e) => {
       view.minFlow = parseInt(e.target.value, 10);
       document.getElementById('mf-val').textContent = view.minFlow;
-      repaint();
+      scheduleBundle();
     });
     document.getElementById('cellSize').addEventListener('input', (e) => {
       view.cellSize = parseInt(e.target.value, 10);
@@ -240,7 +261,7 @@
     });
     seg('by', (v) => { view.by = v; rebuild(); });
     seg('period', (v) => { view.period = v; rebuild(); });
-    seg('scaling', (v) => { view.scaling = v; repaint(); });
+    seg('scaling', (v) => { view.scaling = v; repaint(); }); // width only — keep the bundle
     function seg(id, onPick) {
       const root = document.getElementById(id);
       root.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
@@ -250,6 +271,8 @@
       }));
     }
 
+    // Straight while moving; rebundle once the view settles.
+    map.on('moveend', scheduleBundle);
     map.on('load', rebuild);
 
     function darkBasemap() {

@@ -41,7 +41,7 @@
         the structure is the point.</p>
       <p class="credit">Screen-space glyphs draw on one shared canvas, so a cell's callback can draw
         beyond its own bounds — no library change needed. In the spirit of <b>Slingsby</b>'s gridded
-        glyphmaps and <b>Wickham</b>'s glyph-maps. Synthetic data — no real trips.</p>
+        glyphmaps and <b>Wickham</b>'s glyph-maps. <span id="src">…</span></p>
 
       <h2>Aggregate by</h2>
       <div class="seg" id="by">
@@ -82,14 +82,17 @@
 
   <script type="module">
     import { ScreenGridLayerGL } from '../../src/index.js';
-    import { generateLondonFlows, LONDON_CENTER } from '../data/london.js';
+    import { LONDON_CENTER } from '../data/london.js';
+    import { loadFlows } from '../data/flows-loader.js';
 
     const DIST_MAX = 20;
     const view = { by: 'origin', period: 'all', scaling: 'global', minFlow: 1, cellSize: 72 };
     let GLOBAL_MAX = 1;   // busiest single cell-to-cell flow across the view
     let ARC_TOTAL = 0;
 
-    const allFlows = generateLondonFlows({ count: 9000, seed: 99 });
+    const { data: allFlows, source, attribution } = await loadFlows({ count: 9000, seed: 99 });
+    document.getElementById('src').textContent = attribution;
+    if (source === 'santander') document.getElementById('src').style.color = '#8fbfe0';
     const map = new maplibregl.Map({ container: 'map', style: darkBasemap(), center: LONDON_CENTER, zoom: 10.2 });
     let layer = null;
 

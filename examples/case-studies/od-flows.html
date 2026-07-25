@@ -44,7 +44,7 @@
       <p class="credit">Technique: gridded glyphmaps, <b>Aidan Slingsby</b> (IEEE VIS 2023).
         The global/local reference scaling follows <b>Wickham, Hofmann, Wickham &amp; Cook</b>,
         <i>Glyph-maps for visually exploring temporal patterns in climate data</i> (2012).
-        Synthetic data — no real trips.</p>
+        <span id="src">…</span></p>
 
       <h2>Time period</h2>
       <div class="seg" id="period">
@@ -85,7 +85,8 @@
 
   <script type="module">
     import { ScreenGridLayerGL } from '../../src/index.js';
-    import { generateLondonFlows, LONDON_CENTER } from '../data/london.js';
+    import { LONDON_CENTER } from '../data/london.js';
+    import { loadFlows } from '../data/flows-loader.js';
 
     // 16-point compass; sectors are aligned to compass points (centre = s*22.5°).
     const NSECTORS = 16;
@@ -98,7 +99,9 @@
     let GLOBAL_MAX = 1;          // busiest single direction across all cells (this view)
     let busiestCell = 0;         // for the panel metric
 
-    const allFlows = generateLondonFlows({ count: 9000, seed: 99 });
+    const { data: allFlows, source, attribution } = await loadFlows({ count: 9000, seed: 99 });
+    document.getElementById('src').textContent = attribution;
+    if (source === 'santander') document.getElementById('src').style.color = '#8fbfe0';
 
     // --- Per-cell precompute (runs once per cell per aggregation) -------------
     // Bin each origin's trips by destination bearing into 16 compass sectors.

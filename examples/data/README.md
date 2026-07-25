@@ -63,6 +63,22 @@ town-centre coordinates seed the clustering; every attribute is invented.
   (`am`/`pm`/`offpeak`) and a `purpose`. Commutes flow residential → employment in
   the AM peak and reverse in the PM peak. Aggregate by the origin (`[olon, olat]`).
 
+## Real data — `santander-flows.json` (optional, not committed)
+
+The flow case studies load real **Santander Cycle Hire** journeys when this file
+is present, and fall back to `generateLondonFlows` otherwise (via
+`flows-loader.js`). It is produced by
+[`scripts/santander/fetch-santander-flows.mjs`](../../scripts/santander/), which
+downloads TfL Open Data journeys and joins them to BikePoint station
+coordinates. The file (and its `-meta.json`) are git-ignored — regenerate
+locally:
+
+```bash
+node scripts/santander/fetch-santander-flows.mjs --months=1 --max-rows=20000  # quick trial
+```
+
+> Powered by TfL Open Data. Cycle hire data © Transport for London.
+
 ## Regenerating
 
 These files are produced by a small deterministic generator (seeded PRNG). If
