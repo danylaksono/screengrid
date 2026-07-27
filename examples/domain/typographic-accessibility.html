@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Typographic Accessibility Glyph Example</title>
+  <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+    }
+
+    #map {
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .controls {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      width: 236px;
+      max-height: calc(100vh - 20px);
+      overflow-y: auto;
+      background: rgba(255, 255, 255, 0.97);
+      padding: 9px 10px;
+      border-radius: 6px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+      font-size: 12px;
+      line-height: 1.35;
+      z-index: 1000;
+    }
+
+    .controls h1 {
+      margin: 0 0 7px;
+      font-size: 12.5px;
+      letter-spacing: 0.01em;
+    }
+
+    .controls label {
+      display: block;
+      margin-top: 5px;
+    }
+
+    .controls input[type=range] {
+      width: 100%;
+      margin: 2px 0 0;
+      vertical-align: middle;
+    }
+
+    .controls select {
+      width: 100%;
+      font-size: 12px;
+      margin-top: 1px;
+    }
+
+    .val {
+      float: right;
+      color: #567;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Swatches mirror the glyph's own letters and hues, in glyph order. */
+    .legend {
+      margin-top: 9px;
+      padding-top: 8px;
+      border-top: 1px solid #e4e8ec;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px 8px;
+    }
+
+    .legend .item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10.5px;
+      color: #445;
+    }
+
+    .legend .sw {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 14px;
+      border-radius: 2px;
+      background: #eef1f4;
+      font-weight: 700;
+      font-size: 9px;
+      flex: none;
+    }
+
+    .encoding {
+      margin-top: 9px;
+      padding-top: 8px;
+      border-top: 1px solid #e4e8ec;
+      font-size: 10.5px;
+    }
+
+    .encoding dt {
+      font-weight: 700;
+      color: #223;
+    }
+
+    .encoding dd {
+      margin: 0 0 5px;
+      color: #667;
+    }
+
+    .foot {
+      margin-top: 8px;
+      padding-top: 7px;
+      border-top: 1px solid #e4e8ec;
+      font-size: 10px;
+      color: #7a8390;
+      line-height: 1.4;
+    }
+
+    .foot a {
+      color: #4a6572;
+    }
+
+    .warn {
+      color: #8a4b12;
+      background: #fdf3e6;
+      border-radius: 4px;
+      padding: 5px 6px;
+      margin-top: 6px;
+      font-size: 10px;
+      line-height: 1.4;
+    }
+
+    .is-hidden {
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="map"></div>
+  <div class="controls">
+    <h1>Typographic Accessibility &mdash; Text as Glyph</h1>
+
+    <label for="timeSlider">Within <span class="val"><span id="minuteLabel">120</span> min</span></label>
+    <input id="timeSlider" type="range" min="0" max="7" step="1" value="7" />
+
+    <label for="cellSize">Cell size <span class="val"><span id="cellSizeLabel">76</span> px</span></label>
+    <input id="cellSize" type="range" min="40" max="160" step="4" value="76" />
+
+    <label for="modeSelect">Glyph</label>
+    <select id="modeSelect">
+      <option value="set">Typographic set &mdash; all six services</option>
+      <option value="dominant">Single label &mdash; leading service only</option>
+    </select>
+
+    <label for="normSelect">Rank services by</label>
+    <select id="normSelect">
+      <option value="quotient">Location quotient (vs London mean)</option>
+      <option value="raw">Raw share of London services</option>
+    </select>
+
+    <div class="warn" id="normNote"></div>
+    <div class="warn is-hidden" id="fitNote"></div>
+
+    <dl class="encoding">
+      <dt>Position</dt>
+      <dd>always the same six services in the same six slots, in the bar
+        glyph's order &mdash; so one service can be scanned across the grid</dd>
+      <dt>Size</dt>
+      <dd>location quotient &mdash; how well served relative to the London
+        average for <em>that</em> service. The biggest word is what this place
+        is unusually good for.</dd>
+      <dt>Weight</dt>
+      <dd>absolute share reachable (three steps &mdash; type weight offers few
+        discriminable levels)</dd>
+      <dt>Italic</dt>
+      <dd>below London's lower-quartile LSOA for that service. Cells average
+        several LSOAs, so rather more than a quarter of words slant.</dd>
+    </dl>
+
+    <div class="legend" id="legend"></div>
+
+    <div class="foot" id="dataNote">Loading data&hellip;</div>
+    <div class="foot">
+      Encoding after Brath &amp; Banissi's typographic design space
+      (<a href="https://doi.org/10.1016/j.sheji.2016.09.001" target="_blank" rel="noopener">She Ji 2016</a>;
+      <a href="https://doi.org/10.1080/23729333.2017.1301346" target="_blank" rel="noopener">Int. J. Cartography 2017</a>;
+      <a href="https://doi.org/10.1080/15230406.2018.1516572" target="_blank" rel="noopener">CaGIS 2019</a>).
+      Same data and legend as the <a href="public-transport-accessibility.html">bar-glyph example</a> &mdash;
+      compare the two glyph forms.
+    </div>
+  </div>
+
+  <script type="module">
+    import { ScreenGridLayerGL } from '../../src/index.js';
+    import TypographicAccessibilityGlyph, { MINUTES, fitsSet } from '../../src/glyphs/TypographicAccessibilityGlyph.js';
+    import { loadPtal } from '../data/ptal-loader.js';
+
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: {
+        version: 8,
+        sources: {
+          'carto-dark': {
+            type: 'raster',
+            tiles: [
+              'https://a.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
+              'https://b.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
+              'https://c.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
+              'https://d.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png'
+            ],
+            tileSize: 256,
+            attribution: '© <a href="https://carto.com/">CARTO</a>'
+          }
+        },
+        layers: [{ id: 'carto-dark', type: 'raster', source: 'carto-dark' }]
+      },
+      center: [-0.118, 51.509],
+      zoom: 9.6
+    });
+
+    const minuteLabel = document.getElementById('minuteLabel');
+    const timeSlider = document.getElementById('timeSlider');
+    const cellSizeInput = document.getElementById('cellSize');
+    const cellSizeLabel = document.getElementById('cellSizeLabel');
+    const modeSelect = document.getElementById('modeSelect');
+    const normSelect = document.getElementById('normSelect');
+    const normNote = document.getElementById('normNote');
+    const fitNote = document.getElementById('fitNote');
+
+    // Glyphs should nearly fill their cell; the cell size slider is what
+    // actually changes how big they look, because it re-aggregates.
+    const GLYPH_FILL = 0.94;
+
+    let gridLayer = null;
+    let data = null;
+    let categories = [];
+    let overallMax = 1;       // observed maximum across all categories and bands
+    let meansByBand = [];     // per-band, per-category London mean (the LQ divisor)
+    let quotientByBand = [];  // per-band [p05, p95] of the location quotient
+    let slantByBand = [];     // per-band lower quartile of the quotient
+
+    // Legend swatches come from the glyph itself, so panel and canvas can
+    // never drift apart on category order, colour, or abbreviation.
+    (function buildLegend() {
+      const el = document.getElementById('legend');
+      el.innerHTML = TypographicAccessibilityGlyph.legend()
+        .map(({ name, color, abbr }) => `<div class="item"><span class="sw" style="color:${color}">${abbr}</span>${
+          name.replace('school_', '').replace('_', ' ')}</div>`)
+        .join('');
+    })();
+
+    // The glyph silently falls back to a single label when six words will not
+    // set legibly. Say so, rather than letting the map look like it ignored
+    // the control.
+    function describeFit() {
+      const px = Number(cellSizeInput.value) * GLYPH_FILL;
+      const collapsed = modeSelect.value === 'set' && !fitsSet(px);
+      fitNote.classList.toggle('is-hidden', !collapsed);
+      fitNote.innerHTML = collapsed
+        ? 'Cells are too small to set six words legibly, so each shows its '
+          + 'leading service alone. Widen the cells to get the full set back.'
+        : '';
+    }
+
+    function describeNormalization() {
+      if (normSelect.value === 'raw') {
+        normNote.innerHTML = '<strong>Deliberately broken.</strong> Employment is a share of far more '
+          + 'London destinations than any other service, so ranking on the raw share puts <strong>EMP</strong> '
+          + 'first in <em>every</em> cell &mdash; the glyph reports a dataset constant, not a property of place.';
+      } else {
+        normNote.innerHTML = 'Each service is divided by its own London mean at this time band, so the six '
+          + 'become comparable and the leading word varies across the city.';
+      }
+    }
+
+    function glyphConfig() {
+      const idx = Number(timeSlider.value);
+      return {
+        timeIndex: idx,
+        valueScale: overallMax,
+        categoryMeans: meansByBand[idx],
+        quotientRange: quotientByBand[idx],
+        slantBelow: slantByBand[idx],
+        normalization: normSelect.value,
+        mode: modeSelect.value,
+      };
+    }
+
+    /** p-th percentile of an unsorted numeric array. */
+    function percentile(sorted, p) {
+      return sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))];
+    }
+
+    async function loadData() {
+      try {
+        const ptal = await loadPtal();
+        data = ptal.data;
+        categories = ptal.categories;
+
+        // All divisors are computed once here, from the whole dataset, and
+        // handed to every cell. The glyph never derives a scale from its own
+        // records -- per-cell scaling would make cells incomparable.
+        let max = 0;
+        meansByBand = [];
+        quotientByBand = [];
+
+        for (const m of ptal.minutes) {
+          const means = {};
+          for (const c of categories) {
+            let sum = 0;
+            for (const f of data) {
+              const v = f.properties[`${c}_pct_${m}`];
+              if (v != null) {
+                sum += v;
+                if (v > max) max = v;
+              }
+            }
+            means[c] = sum / data.length;
+          }
+          meansByBand.push(means);
+
+          // The quotient spread varies enormously by band -- tight at 120 min,
+          // heavily zero-inflated with extreme outliers at 15 min -- so the
+          // size ramp is clamped to each band's 5th-95th percentile rather
+          // than to a single global constant.
+          const qs = [];
+          for (const f of data) {
+            for (const c of categories) {
+              if (means[c] > 0) qs.push((f.properties[`${c}_pct_${m}`] || 0) / means[c]);
+            }
+          }
+          qs.sort((a, b) => a - b);
+          quotientByBand.push([percentile(qs, 0.05), percentile(qs, 0.95)]);
+          // Italic marks the lower quartile. The quotient distribution is
+          // right-skewed, so cutting at the mean would slant most of the words
+          // and stop reading as an exception.
+          slantByBand.push(percentile(qs, 0.25));
+        }
+        overallMax = max || 100;
+
+        const note = document.getElementById('dataNote');
+        if (note) note.innerHTML = `<strong>${ptal.label}.</strong> ${ptal.attribution}`;
+        describeNormalization();
+        describeFit();
+        setupLayer();
+      } catch (e) {
+        console.error('Failed to load accessibility data', e);
+        const note = document.getElementById('dataNote');
+        if (note) note.innerHTML = `<strong>Could not load data.</strong> ${e.message}`;
+      }
+    }
+
+    function setupLayer() {
+      if (!data) return;
+      if (gridLayer && map.getLayer(gridLayer.id)) map.removeLayer(gridLayer.id);
+
+      gridLayer = ScreenGridLayerGL.glyphMap({
+        id: 'typographic-glyph-layer',
+        data,
+        // Records are GeoJSON Point Features built by ptal-loader.js.
+        getPosition: (d) => (d?.geometry?.coordinates)
+          || (typeof d?.properties?.cent_long === 'number' ? [d.properties.cent_long, d.properties.cent_lat] : null),
+        getWeight: () => 1,
+        cellSizePixels: Number(cellSizeInput.value),
+        // Cell shading is a faint density cue only; the text carries the measure.
+        colorScale: (v) => [90, 130, 170, 25 + 45 * v],
+        glyphSize: GLYPH_FILL,
+        glyph: 'typographic-accessibility',
+        glyphConfig: glyphConfig(),
+        normalizationFunction: 'max-local',
+        showBackground: true
+      });
+
+      map.addLayer(gridLayer);
+    }
+
+    map.on('load', () => {
+      loadData();
+    });
+
+    // setConfig replaces glyphConfig wholesale, so always send the full object.
+    function refreshGlyph() {
+      if (gridLayer) gridLayer.setConfig({ glyphConfig: glyphConfig() });
+    }
+
+    timeSlider.addEventListener('input', () => {
+      minuteLabel.textContent = MINUTES[Number(timeSlider.value)];
+      refreshGlyph();
+    });
+
+    modeSelect.addEventListener('change', () => {
+      describeFit();
+      refreshGlyph();
+    });
+
+    normSelect.addEventListener('change', () => {
+      describeNormalization();
+      refreshGlyph();
+    });
+
+    // Changing the cell size re-aggregates: glyphs grow and stay tiled, and the
+    // number of LSOAs summarised by each cell changes with them.
+    cellSizeInput.addEventListener('input', () => {
+      const px = Number(cellSizeInput.value);
+      cellSizeLabel.textContent = px;
+      describeFit();
+      if (gridLayer) gridLayer.setConfig({ cellSizePixels: px });
+    });
+  </script>
+</body>
+
+</html>
