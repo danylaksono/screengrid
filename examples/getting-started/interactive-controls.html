@@ -230,8 +230,8 @@
                 <label for="basemapStyle">Basemap Style:</label>
                 <select id="basemapStyle">
                     <option value="osm">OpenStreetMap (Raster)</option>
-                    <option value="positron">Carto Positron (Light)</option>
-                    <option value="dark">Carto Dark Matter</option>
+                    <option value="positron">OpenFreeMap Positron (Light)</option>
+                    <option value="dark">OpenFreeMap Dark</option>
                 </select>
                 <label for="basemapOpacity">Basemap Opacity:</label>
                 <input type="range" id="basemapOpacity" min="0" max="100" value="100" step="5">
@@ -902,43 +902,13 @@
         // Basemap helpers
         function getBasemapStyle(styleKey) {
             const attributions = {
-                osm: '© OpenStreetMap contributors',
-                carto: '© OpenStreetMap contributors © CARTO'
+                osm: '© OpenStreetMap contributors'
             };
 
-            if (styleKey === 'positron') {
-                return {
-                    version: 8,
-                    sources: {
-                        'positron': {
-                            type: 'raster',
-                            tiles: ['https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'],
-                            tileSize: 256,
-                            attribution: attributions.carto
-                        }
-                    },
-                    layers: [
-                        { id: 'positron', type: 'raster', source: 'positron', paint: { 'raster-opacity': 1.0 } }
-                    ]
-                };
-            }
-
-            if (styleKey === 'dark') {
-                return {
-                    version: 8,
-                    sources: {
-                        'dark': {
-                            type: 'raster',
-                            tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
-                            tileSize: 256,
-                            attribution: attributions.carto
-                        }
-                    },
-                    layers: [
-                        { id: 'dark', type: 'raster', source: 'dark', paint: { 'raster-opacity': 1.0 } }
-                    ]
-                };
-            }
+            // OpenFreeMap vector styles: no API key, no request limits, and their
+            // TileJSON carries the attribution MapLibre renders automatically.
+            if (styleKey === 'positron') return 'https://tiles.openfreemap.org/styles/positron';
+            if (styleKey === 'dark') return 'https://tiles.openfreemap.org/styles/dark';
 
             // default: OSM
             return {
@@ -957,13 +927,29 @@
             };
         }
 
+        // The vector basemaps have no single raster layer to fade, so opacity is
+        // applied per layer type. Kept generic so the raster OSM style still works.
+        const OPACITY_PROPERTY = {
+            raster: 'raster-opacity',
+            background: 'background-opacity',
+            fill: 'fill-opacity',
+            line: 'line-opacity',
+            circle: 'circle-opacity',
+            'fill-extrusion': 'fill-extrusion-opacity'
+        };
+
         function setBasemapOpacity(opacity) {
             const style = map.getStyle();
             if (!style || !style.layers) return;
             style.layers.forEach((layer) => {
-                if (layer.type === 'raster' && map.getLayer(layer.id)) {
-                    map.setPaintProperty(layer.id, 'raster-opacity', opacity);
+                if (!map.getLayer(layer.id)) return;
+                if (layer.type === 'symbol') {
+                    map.setPaintProperty(layer.id, 'text-opacity', opacity);
+                    map.setPaintProperty(layer.id, 'icon-opacity', opacity);
+                    return;
                 }
+                const property = OPACITY_PROPERTY[layer.type];
+                if (property) map.setPaintProperty(layer.id, property, opacity);
             });
         }
 

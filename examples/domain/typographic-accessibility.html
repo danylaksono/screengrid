@@ -202,23 +202,7 @@
 
     const map = new maplibregl.Map({
       container: 'map',
-      style: {
-        version: 8,
-        sources: {
-          'carto-dark': {
-            type: 'raster',
-            tiles: [
-              'https://a.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
-              'https://b.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
-              'https://c.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png',
-              'https://d.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}.png'
-            ],
-            tileSize: 256,
-            attribution: '© <a href="https://carto.com/">CARTO</a>'
-          }
-        },
-        layers: [{ id: 'carto-dark', type: 'raster', source: 'carto-dark' }]
-      },
+      style: 'https://tiles.openfreemap.org/styles/dark',
       center: [-0.118, 51.509],
       zoom: 9.6
     });
@@ -379,7 +363,18 @@
       map.addLayer(gridLayer);
     }
 
+
+    // OpenFreeMap has no label-free dark variant, and these designs deliberately
+    // suppress basemap labels so the glyphs on top stay legible. Drop the symbol
+    // layers once the style has loaded.
+    function removeBasemapLabels(m) {
+      for (const layer of m.getStyle().layers) {
+        if (layer.type === 'symbol') m.removeLayer(layer.id);
+      }
+    }
+
     map.on('load', () => {
+      removeBasemapLabels(map);
       loadData();
     });
 

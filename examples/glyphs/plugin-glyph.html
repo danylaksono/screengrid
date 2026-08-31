@@ -160,8 +160,8 @@
       <label for="basemapSelect">Style:</label>
       <select id="basemapSelect">
         <option value="osm">OpenStreetMap</option>
-        <option value="positron" selected>Carto Positron (Light)</option>
-        <option value="dark">Carto Dark Matter</option>
+        <option value="positron" selected>OpenFreeMap Positron (Light)</option>
+        <option value="dark">OpenFreeMap Dark</option>
         <option value="satellite">Satellite</option>
       </select>
     </div>
@@ -408,32 +408,10 @@
         },
         layers: [{ id: 'osm', type: 'raster', source: 'osm' }]
       },
-      positron: {
-        version: 8,
-        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-        sources: {
-          'carto': {
-            type: 'raster',
-            tiles: ['https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'],
-            tileSize: 256,
-            attribution: '© CARTO, © OpenStreetMap contributors'
-          }
-        },
-        layers: [{ id: 'carto', type: 'raster', source: 'carto' }]
-      },
-      dark: {
-        version: 8,
-        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-        sources: {
-          'carto-dark': {
-            type: 'raster',
-            tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
-            tileSize: 256,
-            attribution: '© CARTO, © OpenStreetMap contributors'
-          }
-        },
-        layers: [{ id: 'carto-dark', type: 'raster', source: 'carto-dark' }]
-      },
+      // OpenFreeMap vector styles: no API key, no request limits, and their
+      // TileJSON carries the attribution MapLibre renders automatically.
+      positron: 'https://tiles.openfreemap.org/styles/positron',
+      dark: 'https://tiles.openfreemap.org/styles/dark',
       satellite: {
         version: 8,
         glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
@@ -452,7 +430,7 @@
     // Create map - default center to San Francisco, CA
     const map = new maplibregl.Map({
       container: 'map',
-      style: basemapStyles.positron, // Default to Carto Positron
+      style: basemapStyles.positron, // Default to OpenFreeMap Positron
       center: [-122.4, 37.74], // San Francisco, CA
       zoom: 11
     });

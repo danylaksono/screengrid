@@ -142,18 +142,7 @@
 
         const map = new maplibregl.Map({
             container: 'map',
-            style: {
-                version: 8,
-                sources: {
-                    'carto-dark': {
-                        type: 'raster',
-                        tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
-                        tileSize: 256,
-                        attribution: '© CARTO'
-                    }
-                },
-                layers: [{ id: 'background', type: 'raster', source: 'carto-dark' }]
-            },
+            style: 'https://tiles.openfreemap.org/styles/dark',
             center: [0.12, 52.20],
             zoom: 12
         });

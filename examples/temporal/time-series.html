@@ -16,21 +16,7 @@
 
         const map = new maplibregl.Map({
             container: 'map',
-            // style: 'https://demotiles.maplibre.org/style.json',
-            style: {
-                    version: 8,
-                    sources: {
-                        'dark': {
-                            type: 'raster',
-                            tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'],
-                            tileSize: 256,
-                            attribution: '© OpenStreetMap contributors © CARTO'
-                        }
-                    },
-                    layers: [
-                        { id: 'dark', type: 'raster', source: 'dark', paint: { 'raster-opacity': 1.0 } }
-                    ]
-                },
+            style: 'https://tiles.openfreemap.org/styles/dark',
             // center shows cambridge, uk
             center: [0.1278, 52.2053], 
             zoom: 12

@@ -181,12 +181,11 @@
 
     map.on('load', () => { regenerate(); rebuild(); });
 
+    // OpenFreeMap: no API key, no registration, no request limits. Its TileJSON
+    // carries the required attribution ("OpenFreeMap © OpenMapTiles / Data from
+    // OpenStreetMap"), so MapLibre adds it to the map on its own.
     function darkBasemap() {
-      return {
-        version: 8,
-        sources: { dark: { type: 'raster', tiles: ['https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors © CARTO' } },
-        layers: [{ id: 'dark', type: 'raster', source: 'dark' }]
-      };
+      return 'https://tiles.openfreemap.org/styles/dark';
     }
   </script>
 </body>
