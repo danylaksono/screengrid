@@ -263,4 +263,30 @@ for (const entry of catalogue) {
 }
 console.log(`  all ${catalogue.length} cases carry a question and an explanation OK`);
 
+// --- 6. No warning is silently ignored -------------------------------------
+// AGENTS.md section 2.4: fix a cartographic warning, or state why it is
+// acceptable for the stated intent — never ignore one. The atlas is the
+// library's own worked example, so it has to hold itself to that rule. The
+// viewport reminder is emitted for every screen-space spec by design, so it is
+// a standing note rather than a design warning about a particular case.
+const STANDING_NOTE = 'Screen-space cells are viewport dependent; avoid presenting them as stable geographic districts.';
+
+let cleanCases = 0;
+let justifiedCases = 0;
+for (const entry of catalogue) {
+  const design = validateSpec(entry.spec).warnings.filter((w) => w !== STANDING_NOTE);
+  if (design.length === 0) {
+    cleanCases += 1;
+    continue;
+  }
+  assert.ok(
+    entry.justification && entry.justification.length > 60,
+    `case "${entry.id}" leaves ${design.length} cartographic warning(s) unanswered:\n  `
+    + design.join('\n  ')
+    + '\n  Either fix the spec, or add a `justification` saying why the warning is acceptable here.'
+  );
+  justifiedCases += 1;
+}
+console.log(`  ${cleanCases} cases clean, ${justifiedCases} with written justifications, 0 ignored OK`);
+
 console.log('Design-space coverage tests passed');

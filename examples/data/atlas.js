@@ -83,6 +83,9 @@ export function generateAtlasPoints({ count = 12000, seed = 7 } = {}) {
     const halfWidth = 4 + (1 - centrality) * 18 + rand() * 3;
     r.access_lower = round(clamp(r.access - halfWidth, 0, 100), 1);
     r.access_upper = round(clamp(r.access + halfWidth, 0, 100), 1);
+    // The interval width as a field in its own right. A glyph that encodes a
+    // magnitude without it invites the reader to trust every cell equally.
+    r.access_ci_width = round(r.access_upper - r.access_lower, 1);
 
     // --- Baseline, for anomaly (difference) --------------------------------
     // A smooth city-wide expectation; the residual is the anomaly signal.
@@ -105,8 +108,14 @@ export function generateAtlasPoints({ count = 12000, seed = 7 } = {}) {
 
     // --- Categoricals ------------------------------------------------------
     r.sector = SECTORS[Math.floor(rand() * SECTORS.length)];
+    // Compass bearing toward the centre, but only as a tendency: a third of
+    // records head somewhere else. A purely deterministic bearing would make
+    // every cell single-valued, and a composition glyph over a single-valued
+    // field is a filled circle — it would demonstrate nothing.
     const bearingIndex = Math.round(((toCentre + Math.PI * 2) % (Math.PI * 2)) / (Math.PI / 4)) % 8;
-    r.compass = COMPASS[bearingIndex];
+    r.compass = rand() < 0.34
+      ? COMPASS[Math.floor(rand() * COMPASS.length)]
+      : COMPASS[bearingIndex];
   }
 
   return records;
@@ -165,7 +174,7 @@ export function buildAtlasProfile(records) {
   const numericExtras = [
     ...HOUR_FIELDS,
     ...DIRECTION_FIELDS,
-    'access_lower', 'access_upper', 'access_baseline', 'households',
+    'access_lower', 'access_upper', 'access_ci_width', 'access_baseline', 'households',
   ];
 
   const fields = base.fields.map((f) => {

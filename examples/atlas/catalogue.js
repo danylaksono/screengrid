@@ -125,11 +125,13 @@ export function buildCatalogue(profile) {
         aggregation: { function: 'sum', field: 'price' },
         normalization: 'percentile',
         emptyCellPolicy: 'show-zero',
-        summaries: [{
-          name: 'total_value', role: 'primary', op: 'sum', field: 'price',
-          reliability: { warnBelowCount: 5 },
-          comparability: { normalization: 'percentile', validAcrossZoom: false, requiresDenominator: true },
-        }],
+        summaries: [
+          { name: 'count', role: 'primary', op: 'count', reliability: { warnBelowCount: 5 } },
+          {
+            name: 'total_value', role: 'profile', op: 'sum', field: 'price',
+            comparability: { normalization: 'percentile', validAcrossZoom: false, requiresDenominator: true },
+          },
+        ],
       },
       glyph: {
         type: 'circle',
@@ -164,10 +166,10 @@ export function buildCatalogue(profile) {
         }],
         normalization: 'max-global',
         summaries: [
+          { name: 'count', role: 'primary', op: 'count', reliability: { warnBelowCount: 5 } },
           {
-            name: 'access_total', role: 'primary', op: 'sum', field: 'access',
+            name: 'access_total', role: 'profile', op: 'sum', field: 'access',
             per: { type: 'field', field: 'households', description: 'Households in the cell' },
-            reliability: { warnBelowCount: 5 },
           },
           { name: 'households', role: 'denominator', op: 'sum', field: 'households' },
         ],
@@ -245,6 +247,7 @@ export function buildCatalogue(profile) {
 
   add({
     id: 'composition-long-tail',
+    justification: 'The category-count warning is the point of this case. The compass field really does have eight categories; the spec caps visible slices at six and the compiler folds the tail into "other", which is the recommended repair rather than a suppression of the warning.',
     group: 'composition',
     title: 'Eight categories, folded',
     question: 'Which compass sector dominates, without eight unreadable slices?',
@@ -315,6 +318,7 @@ export function buildCatalogue(profile) {
 
   add({
     id: 'profile-radial-star',
+    justification: 'The validator suggests a wedge mark for radial glyphs, which assumes a radial layout means composition. This is a profile, not a composition: a star plot encodes each measure as a radius on its own axis, and wedges would imply the measures are shares of a whole. Warning acknowledged and declined.',
     group: 'profile-comparison',
     title: 'Radial star profile',
     question: 'Which places have unusually shaped profiles?',
@@ -352,6 +356,7 @@ export function buildCatalogue(profile) {
         aggregation: { function: 'min', field: 'rent' },
         normalization: 'max-global',
         summaries: [
+          { name: 'count', role: 'primary', op: 'count', reliability: { warnBelowCount: 5 } },
           { name: 'rent_low', role: 'profile', op: 'min', field: 'rent' },
           { name: 'rent_high', role: 'profile', op: 'max', field: 'rent' },
         ],
@@ -452,6 +457,7 @@ export function buildCatalogue(profile) {
         aggregation: { function: 'mean', field: 'access' },
         normalization: 'max-global',
         summaries: [
+          { name: 'count', role: 'primary', op: 'count', reliability: { warnBelowCount: 5 } },
           { name: 'access_mean', role: 'uncertainty', op: 'mean', field: 'access' },
           { name: 'access_variance', role: 'uncertainty', op: 'variance', field: 'access' },
         ],
@@ -504,6 +510,7 @@ export function buildCatalogue(profile) {
 
   add({
     id: 'uncertainty-radial-annulus',
+    justification: 'Same wedge suggestion, declined for the same reason: the annulus encodes an interval as a radial extent, not a division of a whole. Adding wedges would invent a composition the data does not have.',
     group: 'uncertainty',
     title: 'Radial uncertainty annulus',
     question: 'How wide is the estimate, read as an area rather than a bar?',
@@ -515,7 +522,7 @@ export function buildCatalogue(profile) {
         aggregation: { function: 'mean', field: 'access' },
         normalization: 'max-global',
         summaries: [{
-          name: 'sample_size', role: 'reliability', op: 'count',
+          name: 'count', role: 'reliability', op: 'count',
           reliability: { warnBelowCount: 5, warnOnMissingness: true, warnOnHeterogeneity: true },
         }],
         semanticModel: {
@@ -581,8 +588,14 @@ export function buildCatalogue(profile) {
       },
       glyph: {
         type: 'circle',
-        channels: { size: { field: 'access', aggregate: 'mean' } },
-        scales: { size: 'linear', color: 'sequential' },
+        channels: {
+          size: { field: 'access', aggregate: 'mean' },
+          // Confidence as opacity, inverted: the wider the interval behind a
+          // cell's estimate, the fainter its residual is drawn. Without this a
+          // sparse, badly-measured cell shouts as loudly as a well-measured one.
+          opacity: { field: 'access_ci_width', aggregate: 'mean' },
+        },
+        scales: { size: 'linear', color: 'sequential', opacity: 'inverse' },
         palette: 'ember',
         legend: { enabled: true, title: 'Residual (z-score)' },
       },
@@ -608,8 +621,9 @@ export function buildCatalogue(profile) {
         channels: {
           size: { field: 'access', aggregate: 'mean' },
           color: { field: 'sector', aggregate: 'mode' },
+          opacity: { field: 'access_ci_width', aggregate: 'mean' },
         },
-        scales: { size: 'sqrt', color: 'categorical' },
+        scales: { size: 'sqrt', color: 'categorical', opacity: 'inverse' },
         palette: 'categorical',
         legend: { enabled: true, title: 'Dominant sector' },
       },
@@ -666,10 +680,13 @@ export function buildCatalogue(profile) {
           denominator: { type: 'external', value: 750000, description: 'Regional northbound total' },
         }],
         normalization: 'max-global',
-        summaries: [{
-          name: 'northbound', role: 'primary', op: 'sum', field: 'flow_n',
-          per: { type: 'external', value: 750000, description: 'Regional northbound total' },
-        }],
+        summaries: [
+          { name: 'count', role: 'primary', op: 'count', reliability: { warnBelowCount: 5 } },
+          {
+            name: 'northbound', role: 'profile', op: 'sum', field: 'flow_n',
+            per: { type: 'external', value: 750000, description: 'Regional northbound total' },
+          },
+        ],
       },
       glyph: { type: 'heatmap', palette: 'slate', legend: { enabled: true, title: 'Share of regional flow' } },
     }),
@@ -771,10 +788,13 @@ export function buildCatalogue(profile) {
           denominator: { type: 'area', description: 'Screen-cell area (constant per aggregation)' },
         }],
         normalization: 'max-local',
-        summaries: [{
-          name: 'households_total', role: 'primary', op: 'sum', field: 'households',
-          per: { type: 'area', description: 'Screen-cell area (constant per aggregation)' },
-        }],
+        summaries: [
+          { name: 'count', role: 'primary', op: 'count', reliability: { warnBelowCount: 5 } },
+          {
+            name: 'households_total', role: 'profile', op: 'sum', field: 'households',
+            per: { type: 'area', description: 'Screen-cell area (constant per aggregation)' },
+          },
+        ],
       },
       glyph: { type: 'heatmap', palette: 'ember', legend: { enabled: true, title: 'Demand intensity' } },
     }),
@@ -786,6 +806,7 @@ export function buildCatalogue(profile) {
 
   add({
     id: 'edge-custom-aggregation',
+    justification: 'The partial-checkability warning is the reason this case exists. It marks the boundary of the grammar: the validator cannot see inside a custom function, so reproducibility rests on the application rather than the spec.',
     group: 'edges',
     title: 'Custom aggregation (escape hatch)',
     question: 'What if the computation cannot be declared?',
