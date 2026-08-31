@@ -60,7 +60,6 @@
   <script type="module">
     import { validateSpec, compileSpec, ScreenGridLayerGL } from '../../src/index.js';
     import { generateLondonPoints, buildLondonProfile, LONDON_CENTER } from '../data/london.js';
-    import { colorScaleFromPalette } from './grammar-render-bridge.js';
 
     // 1) Profile the data (embedded in the spec so it is self-describing).
     const data = generateLondonPoints({ count: 40000, seed: 42 });
@@ -105,11 +104,12 @@
     renderReport(report);
     if (!report.valid) throw new Error('Spec invalid:\n' + report.errors.join('\n'));
 
-    // 4) Compile — spec becomes ScreenGridLayerGL options (analytical half).
-    const { layerOptions, checkability } = compileSpec(spec);
+    // 4) Compile — the spec becomes complete ScreenGridLayerGL options:
+    //    aggregation AND the visual encoding (palette, glyph, legend).
+    const { layerOptions, checkability, legend } = compileSpec(spec);
     document.getElementById('checkability').textContent = 'checkability: ' + checkability;
 
-    // 5) Supply the visual half (palette → colorScale) and render.
+    // 5) Render. Nothing to hand-write: the spec describes the whole map.
     const map = new maplibregl.Map({
       container: 'map',
       style: darkBasemap(),
@@ -124,7 +124,6 @@
         id: 'density',
         data,
         ...layerOptions,
-        colorScale: colorScaleFromPalette(spec.glyph.palette),
         onAggregate: (grid) => {
           const t0 = performance.now();
           const populated = grid.grid.reduce((n, v) => n + (v > 0 ? 1 : 0), 0);

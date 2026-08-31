@@ -225,6 +225,13 @@ See [USAGE.md](docs/USAGE.md) for development workflow details.
 
 ## Changelog
 
+### Unreleased
+- **NEW**: `compileSpec` now compiles the **visual** half of a spec as well as the analytical half. A validated spec renders on its own — `colorScale` from the declared palette, `onDrawCell` for the declared glyph type and marks, and a DOM-free `legend` descriptor. Previously the glyph grammar was checkable but not executable, and every application had to hand-write its own renderer.
+- **NEW**: `compileGlyph`, `colorScaleFromPalette` and `CATEGORICAL_COLORS` are exported. All six glyph types (`heatmap`, `circle`, `bar`, `pie`, `ring`, `custom`), both custom layouts (`cartesian-mini`, `radial`) and all seven marks (`line`, `point`, `wedge`, `ring`, `band`, `interval`, `whisker`) compile and draw.
+- **NEW**: `examples/atlas/` — a design-space atlas instantiating every case the grammar can express, and `tests/unit/DesignSpaceCoverage.test.js`, which reads the JSON Schemas and fails if any enum value lacks a demonstration (122 values across 29 axes at present).
+- **PERF**: The compiled glyph computes per-cell payloads and shared cross-cell domains once per aggregation, not per cell per frame, and never touches `cell.measures` on the render path.
+- `compileSpec(spec, { glyph: false })` opts out and emits the analytical half alone (the previous behaviour). An application `onAggregate` is composed with the compiler's domain pass rather than replaced.
+
 ### v3.1.1 (Current)
 - **FIXED**: `exports` now exposes `./package.json`, which build tools and bundlers commonly resolve.
 - **BUILD**: Toolchain updated to `@rollup/plugin-terser` v1 (clears 4 advisories, 2 high). Build-time only — the package has no runtime dependencies.

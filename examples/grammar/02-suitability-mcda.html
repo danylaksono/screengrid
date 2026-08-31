@@ -67,7 +67,6 @@
   <script type="module">
     import { validateSpec, compileSpec, ScreenGridLayerGL } from '../../src/index.js';
     import { generateLondonPoints, buildLondonProfile, LONDON_CENTER } from '../data/london.js';
-    import { colorScaleFromPalette } from './grammar-render-bridge.js';
 
     const data = generateLondonPoints({ count: 45000, seed: 7 });
     const datasetProfile = buildLondonProfile(data);
@@ -136,7 +135,6 @@
         id: 'mcda',
         data,
         ...layerOptions,
-        colorScale: colorScaleFromPalette(spec.glyph.palette),
       });
       map.addLayer(layer);
     }

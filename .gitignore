@@ -119,3 +119,6 @@ dist-demo/
 # scripts/santander/ — not committed; examples fall back to synthetic without it)
 examples/data/santander-flows.json
 examples/data/santander-flows-meta.json
+
+# Playwright MCP scratch output
+.playwright-mcp/

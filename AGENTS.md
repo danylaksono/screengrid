@@ -53,8 +53,14 @@ dataset profile -> analytical intent -> spatial aggregation contract
 4. **Validate** — `validateSpec(spec)`. **Errors are blockers.** Warnings are cartographic
    risks: fix them, or state in your output why each remaining warning is acceptable for
    the stated intent. Never silently ignore a warning.
-5. **Compile and render** — `compileSpec(spec)` returns `ScreenGridLayerGL` options; pass
-   your data and add the layer to the map.
+5. **Compile and render** — `compileSpec(spec)` returns complete `ScreenGridLayerGL`
+   options: the analytical half (aggregation, cell size, normalization, positions) **and**
+   the visual half (`colorScale` from the palette, `onDrawCell` for the glyph type and its
+   marks, plus a DOM-free `legend` descriptor). Pass your data and add the layer. Do not
+   hand-write a glyph callback for anything the grammar can express — if you find yourself
+   doing so, either the spec is wrong or you have found a real gap worth reporting.
+   `compileSpec(spec, { glyph: false })` opts out and emits the analytical half alone, for
+   designs outside the glyph grammar (see §7).
 6. **Save the spec** — the spec (JSON, with its `version`) is the deliverable that makes
    the map reproducible. Hand it over alongside any screenshot.
 
@@ -65,8 +71,9 @@ const report = validateSpec(spec);
 if (!report.valid) throw new Error(report.errors.join('\n'));
 report.warnings.forEach((w) => console.warn('[cartographic]', w));
 
-const { layerOptions } = compileSpec(spec, { parameters: { w_access: 0.7 } });
+const { layerOptions, legend } = compileSpec(spec, { parameters: { w_access: 0.7 } });
 map.addLayer(new ScreenGridLayerGL({ id: 'glyphmap', data, ...layerOptions }));
+// `legend` describes what to draw and what the scaling means; render it yourself.
 ```
 
 ## 3. The spec, minimally
@@ -294,6 +301,18 @@ analysis in particular is active research territory — flag it, don't improvise
   (`src/grammar/schemas/`), `validateSpec`, and `docs/CELL_SEMANTICS.md` must agree. Bump
   `SPEC_VERSION` on any grammar change and update this file — a test asserts this file
   mentions the current version.
+- **Design-space coverage contract:** every enum value in the schemas must be demonstrated
+  by a case in `examples/atlas/catalogue.js`. `tests/unit/DesignSpaceCoverage.test.js`
+  reads the schemas, enumerates the enums, and fails if one is undemonstrated — so adding
+  a vocabulary term means adding the case that shows it. If a new enum genuinely describes
+  data rather than a design choice, add it to that test's `EXCLUDED_PATHS` **with a
+  reason**; the exclusion list is part of the coverage claim, not a way around it.
+  Shared `$defs` count as one axis, not one per reference site.
+- **Both halves compile:** `compileGlyph` turns the `glyph` block into `colorScale` /
+  `onDrawCell` / `legend`. Adding a glyph type, mark, layout, palette or channel op to the
+  schema means implementing it there too, or the coverage test will fail on a case that
+  validates but cannot draw. Keep the draw path allocation-free and off `cell.measures`
+  (see §7); the compiler does its per-cell work once per aggregation in `onAggregate`.
 - **Data policy:** everything under `examples/` must be synthetic
   (see `examples/data/generate-synthetic-data.mjs`) or openly licensed. Never commit
   proprietary datasets.

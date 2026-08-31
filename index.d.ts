@@ -618,6 +618,40 @@ export function compileDerivedMeasure(
   parameterOverrides?: Record<string, number>
 ): (records: CellDatum[]) => number;
 
+/**
+ * A DOM-free description of the legend a spec implies. The library renders no
+ * markup; applications turn this into whatever their page needs. `normalizationNote`
+ * is the honesty line — what the scaling actually means, in words, for a caption.
+ */
+export interface CompiledLegend {
+  enabled: boolean;
+  title: string | null;
+  kind: 'sequential' | 'categorical' | 'measures';
+  palette: string;
+  categories: string[] | null;
+  measures: string[] | null;
+  normalization: string;
+  normalizationNote: string;
+  viewportNote: string;
+}
+
+/** The executable visual half of a spec: palette, glyph callback, legend. */
+export interface CompiledGlyph {
+  enableGlyphs: boolean;
+  showBackground: boolean;
+  glyphSize: number;
+  colorScale: (v: number) => [number, number, number, number];
+  onAggregate?: (result: unknown) => void;
+  onDrawCell?: (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    normalizedValue: number,
+    cell: Record<string, unknown>
+  ) => void;
+  legend: CompiledLegend;
+}
+
 export interface CompiledSpec {
   /** ScreenGridLayerGL constructor options (data not included). */
   layerOptions: Record<string, unknown> & {
@@ -627,16 +661,49 @@ export interface CompiledSpec {
     aggregationFunction: string | ((records: CellDatum[]) => number);
     getPosition: (d: Record<string, unknown>) => [number, number];
     getWeight: () => number;
+    colorScale?: (v: number) => [number, number, number, number];
+    enableGlyphs?: boolean;
+    showBackground?: boolean;
+    glyphSize?: number;
+    onDrawCell?: CompiledGlyph['onDrawCell'];
+    onAggregate?: (result: unknown) => void;
   };
   parameters: Record<string, number>;
   checkability: 'full' | 'partial';
+  /** null when compiled with `{ glyph: false }`. */
+  legend: CompiledLegend | null;
+  /** The compiled visual half; absent when compiled with `{ glyph: false }`. */
+  glyph?: CompiledGlyph;
 }
 
-/** Compile a spec into executable layer options via the library's generic hooks. */
+/**
+ * Compile a spec into executable layer options — both the analytical half
+ * (aggregation, cell size, normalization, positions) and the visual half
+ * (colour scale, glyph callback, legend). Pass `{ glyph: false }` to emit the
+ * analytical half alone.
+ */
 export function compileSpec(
   spec: ScreengridSpec,
   options?: {
     parameters?: Record<string, number>;
     customFunctions?: Record<string, (records: CellDatum[]) => number>;
+    glyph?: boolean;
+    glyphSize?: number;
+    onAggregate?: (result: unknown) => void;
   }
 ): CompiledSpec;
+
+/** Compile only the `glyph` block of a spec into render options. */
+export function compileGlyph(
+  spec: ScreengridSpec,
+  options?: { glyphSize?: number; onAggregate?: (result: unknown) => void }
+): CompiledGlyph;
+
+/** Build a `colorScale` from one of the grammar's palette names. */
+export function colorScaleFromPalette(
+  palette: string,
+  options?: { opacity?: number; floor?: number }
+): (v: number) => [number, number, number, number];
+
+/** The discrete, colour-blind-aware palette used for categorical encodings. */
+export const CATEGORICAL_COLORS: string[];

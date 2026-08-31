@@ -7,7 +7,12 @@
  * and passed through the library's existing hooks — the library itself stays
  * domain-agnostic. Cell records have the shape pushed by Aggregator:
  * { data, weight, projectedX, projectedY }.
+ *
+ * The visual half (palette, glyph marks, legend) is compiled by ./compileGlyph.js
+ * and folded into the same layerOptions, so a validated spec renders on its own.
  */
+
+import { compileGlyph } from './compileGlyph.js';
 
 /**
  * Resolve parameter values: declared defaults overlaid with runtime overrides,
@@ -125,14 +130,32 @@ export function compileDerivedMeasure(spec, measureName, parameterOverrides = {}
 
 /**
  * Compile a spec into ScreenGridLayerGL constructor options (data not included).
+ *
+ * Emits BOTH halves of a layer: the analytical half (aggregation, cell size,
+ * normalization, positions) and the visual half (palette colour scale, glyph
+ * draw callback, legend descriptor) compiled by `compileGlyph`. A spec is
+ * therefore a complete, reproducible description of a map — pass `data` and add
+ * the layer. Use `{ glyph: false }` to emit only the analytical half when the
+ * application supplies its own rendering.
+ *
  * @param {Object} spec - Screengrid spec
  * @param {Object} options
  * @param {Object} options.parameters - runtime parameter overrides
  * @param {Object} options.customFunctions - {ref: fn} implementations for
  *   aggregation.function === 'custom' escape-hatch specs
- * @returns {Object} {layerOptions, parameters, checkability}
+ * @param {boolean} [options.glyph=true] - compile the visual half
+ * @param {number} [options.glyphSize=0.9] - mark size as a fraction of the cell
+ * @param {Function} [options.onAggregate] - application aggregation callback,
+ *   composed with (not replaced by) the glyph compiler's domain pass
+ * @returns {Object} {layerOptions, parameters, checkability, legend}
  */
-export function compileSpec(spec, { parameters = {}, customFunctions = {} } = {}) {
+export function compileSpec(spec, {
+  parameters = {},
+  customFunctions = {},
+  glyph = true,
+  glyphSize = 0.9,
+  onAggregate = null,
+} = {}) {
   const resolved = resolveParameters(spec, parameters);
   const aggregation = spec.screengrid.aggregation;
   let aggregationFunction;
@@ -178,5 +201,24 @@ export function compileSpec(spec, { parameters = {}, customFunctions = {} } = {}
     getWeight: () => 1,
   };
 
-  return { layerOptions, parameters: resolved, checkability };
+  if (!glyph) {
+    if (onAggregate) layerOptions.onAggregate = onAggregate;
+    return { layerOptions, parameters: resolved, checkability, legend: null };
+  }
+
+  const compiledGlyph = compileGlyph(spec, { glyphSize, onAggregate });
+  layerOptions.colorScale = compiledGlyph.colorScale;
+  layerOptions.enableGlyphs = compiledGlyph.enableGlyphs;
+  layerOptions.showBackground = compiledGlyph.showBackground;
+  layerOptions.glyphSize = compiledGlyph.glyphSize;
+  if (compiledGlyph.onDrawCell) layerOptions.onDrawCell = compiledGlyph.onDrawCell;
+  if (compiledGlyph.onAggregate) layerOptions.onAggregate = compiledGlyph.onAggregate;
+
+  return {
+    layerOptions,
+    parameters: resolved,
+    checkability,
+    legend: compiledGlyph.legend,
+    glyph: compiledGlyph,
+  };
 }

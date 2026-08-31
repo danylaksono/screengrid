@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "examples/grammar/03-composition.html"
+        ],
+        "createdAt": "2026-08-31T11:53:17.505Z",
+        "reason": "Claude: dense tool panel with a deliberate 3-level system — h1 17px vs 13px body is a 1.31 ratio (above the rule's own 1.25 threshold); the 12px h2 is an eyebrow differentiated by uppercase + .05em tracking + muted colour, not by size. Remaining 12-13px elements (labels, legend rows, reports, readout) are body-level and correctly uniform. Pre-existing shared styling across the grammar examples; this change edited prose only."
+      }
+    ]
+  }
+}

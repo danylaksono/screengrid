@@ -30,30 +30,36 @@ npm start
 | --- | --- |
 | [`01-density.html`](01-density.html) | The whole pipeline end to end; a live validation report (errors vs cartographic warnings); `checkability`. |
 | [`02-suitability-mcda.html`](02-suitability-mcda.html) | A `derived` **weighted-sum** measure; declared **parameters** with domains, driven by sliders and clamped on compile; global vs local normalization and the comparability warning firing live. |
-| [`03-composition.html`](03-composition.html) | `composition` intent; pie glyphs drawn from each cell's lazy `measures` distribution; the category-count guardrail; a sparse-cell reliability cue. |
+| [`03-composition.html`](03-composition.html) | `composition` intent; compiled pie glyphs; the category-count guardrail; a sparse-cell reliability cue. |
 
-## The two halves of a compiled layer
+## A compiled layer is complete
 
-`compileSpec` returns only the **analytical** half of a layer —
-`aggregationMode`, `cellSizePixels`, `normalizationFunction`,
-`aggregationFunction`, `getPosition`, `getWeight` — because the library core is
-deliberately domain- and style-agnostic. The **visual** half (a colour ramp for
-the palette, an `onDrawCell` callback for the glyph type) is supplied by the
-application. [`grammar-render-bridge.js`](grammar-render-bridge.js) is that seam,
-shared across the examples:
+`compileSpec` compiles **both** halves of a layer:
+
+- the **analytical** half — `aggregationMode`, `cellSizePixels`,
+  `normalizationFunction`, `aggregationFunction`, `getPosition`, `getWeight`;
+- the **visual** half — `colorScale` from the declared palette, `onDrawCell` for
+  the declared glyph type and marks, and a DOM-free `legend` descriptor.
+
+So a validated spec renders on its own; there is nothing to hand-write:
 
 ```js
 const report = validateSpec(spec);
 if (!report.valid) throw new Error(report.errors.join('\n'));
 report.warnings.forEach((w) => console.warn('[cartographic]', w));
 
-const { layerOptions } = compileSpec(spec, { parameters: { w_access: 0.7 } });
-map.addLayer(ScreenGridLayerGL.density({
-  id: 'grid', data,
-  ...layerOptions,                                   // analytical half
-  colorScale: colorScaleFromPalette(spec.glyph.palette), // visual half
-}));
+const { layerOptions, legend } = compileSpec(spec, { parameters: { w_access: 0.7 } });
+map.addLayer(ScreenGridLayerGL.density({ id: 'grid', data, ...layerOptions }));
 ```
+
+Pass `{ glyph: false }` when the application wants to supply its own rendering —
+the analytical half is emitted alone, which is the old behaviour. That escape is
+also the route for designs the glyph grammar does not cover, such as the
+inter-cell and networked glyphs in [`../case-studies/`](../case-studies/).
+
+Because a spec is now a complete description of a map, it is also a testable one:
+[`../atlas/`](../atlas/) instantiates every case the grammar can express, and
+`tests/unit/DesignSpaceCoverage.test.js` fails if any case lacks a demonstration.
 
 ## Verify without a browser
 
