@@ -188,6 +188,7 @@
     import { validateSpec, compileSpec, colorScaleFromPalette, CATEGORICAL_COLORS, ScreenGridLayerGL } from '../../src/index.js';
     import { generateAtlasPoints, buildAtlasProfile, LONDON_CENTER } from '../data/atlas.js';
     import { buildCatalogue, GROUP_ORDER, GROUP_LABELS } from './catalogue.js';
+    import { createMapPool } from './map-pool.js';
 
     const GROUP_BLURB = {
       density: 'Where is there more of something? The scope of the comparison decides whether a raw count is honest or a rate is required.',
@@ -348,85 +349,47 @@
     }
 
     // --- A recycling pool of live maps ------------------------------------
-    // Each card is a real MapLibre instance, and each instance holds a WebGL
-    // context. Browsers cap those at around 16 and silently kill the oldest when
-    // you exceed it — with 25 maps on the page, nine of them went blank. So the
-    // atlas keeps a small pool of live maps: a card builds its map when it
-    // scrolls into view, and the least-recently-seen off-screen map is torn down
-    // to stay inside the budget. Scrolling back rebuilds it from the same spec,
-    // which is the whole point of a spec being the deliverable.
-    const MAX_LIVE_MAPS = 6;
+    // Twenty-five simultaneous WebGL contexts exceeds what browsers allow; see
+    // map-pool.js for what goes wrong and why maps are built and torn down as
+    // they scroll. Rebuilding costs nothing conceptually: the spec is the source
+    // of truth, so a map that scrolled away is re-derived, not restored.
     const byId = new Map(pending.map((p) => [`map-${p.entry.id}`, p]));
-    const live = new Map(); // element id -> { map, container, visible, seq }
-    let seq = 0;
 
-    const observer = new IntersectionObserver((records) => {
-      for (const record of records) {
-        const id = record.target.id;
-        if (record.isIntersecting) {
-          const existing = live.get(id);
-          if (existing) {
-            existing.visible = true;
-            existing.seq = seq++;
-          } else {
-            const item = byId.get(id);
-            if (item) initMap(record.target, item);
+    const pool = createMapPool({
+      maxLive: 6,
+      onEvict: (container) => container.classList.add('pending'),
+      create: (container) => {
+        const item = byId.get(container.id);
+        if (!item) return null;
+        container.classList.remove('pending');
+        const map = new maplibregl.Map({
+          container,
+          style: 'https://tiles.openfreemap.org/styles/dark',
+          center: LONDON_CENTER,
+          zoom: 9.4,
+          attributionControl: { compact: true },
+          // Scroll-zoom would hijack the page scroll in a gallery; drag and
+          // double-click still re-aggregate, which is the point worth feeling.
+          scrollZoom: false,
+        });
+
+        map.on('load', () => {
+          try {
+            map.addLayer(new ScreenGridLayerGL({
+              id: `atlas-${item.entry.id}`,
+              data,
+              ...item.compiled.layerOptions,
+            }));
+          } catch (e) {
+            console.error(`[atlas] ${item.entry.id} failed to render:`, e);
+            container.innerHTML = `<div class="spec-only">Render failed: ${escapeHtml(e.message)}</div>`;
           }
-        } else if (live.has(id)) {
-          live.get(id).visible = false;
-        }
-      }
-      evict();
-    }, { rootMargin: '250px' });
+        });
+        return map;
+      },
+    });
 
-    document.querySelectorAll('.map').forEach((el) => observer.observe(el));
-
-    /** Tear down the least-recently-seen off-screen maps until inside budget. */
-    function evict() {
-      while (live.size > MAX_LIVE_MAPS) {
-        let oldestId = null;
-        let oldestSeq = Infinity;
-        for (const [id, item] of live) {
-          if (item.visible) continue;
-          if (item.seq < oldestSeq) { oldestSeq = item.seq; oldestId = id; }
-        }
-        if (oldestId === null) return; // everything on screen; nothing to reclaim
-        const item = live.get(oldestId);
-        live.delete(oldestId);
-        item.map.remove();
-        item.container.innerHTML = '';
-        item.container.classList.add('pending');
-      }
-    }
-
-    function initMap(container, { entry, compiled }) {
-      container.classList.remove('pending');
-      const map = new maplibregl.Map({
-        container,
-        style: 'https://tiles.openfreemap.org/styles/dark',
-        center: LONDON_CENTER,
-        zoom: 9.4,
-        attributionControl: { compact: true },
-        // Scroll-zoom would hijack the page scroll in a gallery; drag and
-        // double-click still re-aggregate, which is the point worth feeling.
-        scrollZoom: false,
-      });
-
-      live.set(container.id, { map, container, visible: true, seq: seq++ });
-
-      map.on('load', () => {
-        try {
-          map.addLayer(new ScreenGridLayerGL({
-            id: `atlas-${entry.id}`,
-            data,
-            ...compiled.layerOptions,
-          }));
-        } catch (e) {
-          console.error(`[atlas] ${entry.id} failed to render:`, e);
-          container.innerHTML = `<div class="spec-only">Render failed: ${escapeHtml(e.message)}</div>`;
-        }
-      });
-    }
+    document.querySelectorAll('.map').forEach((el) => pool.observe(el));
   </script>
 </body>
 </html>
