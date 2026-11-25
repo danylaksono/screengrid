@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Grammar 01 — Density (validate → compile → render)</title>
-  <script src="https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.js"></script>
   <link href="https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.css" rel="stylesheet" />
   <style>
     :root { --panel: 380px; }
@@ -58,6 +57,7 @@
   </div>
 
   <script type="module">
+    import * as maplibregl from "https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.mjs";
     import { validateSpec, compileSpec, ScreenGridLayerGL } from '../../src/index.js';
     import { generateLondonPoints, buildLondonProfile, LONDON_CENTER } from '../data/london.js';
     import { colorScaleFromPalette } from './grammar-render-bridge.js';

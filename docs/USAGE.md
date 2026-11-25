@@ -252,7 +252,7 @@ npm install screengrid maplibre-gl
 2. Import and use:
 ```javascript
 import { ScreenGridLayerGL } from 'screengrid';
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 
 const gridLayer = new ScreenGridLayerGL({
   data: yourData,
@@ -277,8 +277,9 @@ The library is ES module compatible and works with:
 
 ```html
 <script src="https://unpkg.com/screengrid/dist/screengrid.umd.min.js"></script>
-<script src="https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.js"></script>
-<script>
+<link href="https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.css" rel="stylesheet">
+<script type="module">
+  import * as maplibregl from "https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.mjs";
   const { ScreenGridLayerGL } = ScreenGrid;
   // use ScreenGridLayerGL here
 </script>

@@ -1,3 +1,4 @@
+import * as maplibregl from "https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.mjs";
 import { parseUploadedFile, SAMPLE_DATA } from './data.js';
 import { profileDataset } from './profile.js';
 import { createDefaultSpec, applyPatch, clone } from './spec.js';

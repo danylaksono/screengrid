@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ScreenGrid - Data Utilities Example</title>
     <link href="https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.css" rel="stylesheet" />
-    <script src="https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.js"></script>
     <style>
         * {
             margin: 0;
@@ -116,6 +115,7 @@
     </div>
 
     <script type="module">
+      import * as maplibregl from "https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.mjs";
         import { ScreenGridLayerGL, groupBy, extractAttributes, computeStats, groupByTime, GlyphUtilities } from '../../src/index.js';
 
         // Generate sample data with multiple attributes

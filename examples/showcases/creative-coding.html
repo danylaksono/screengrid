@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ScreenGrid - Creative Coding Examples</title>
-    <script src="https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
         * {
@@ -258,6 +257,7 @@
     </div>
 
     <script type="module">
+      import * as maplibregl from "https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.mjs";
         import { ScreenGridLayerGL } from '../../src/index.js';
         
         // Generate random data points around San Francisco
