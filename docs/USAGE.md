@@ -12,7 +12,7 @@ npm install maplibre-gl
 # Or clone for development
 git clone https://github.com/danylaksono/screengrid.git
 cd screengrid
-npm install
+npm ci
 npm run build
 ```
 
@@ -277,7 +277,7 @@ The library is ES module compatible and works with:
 
 ```html
 <script src="https://unpkg.com/screengrid/dist/screengrid.umd.min.js"></script>
-<script src="https://unpkg.com/maplibre-gl@^4/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.js"></script>
 <script>
   const { ScreenGridLayerGL } = ScreenGrid;
   // use ScreenGridLayerGL here

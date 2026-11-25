@@ -2,7 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/screengrid.svg)](https://www.npmjs.com/package/screengrid)
 
-A GPU/Canvas hybrid Screen-Space Grid Aggregation library for MapLibre GL JS. This library provides efficient real-time aggregation of point data into screen-space grids with customizable styling, interactive features, and advanced glyph drawing capabilities. It also supports non-point geometries via a geometry placement preprocessor and per-feature glyph rendering.
+A screen-space grid aggregation library for MapLibre GL JS. Screengrid projects records through MapLibre, aggregates them into screen cells, and renders colors or glyphs on a Canvas 2D overlay. It also supports non-point geometries through geometry placement and per-feature glyph rendering.
 
 This library is inspired by Aidan Slingsby's [Gridded Glyphmaps](https://openaccess.city.ac.uk/id/eprint/31115/) and borrows some basic concepts from deck.gl's [`ScreenGridLayer`](https://deck.gl/docs/api-reference/aggregation-layers/screen-grid-layer), but is built from the ground up with a modular architecture.
 
@@ -61,7 +61,7 @@ map.on('load', async () => {
 
 ```html
 <script src="https://unpkg.com/screengrid/dist/screengrid.umd.min.js"></script>
-<script src="https://unpkg.com/maplibre-gl@^4/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/maplibre-gl@6.19.0/dist/maplibre-gl.js"></script>
 <script>
   const { ScreenGridLayerGL } = ScreenGrid;
   // use ScreenGridLayerGL here
@@ -216,7 +216,7 @@ See [QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md) for usage examples.
 ```bash
 git clone https://github.com/danylaksono/screengrid.git
 cd screengrid
-npm install
+npm ci
 npm run build
 npm test
 ```
@@ -278,10 +278,7 @@ MIT License - see LICENSE file for details.
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, verification, bug reports, and support.
 
 ## Related Documentation
 
